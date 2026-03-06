@@ -1,0 +1,414 @@
+/* frontend/assets/styles.css */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap');
+
+/* ===== متغيرات الألوان - هوية الهلال الأحمر ===== */
+:root {
+    /* الألوان الأساسية */
+    --srca-red: #CE2E26;
+    --srca-red-dark: #B71C1C;
+    --srca-white: #FFFFFF;
+    --srca-black: #1A1A2E;
+    
+    /* الألوان الثانوية */
+    --srca-green: #42924B;
+    --srca-green-dark: #2E7D32;
+    --srca-navy: #3B4A82;
+    --srca-navy-dark: #1A2B5C;
+    --srca-gold: #F1B944;
+    --srca-orange: #FF7C10;
+    --srca-teal: #3A8478;
+    --srca-blue: #45CFEF;
+    --srca-purple: #513A87;
+    
+    /* ألوان محايدة */
+    --gray-50: #F8FAFC;
+    --gray-100: #F1F5F9;
+    --gray-200: #E2E8F0;
+    --gray-300: #CBD5E1;
+    --gray-400: #94A3B8;
+    --gray-500: #64748B;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1E293B;
+    
+    /* تدرجات */
+    --gradient-red: linear-gradient(135deg, #CE2E26 0%, #B71C1C 100%);
+    --gradient-green: linear-gradient(135deg, #42924B 0%, #2E7D32 100%);
+    --gradient-navy: linear-gradient(135deg, #3B4A82 0%, #1A2B5C 100%);
+    
+    /* ظلال */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 16px rgba(206, 46, 38, 0.12);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+    
+    /* أحجام */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+}
+
+/* ===== تنسيقات عامة ===== */
+* {
+    font-family: 'Cairo', 'Tajawal', sans-serif;
+    box-sizing: border-box;
+}
+
+.stApp {
+    background: var(--gray-50);
+    direction: rtl;
+}
+
+/* ===== الشريط الجانبي ===== */
+section[data-testid="stSidebar"] {
+    background: var(--srca-white);
+    border-left: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+    padding: 1rem 0.5rem;
+}
+
+section[data-testid="stSidebar"] .stMarkdown h1 {
+    color: var(--srca-navy-dark);
+    font-weight: 800;
+    font-size: 1.25rem;
+    padding-right: 0.5rem;
+}
+
+section[data-testid="stSidebar"] .stMarkdown p {
+    color: var(--gray-500);
+    font-size: 0.85rem;
+    padding-right: 0.5rem;
+}
+
+/* ===== عناصر القائمة في الشريط الجانبي ===== */
+section[data-testid="stSidebar"] .stRadio > div {
+    background: transparent;
+    padding: 0.25rem;
+}
+
+section[data-testid="stSidebar"] .stRadio label {
+    color: var(--gray-600) !important;
+    font-weight: 500;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+}
+
+section[data-testid="stSidebar"] .stRadio label:hover {
+    background: var(--gray-100);
+    color: var(--srca-red) !important;
+}
+
+section[data-testid="stSidebar"] .stRadio label[data-checked="true"] {
+    background: var(--gradient-red);
+    color: white !important;
+    font-weight: 600;
+}
+
+/* ===== زر الخروج ===== */
+section[data-testid="stSidebar"] .stButton > button {
+    background: var(--gray-100);
+    color: var(--gray-600);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+section[data-testid="stSidebar"] .stButton > button:hover {
+    background: var(--gray-200);
+    color: var(--srca-red);
+    border-color: var(--srca-red);
+}
+
+/* ===== العناوين الرئيسية ===== */
+h1 {
+    color: var(--srca-navy-dark);
+    font-weight: 800;
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 3px solid var(--srca-red);
+    display: inline-block;
+}
+
+h2 {
+    color: var(--srca-navy);
+    font-weight: 700;
+    font-size: 1.4rem;
+    margin: 1.5rem 0 1rem;
+}
+
+h3 {
+    color: var(--gray-700);
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+/* ===== الأزرار الرئيسية ===== */
+.stButton > button[type="primary"] {
+    background: var(--gradient-red);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 0.5rem 1.5rem;
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s ease;
+}
+
+.stButton > button[type="primary"]:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(206, 46, 38, 0.2);
+}
+
+.stButton > button:not([type="primary"]) {
+    background: var(--gray-100);
+    color: var(--gray-600);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.stButton > button:not([type="primary"]):hover {
+    background: var(--gray-200);
+    color: var(--srca-navy);
+}
+
+/* ===== حقول الإدخال ===== */
+.stTextInput > div > div > input,
+.stSelectbox > div > div > select,
+.stTextArea > div > textarea {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 1rem;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+.stTextInput > div > div > input:focus,
+.stSelectbox > div > div > select:focus,
+.stTextArea > div > textarea:focus {
+    border-color: var(--srca-red);
+    box-shadow: 0 0 0 3px rgba(206, 46, 38, 0.1);
+}
+
+/* ===== البطاقات الإحصائية ===== */
+div[data-testid="stMetric"] {
+    background: white;
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+}
+
+div[data-testid="stMetric"]:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--srca-red);
+}
+
+div[data-testid="stMetric"] label {
+    color: var(--gray-500) !important;
+    font-size: 0.9rem !important;
+}
+
+div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+    color: var(--srca-navy-dark) !important;
+    font-weight: 800 !important;
+    font-size: 1.8rem !important;
+}
+
+/* ===== التبويبات ===== */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0.5rem;
+    background: transparent;
+    border-bottom: 2px solid var(--gray-200);
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: transparent;
+    color: var(--gray-500);
+    font-weight: 600;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    color: var(--srca-red);
+    background: var(--gray-100);
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--srca-red) !important;
+    border-bottom: 3px solid var(--srca-red) !important;
+    background: transparent !important;
+}
+
+/* ===== الجداول ===== */
+.stDataFrame {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.stDataFrame th {
+    background: var(--gray-100);
+    color: var(--srca-navy-dark);
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid var(--srca-red);
+}
+
+.stDataFrame td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--gray-200);
+    color: var(--gray-700);
+}
+
+/* ===== رسائل التنبيه ===== */
+.stAlert {
+    border-radius: var(--radius-md);
+    border-right: 4px solid;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.stAlert-success {
+    background: #F0F9F0;
+    border-right-color: var(--srca-green);
+}
+
+.stAlert-error {
+    background: #FEF2F2;
+    border-right-color: var(--srca-red);
+}
+
+.stAlert-warning {
+    background: #FFFBEB;
+    border-right-color: var(--srca-gold);
+}
+
+.stAlert-info {
+    background: #EFF6FF;
+    border-right-color: var(--srca-blue);
+}
+
+/* ===== شريط التقدم ===== */
+.stProgress > div > div > div {
+    background: var(--gradient-red);
+    border-radius: 9999px;
+}
+
+/* ===== الفواصل ===== */
+hr {
+    margin: 1.5rem 0;
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gray-300), transparent);
+}
+
+/* ===== تنسيقات خاصة لصفحة تسجيل الدخول ===== */
+.login-container {
+    max-width: 400px;
+    margin: 100px auto;
+    background: white;
+    padding: 2.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+    border-top: 4px solid var(--srca-red);
+}
+
+.login-container h1 {
+    border-bottom: none;
+    font-size: 1.5rem;
+    margin-top: 1rem;
+}
+
+.login-logo {
+    width: 100px;
+    margin-bottom: 1rem;
+}
+
+/* ===== بطاقات المراكز والموظفين ===== */
+.center-card, .employee-card {
+    background: white;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gray-200);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+}
+
+.center-card:hover, .employee-card:hover {
+    border-color: var(--srca-red);
+    box-shadow: var(--shadow-md);
+}
+
+.center-card h4, .employee-card h4 {
+    color: var(--srca-navy-dark);
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+}
+
+.center-card p, .employee-card p {
+    color: var(--gray-500);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+/* ===== حالة النشاط ===== */
+.status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.8rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-active {
+    background: #E8F5E9;
+    color: var(--srca-green-dark);
+}
+
+.status-inactive {
+    background: #FFEBEE;
+    color: var(--srca-red-dark);
+}
+
+/* ===== شعار قطاع الجنوب ===== */
+.south-sector-badge {
+    background: var(--gradient-navy);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.south-sector-badge img {
+    height: 20px;
+    width: auto;
+}
+
+/* ===== تذييل الصفحة ===== */
+.footer {
+    text-align: center;
+    padding: 2rem 0 1rem;
+    color: var(--gray-400);
+    font-size: 0.8rem;
+    border-top: 1px solid var(--gray-200);
+    margin-top: 3rem;
+}

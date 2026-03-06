@@ -1,0 +1,97 @@
+# backend/app/api/endpoints/shifts.py
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+from typing import Optional, List
+from uuid import UUID
+from datetime import date, datetime
+
+from app.api import deps
+from app.models.shift import Shift, ShiftAssignment
+from app.models.user import User
+from app.schemas.shift import Shift as ShiftSchema, ShiftCreate, ShiftUpdate, ShiftList
+from app.schemas.shift import ShiftAssignment as ShiftAssignmentSchema, ShiftAssignmentCreate
+
+router = APIRouter()
+
+@router.get("/", response_model=ShiftList)
+def get_shifts(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+    skip: int = Query(0, description="تخطي"),
+    limit: int = Query(100, description="الحد الأقصى"),
+    center_id: Optional[UUID] = Query(None, description="تصفية حسب المركز"),
+    shift_date: Optional[date] = Query(None, description="تصفية حسب التاريخ"),
+) -> dict:
+    """جلب قائمة المناوبات"""
+    query = db.query(Shift)
+    
+    if center_id:
+        query = query.filter(Shift.center_id == center_id)
+    
+    if shift_date:
+        query = query.filter(Shift.date >= shift_date)
+    
+    total = query.count()
+    shifts = query.offset(skip).limit(limit).all()
+    
+    return {
+        "total": total,
+        "items": shifts
+    }
+
+@router.post("/", response_model=ShiftSchema, status_code=status.HTTP_201_CREATED)
+def create_shift(
+    shift_in: ShiftCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+) -> Shift:
+    """إنشاء مناوبة جديدة"""
+    if current_user.role not in ["chief_paramedic", "field_leader", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="لا تملك صلاحية إنشاء مناوبات"
+        )
+    
+    shift = Shift(**shift_in.dict())
+    db.add(shift)
+    db.commit()
+    db.refresh(shift)
+    
+    return shift
+
+@router.get("/{shift_id}", response_model=ShiftSchema)
+def get_shift(
+    shift_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+) -> Shift:
+    """جلب بيانات مناوبة محددة"""
+    shift = db.query(Shift).filter(Shift.id == shift_id).first()
+    
+    if not shift:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="المناوبة غير موجودة"
+        )
+    
+    return shift
+
+@router.post("/{shift_id}/assign")
+def assign_employee(
+    shift_id: UUID,
+    assignment: ShiftAssignmentCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+) -> dict:
+    """تعيين موظف لمناوبة"""
+    if current_user.role not in ["chief_paramedic", "field_leader"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="لا تملك صلاحية تعيين موظفين"
+        )
+    
+    shift_assignment = ShiftAssignment(**assignment.dict())
+    db.add(shift_assignment)
+    db.commit()
+    
+    return {"message": "تم تعيين الموظف بنجاح"}

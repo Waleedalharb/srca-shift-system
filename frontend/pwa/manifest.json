@@ -1,0 +1,55 @@
+"icons": [
+  {
+    "src": "https://upload.wikimedia.org/wikipedia/ar/thumb/9/9e/Saudi_Red_Crescent.png/72px-Saudi_Red_Crescent.png",
+    "sizes": "72x72",
+    "type": "image/png"
+  },
+  {
+    "src": "https://upload.wikimedia.org/wikipedia/ar/thumb/9/9e/Saudi_Red_Crescent.png/96px-Saudi_Red_Crescent.png",
+    "sizes": "96x96",
+    "type": "image/png"
+  },
+  {
+    "src": "https://upload.wikimedia.org/wikipedia/ar/thumb/9/9e/Saudi_Red_Crescent.png/128px-Saudi_Red_Crescent.png",
+    "sizes": "128x128",
+    "type": "image/png"
+  },
+  {
+    "src": "https://upload.wikimedia.org/wikipedia/ar/thumb/9/9e/Saudi_Red_Crescent.png/144px-Saudi_Red_Crescent.png",
+    "sizes": "144x144",
+    "type": "image/png"
+  },
+  {
+    "src": "https://upload.wikimedia.org/wikipedia/ar/thumb/9/9e/Saudi_Red_Crescent.png/152px-Saudi_Red_Crescent.png",
+    "sizes": "152x152",
+    "type": "image/png"
+  },
+  {
+    "src": "https://upload.wikimedia.org/wikipedia/ar/thumb/9/9e/Saudi_Red_Crescent.png/192px-Saudi_Red_Crescent.png",
+    "sizes": "192x192",
+    "type": "image/png"
+  },
+  {
+    "src": "https://upload.wikimedia.org/wikipedia/ar/thumb/9/9e/Saudi_Red_Crescent.png/384px-Saudi_Red_Crescent.png",
+    "sizes": "384x384",
+    "type": "image/png"
+  },
+  {
+    "src": "https://upload.wikimedia.org/wikipedia/ar/thumb/9/9e/Saudi_Red_Crescent.png/512px-Saudi_Red_Crescent.png",
+    "sizes": "512x512",
+    "type": "image/png"
+  }
+]
+
+"icons": [
+  {
+    "src": "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0/svgs/solid/hospital.svg",
+    "sizes": "72x72",
+    "type": "image/svg+xml"
+  },
+  {
+    "src": "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0/svgs/solid/hospital.svg",
+    "sizes": "192x192",
+    "type": "image/svg+xml"
+  }
+]

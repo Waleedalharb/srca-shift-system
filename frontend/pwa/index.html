@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>نظام إدارة المراكز الإسعافية - قطاع الجنوب</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SRCA جنوب">
+    <meta name="application-name" content="SRCA قطاع الجنوب">
+    <meta name="theme-color" content="#CE2E26">
+    <meta name="msapplication-TileColor" content="#CE2E26">
+    <meta name="msapplication-TileImage" content="/assets/icons/ms-icon-144x144.png">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- iOS Icons -->
+    <link rel="apple-touch-icon" href="/assets/icons/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/assets/icons/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/assets/icons/icon-192x192.png">
+    
+    <!-- Splash Screens for iOS -->
+    <link rel="apple-touch-startup-image" href="/assets/splash/iphone5_splash.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)">
+    <link rel="apple-touch-startup-image" href="/assets/splash/iphone6_splash.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)">
+    <link rel="apple-touch-startup-image" href="/assets/splash/iphoneplus_splash.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)">
+    <link rel="apple-touch-startup-image" href="/assets/splash/iphonex_splash.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)">
+    
+    <!-- Styles -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #F8FAFC;
+        }
+        
+        #app-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: white;
+        }
+        
+        /* شاشة التحميل */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #CE2E26 0%, #B71C1C 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+            color: white;
+            text-align: center;
+            direction: rtl;
+        }
+        
+        #splash-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .splash-logo {
+            width: 120px;
+            height: 120px;
+            background: white;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .splash-logo svg {
+            width: 80px;
+            height: 80px;
+        }
+        
+        .splash-title {
+            font-family: 'Cairo', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .splash-subtitle {
+            font-family: 'Cairo', sans-serif;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .splash-loader {
+            margin-top: 30px;
+            width: 48px;
+            height: 48px;
+            border: 5px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* زر التثبيت (للمتصفحات) */
+        #install-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #CE2E26;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 12px 24px;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 600;
+            font-size: 16px;
+            box-shadow: 0 4px 12px rgba(206,46,38,0.4);
+            cursor: pointer;
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        #install-button.show {
+            display: flex;
+        }
+        
+        #install-button:hover {
+            background: #B71C1C;
+        }
+        
+        /* وضع Offline */
+        #offline-notice {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: #F1B944;
+            color: #7A5800;
+            border-radius: 50px;
+            padding: 8px 16px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: none;
+        }
+        
+        #offline-notice.show {
+            display: block;
+        }
+    </style>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- شاشة التحميل -->
+    <div id="splash-screen">
+        <div class="splash-logo">
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <circle cx="50" cy="50" r="45" fill="#CE2E26" stroke="white" stroke-width="2"/>
+                <path d="M50 20 L50 80 M20 50 L80 50" stroke="white" stroke-width="8" stroke-linecap="round"/>
+                <circle cx="50" cy="50" r="15" fill="white" stroke="#CE2E26" stroke-width="2"/>
+            </svg>
+        </div>
+        <div class="splash-title">نظام إدارة المراكز الإسعافية</div>
+        <div class="splash-subtitle">قطاع الجنوب - هيئة الهلال الأحمر السعودي</div>
+        <div class="splash-loader"></div>
+    </div>
+    
+    <!-- حاوية التطبيق -->
+    <div id="app-container">
+        <iframe id="app-frame" src="http://localhost:8501" allow="geolocation; microphone; camera; notifications"></iframe>
+    </div>
+    
+    <!-- زر التثبيت -->
+    <button id="install-button" class="install-button">
+        <span>📱</span>
+        <span>تثبيت التطبيق</span>
+    </button>
+    
+    <!-- إشعار وضع Offline -->
+    <div id="offline-notice">🔴 أنت الآن في وضع عدم الاتصال</div>
+    
+    <script>
+        // Service Worker التسجيل
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registered:', registration);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+        
+        // إخفاء شاشة التحميل بعد تحميل التطبيق
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.getElementById('splash-screen').classList.add('hidden');
+            }, 1500);
+        });
+        
+        // كشف حالة الاتصال
+        function updateOnlineStatus() {
+            const offlineNotice = document.getElementById('offline-notice');
+            if (navigator.onLine) {
+                offlineNotice.classList.remove('show');
+            } else {
+                offlineNotice.classList.add('show');
+            }
+        }
+        
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus();
+        
+        // زر التثبيت (BeforeInstallPrompt)
+        let deferredPrompt;
+        const installButton = document.getElementById('install-button');
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installButton.classList.add('show');
+            
+            installButton.addEventListener('click', async () => {
+                installButton.classList.remove('show');
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`User response to the install prompt: ${outcome}`);
+                deferredPrompt = null;
+            });
+        });
+        
+        // iOS: إظهار تعليمات التثبيت
+        const isIos = () => {
+            const userAgent = window.navigator.userAgent.toLowerCase();
+            return /iphone|ipad|ipod/.test(userAgent);
+        }
+        
+        const isInStandaloneMode = () => ('standalone' in window.navigator) && (window.navigator.standalone);
+        
+        if (isIos() && !isInStandaloneMode()) {
+            // إظهار تعليمات لـ iOS
+            setTimeout(() => {
+                const iosInstructions = document.createElement('div');
+                iosInstructions.style.cssText = `
+                    position: fixed;
+                    bottom: 80px;
+                    left: 20px;
+                    right: 20px;
+                    background: #3B4A82;
+                    color: white;
+                    padding: 16px;
+                    border-radius: 12px;
+                    font-family: 'Cairo', sans-serif;
+                    text-align: center;
+                    z-index: 2000;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                `;
+                iosInstructions.innerHTML = `
+                    <div style="font-size: 20px; margin-bottom: 8px;">📱</div>
+                    <div style="font-weight: 700;">لتثبيت التطبيق على iPhone:</div>
+                    <div style="margin-top: 8px;">1. اضغط على زر المشاركة <span style="font-size: 20px;">⬆️</span></div>
+                    <div style="margin-bottom: 8px;">2. اختر "إضافة إلى الشاشة الرئيسية" <span style="font-size: 20px;">🏠</span></div>
+                    <button onclick="this.parentElement.remove()" style="
+                        background: white;
+                        color: #3B4A82;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                        margin-top: 12px;
+                        font-family: 'Cairo', sans-serif;
+                        font-weight: 600;
+                    ">فهمت ✅</button>
+                `;
+                document.body.appendChild(iosInstructions);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
