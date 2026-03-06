@@ -5,8 +5,20 @@ from config import config
 def show_login_page():
     """صفحة تسجيل الدخول"""
     
+    # إخفاء الشريط الجانبي بالكامل
     st.markdown("""
     <style>
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+        [data-testid="stSidebarContent"] {
+            display: none !important;
+        }
+        .main .block-container {
+            max-width: 100% !important;
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
+        }
         .stApp { background: #F8FAFC; }
         .login-container {
             max-width: 400px;
@@ -34,12 +46,6 @@ def show_login_page():
             color: white;
             box-shadow: 0 4px 12px rgba(206,46,38,0.3);
         }
-        .sector-title {
-            color: #CE2E26;
-            margin: 0;
-            font-size: 1.2rem;
-            font-weight: 700;
-        }
         .south-sector-text {
             color: #3B4A82;
             font-weight: 600;
@@ -59,10 +65,6 @@ def show_login_page():
             border-radius: 8px;
             border: 1px solid #E2E8F0;
         }
-        .stTextInput > div > div > input:focus {
-            border-color: #CE2E26;
-            box-shadow: 0 0 0 3px rgba(206,46,38,0.1);
-        }
         .stButton > button {
             background: linear-gradient(135deg, #CE2E26 0%, #B71C1C 100%);
             color: white;
@@ -70,17 +72,6 @@ def show_login_page():
             padding: 0.75rem;
             border-radius: 8px;
             border: none;
-            transition: all 0.3s;
-        }
-        .stButton > button:hover {
-            opacity: 0.9;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(206,46,38,0.3);
-        }
-        .footer-text {
-            color: #64748B;
-            font-size: 0.75rem;
-            margin-top: 2rem;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -90,11 +81,11 @@ def show_login_page():
     with col2:
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
         
-        # ===== شعار الهيئة (أيقونة احتياطية) =====
+        # الشعار
         st.markdown("""
         <div class="logo-container">
             <div class="logo-circle">🚑</div>
-            <div class="sector-title">الهلال الأحمر السعودي</div>
+            <div style="color: #CE2E26; font-weight: 700;">الهلال الأحمر السعودي</div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -102,19 +93,18 @@ def show_login_page():
         <div class="login-title">{config.APP_NAME}</div>
         """, unsafe_allow_html=True)
         
-        # ===== نص قطاع الجنوب تحت العنوان =====
         st.markdown("""
         <div class="south-sector-text">
             قطاع الجنوب - هيئة الهلال الأحمر السعودي
         </div>
         """, unsafe_allow_html=True)
         
-        # ===== نموذج تسجيل الدخول =====
+        # نموذج تسجيل الدخول
         with st.form("login_form"):
             username = st.text_input("👤 اسم المستخدم", placeholder="أدخل اسم المستخدم")
             password = st.text_input("🔐 كلمة المرور", type="password", placeholder="أدخل كلمة المرور")
             
-            if st.form_submit_button("دخول", use_container_width=True):
+            if st.form_submit_button("دخول", use_container_width=True, type="primary"):
                 if not username or not password:
                     st.error("❌ الرجاء إدخال اسم المستخدم وكلمة المرور")
                 else:
@@ -124,13 +114,5 @@ def show_login_page():
                             st.rerun()
                         else:
                             st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
-        
-        # ===== تذييل الصفحة =====
-        st.markdown("""
-        <div class="footer-text">
-            © 2026 هيئة الهلال الأحمر السعودي - قطاع الجنوب<br>
-            جميع الحقوق محفوظة
-        </div>
-        """, unsafe_allow_html=True)
         
         st.markdown('</div>', unsafe_allow_html=True)
