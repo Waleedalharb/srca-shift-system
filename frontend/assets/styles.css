@@ -1,0 +1,224 @@
+/* frontend/assets/styles.css */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@400;500;700;900&display=swap');
+
+/* ===== متغيرات الألوان - هوية الهلال الأحمر ===== */
+:root {
+    /* الألوان الأساسية */
+    --srca-red: #CE2E26;
+    --srca-red-dark: #B71C1C;
+    --srca-white: #FFFFFF;
+    --srca-black: #1A1A2E;
+    
+    /* الألوان الثانوية */
+    --srca-green: #42924B;
+    --srca-green-dark: #2E7D32;
+    --srca-navy: #3B4A82;
+    --srca-navy-dark: #1A2B5C;
+    --srca-gold: #F1B944;
+    --srca-orange: #FF7C10;
+    --srca-teal: #3A8478;
+    --srca-blue: #45CFEF;
+    --srca-purple: #513A87;
+    
+    /* ألوان محايدة */
+    --gray-50: #F8FAFC;
+    --gray-100: #F1F5F9;
+    --gray-200: #E2E8F0;
+    --gray-300: #CBD5E1;
+    --gray-400: #94A3B8;
+    --gray-500: #64748B;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1E293B;
+    
+    /* تدرجات */
+    --gradient-red: linear-gradient(135deg, #CE2E26 0%, #B71C1C 100%);
+    --gradient-green: linear-gradient(135deg, #42924B 0%, #2E7D32 100%);
+    --gradient-navy: linear-gradient(135deg, #3B4A82 0%, #1A2B5C 100%);
+    
+    /* ظلال */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 16px rgba(206, 46, 38, 0.12);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+    
+    /* أحجام */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+}
+
+/* ===== تنسيقات عامة ===== */
+* {
+    font-family: 'Cairo', 'Tajawal', sans-serif;
+    box-sizing: border-box;
+}
+
+.stApp {
+    background: var(--gray-50);
+    direction: rtl;
+}
+
+/* ===== الشريط الجانبي ===== */
+section[data-testid="stSidebar"] {
+    background: var(--srca-white);
+    border-left: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+    padding: 1rem 0.5rem;
+}
+
+section[data-testid="stSidebar"] .stMarkdown h1 {
+    color: var(--srca-navy-dark);
+    font-weight: 800;
+    font-size: 1.25rem;
+    padding-right: 0.5rem;
+}
+
+section[data-testid="stSidebar"] .stMarkdown p {
+    color: var(--gray-500);
+    font-size: 0.85rem;
+    padding-right: 0.5rem;
+}
+
+/* ===== عناصر القائمة في الشريط الجانبي ===== */
+section[data-testid="stSidebar"] .stRadio > div {
+    background: transparent;
+    padding: 0.25rem;
+}
+
+section[data-testid="stSidebar"] .stRadio label {
+    color: var(--gray-600) !important;
+    font-weight: 500;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+}
+
+section[data-testid="stSidebar"] .stRadio label:hover {
+    background: var(--gray-100);
+    color: var(--srca-red) !important;
+}
+
+section[data-testid="stSidebar"] .stRadio label[data-checked="true"] {
+    background: var(--gradient-red);
+    color: white !important;
+    font-weight: 600;
+}
+
+/* ===== زر الخروج ===== */
+section[data-testid="stSidebar"] .stButton > button {
+    background: var(--gray-100);
+    color: var(--gray-600);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+section[data-testid="stSidebar"] .stButton > button:hover {
+    background: var(--gray-200);
+    color: var(--srca-red);
+    border-color: var(--srca-red);
+}
+
+/* ===== العناوين الرئيسية ===== */
+h1 {
+    color: var(--srca-navy-dark);
+    font-weight: 800;
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 3px solid var(--srca-red);
+    display: inline-block;
+}
+
+h2 {
+    color: var(--srca-navy);
+    font-weight: 700;
+    font-size: 1.4rem;
+    margin: 1.5rem 0 1rem;
+}
+
+h3 {
+    color: var(--gray-700);
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+/* ===== الأزرار الرئيسية ===== */
+.stButton > button[type="primary"] {
+    background: var(--gradient-red);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 0.5rem 1.5rem;
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s ease;
+}
+
+.stButton > button[type="primary"]:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(206, 46, 38, 0.2);
+}
+
+.stButton > button:not([type="primary"]) {
+    background: var(--gray-100);
+    color: var(--gray-600);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.stButton > button:not([type="primary"]):hover {
+    background: var(--gray-200);
+    color: var(--srca-navy);
+}
+
+/* ===== حقول الإدخال ===== */
+.stTextInput > div > div > input,
+.stSelectbox > div > div > select,
+.stTextArea > div > textarea {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 1rem;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+.stTextInput > div > div > input:focus,
+.stSelectbox > div > div > select:focus,
+.stTextArea > div > textarea:focus {
+    border-color: var(--srca-red);
+    box-shadow: 0 0 0 3px rgba(206, 46, 38, 0.1);
+}
+
+/* ===== البطاقات الإحصائية ===== */
+div[data-testid="stMetric"] {
+    background: white;
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+}
+
+div[data-testid="stMetric"]:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--srca-red);
+}
+
+div[data-testid="stMetric"] label {
+    color: var(--gray-500) !important;
+    font-size: 0.9rem !important;
+}
+
+div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+    color: var(--srca-navy-dark) !important;
+    font-weight: 800 !important;
+    font-size: 1.8rem !important;
+}
