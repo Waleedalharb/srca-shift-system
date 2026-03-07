@@ -453,18 +453,18 @@ def show_attendance():
             st.dataframe(df_history[['المركز', 'التاريخ', 'الإجمالي', 'حاضر', 'غائب', 'متأخر', 'تاريخ الرفع']], 
                         use_container_width=True, hide_index=True)
             
-            # عرض الروابط
+            # عرض الروابط - ✅ تم إصلاح الخطأ هنا
             st.markdown("### 🔗 روابط التقارير")
-            for idx, row in history[:5].iterrows():  # آخر 5 تقارير
+            for i, record in enumerate(history[:5]):  # استخدام enumerate بدلاً من iterrows
                 with st.container():
                     col1, col2, col3 = st.columns([2, 2, 1])
                     with col1:
-                        st.write(f"**{row['center_name']}**")
+                        st.write(f"**{record.get('center_name', '')}**")
                     with col2:
-                        st.write(f"{row['report_date']}")
+                        st.write(f"{record.get('report_date', '')}")
                     with col3:
-                        if row.get('file_url'):
-                            st.link_button("📥 عرض", row['file_url'])
+                        if record.get('file_url'):
+                            st.link_button("📥 عرض", record['file_url'])
                     st.divider()
         else:
             st.info("لا توجد تقارير مرفوعة بعد")
