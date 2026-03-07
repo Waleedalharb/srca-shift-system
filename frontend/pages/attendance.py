@@ -60,8 +60,25 @@ def _get_services():
     
     return es, cs, ss
 
+# ===== دوال الحفظ في session_state =====
+def _get_saved_attendance(center_id, selected_date):
+    """استرجاع البيانات المحفوظة من session_state"""
+    key = f"attendance_{center_id}_{selected_date}"
+    return st.session_state.get(key, None)
+
+def _save_attendance_to_session(center_id, selected_date, data, delegator, substitute, notes):
+    """حفظ البيانات في session_state"""
+    key = f"attendance_{center_id}_{selected_date}"
+    st.session_state[key] = {
+        "data": data,
+        "delegator": delegator,
+        "substitute": substitute,
+        "notes": notes,
+        "saved_at": datetime.now().isoformat()
+    }
+
 def show_attendance():
-    """صفحة التكميل الذكي - مع طباعة تقرير قديم"""
+    """صفحة التكميل الذكي - مع حفظ البيانات في session_state"""
     
     # التحقق من حالة الطباعة أولاً
     if st.session_state.get("print_page", False):
@@ -78,7 +95,7 @@ def show_attendance():
             st.rerun()
         return
     
-    page_header("📋 التكميل الذكي", "تسجيل الحضور مع أرشفة سحابية", "📝")
+    page_header("📋 التكميل الذكي", "تسجيل الحضور مع حفظ تلقائي", "📝")
     
     from utils.supabase_storage import SupabaseStorage
     storage = SupabaseStorage()
@@ -141,6 +158,9 @@ def show_attendance():
         
         st.success(f"✅ عدد الموظفين المطلوب حضورهم: {len(active_employees)}")
         
+        # ===== استرجاع البيانات المحفوظة إذا وجدت =====
+        saved_data = _get_saved_attendance(center_id, selected_date)
+        
         # ===== نموذج التكميل =====
         st.markdown("---")
         st.markdown("### 📝 تسجيل الحضور")
@@ -151,6 +171,11 @@ def show_attendance():
             emp_id = str(emp["id"])
             planned_shift = planned_map.get(emp_id, "off")
             planned_info = SHIFT_TYPES.get(planned_shift, SHIFT_TYPES["off"])
+            
+            # البحث عن بيانات محفوظة لهذا الموظف
+            saved_emp_data = None
+            if saved_data and "data" in saved_data:
+                saved_emp_data = next((item for item in saved_data["data"] if item["employee_id"] == emp_id), None)
             
             with st.container():
                 st.markdown(f"#### 👤 {emp['full_name']} ({emp.get('emp_no', '')})")
@@ -168,45 +193,65 @@ def show_attendance():
                 col1, col2, col3, col4, col5 = st.columns(5)
                 
                 with col1:
-                    # نوع المناوبة الفعلية
+                    # نوع المناوبة الفعلية (مع استرجاع القيمة المحفوظة)
+                    default_shift_index = list(SHIFT_TYPES.keys()).index(planned_shift) if planned_shift in SHIFT_TYPES else 0
+                    if saved_emp_data and saved_emp_data.get("actual_shift"):
+                        try:
+                            default_shift_index = list(SHIFT_TYPES.keys()).index(saved_emp_data["actual_shift"])
+                        except:
+                            pass
+                    
                     actual_shift = st.selectbox(
                         "المناوبة الفعلية",
                         options=list(SHIFT_TYPES.keys()),
                         format_func=lambda x: f"{SHIFT_TYPES[x]['icon']} {SHIFT_TYPES[x]['name']}",
-                        index=list(SHIFT_TYPES.keys()).index(planned_shift) if planned_shift in SHIFT_TYPES else 0,
+                        index=default_shift_index,
                         key=f"shift_{emp_id}"
                     )
                 
                 with col2:
-                    # الحالة
+                    # الحالة (مع استرجاع القيمة المحفوظة)
+                    default_status = saved_emp_data.get("status", "حاضر") if saved_emp_data else "حاضر"
+                    status_options = ["حاضر", "غائب", "متأخر", "مهمة رسمية"]
+                    default_status_index = status_options.index(default_status) if default_status in status_options else 0
+                    
                     status = st.selectbox(
                         "الحالة",
-                        ["حاضر", "غائب", "متأخر", "مهمة رسمية"],
+                        status_options,
+                        index=default_status_index,
                         key=f"status_{emp_id}"
                     )
                 
                 with col3:
-                    # وقت الحضور الفعلي
+                    # وقت الحضور الفعلي (مع استرجاع القيمة المحفوظة)
+                    default_start = safe_time(saved_emp_data.get("actual_start", planned_info['start']) if saved_emp_data else planned_info['start'])
                     actual_start = st.time_input(
                         "⏰ وقت الحضور",
-                        value=safe_time(planned_info['start']),
+                        value=default_start,
                         key=f"start_{emp_id}"
                     )
                 
                 with col4:
-                    # وقت الانصراف الفعلي
+                    # وقت الانصراف الفعلي (مع استرجاع القيمة المحفوظة)
+                    default_end = safe_time(saved_emp_data.get("actual_end", planned_info['end']) if saved_emp_data else planned_info['end'])
                     actual_end = st.time_input(
                         "🕒 وقت الانصراف",
-                        value=safe_time(planned_info['end']),
+                        value=default_end,
                         key=f"end_{emp_id}"
                     )
                 
                 with col5:
                     # وقت التأخير (يظهر فقط إذا كان متأخر)
                     if status == "متأخر":
+                        default_late = time(8, 15)
+                        if saved_emp_data and saved_emp_data.get("late_time"):
+                            try:
+                                default_late = datetime.strptime(saved_emp_data["late_time"], "%H:%M").time()
+                            except:
+                                pass
                         late_time = st.time_input(
                             "⏱️ وقت التأخير",
-                            value=time(8, 15),
+                            value=default_late,
                             key=f"late_{emp_id}"
                         )
                     else:
@@ -229,28 +274,37 @@ def show_attendance():
                 
                 st.markdown("---")
         
-        # ===== التوكيل والبديل =====
+        # ===== التوكيل والبديل (مع استرجاع القيم المحفوظة) =====
         st.markdown("### 🔄 التوكيل والبديل")
         
         emp_options = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in active_employees]
         
+        # القيم المحفوظة للتوكيل
+        saved_delegator = saved_data.get("delegator", "لا يوجد") if saved_data else "لا يوجد"
+        saved_substitute = saved_data.get("substitute", "لا يوجد") if saved_data else "لا يوجد"
+        saved_notes = saved_data.get("notes", "") if saved_data else ""
+        
         col1, col2 = st.columns(2)
         
         with col1:
-            delegator = st.selectbox("👤 الموكل (الموظف الأساسي)", ["لا يوجد"] + emp_options)
+            delegator = st.selectbox("👤 الموكل (الموظف الأساسي)", ["لا يوجد"] + emp_options, 
+                                      index=0 if saved_delegator == "لا يوجد" else (["لا يوجد"] + emp_options).index(saved_delegator) if saved_delegator in emp_options else 0)
         
         with col2:
-            substitute = st.selectbox("🔄 البديل", ["لا يوجد"] + emp_options)
+            substitute = st.selectbox("🔄 البديل", ["لا يوجد"] + emp_options,
+                                       index=0 if saved_substitute == "لا يوجد" else (["لا يوجد"] + emp_options).index(saved_substitute) if saved_substitute in emp_options else 0)
         
-        notes = st.text_area("📝 ملاحظات", placeholder="أي ملاحظات إضافية...")
+        notes = st.text_area("📝 ملاحظات", value=saved_notes, placeholder="أي ملاحظات إضافية...")
         
         # ===== حفظ التكميل =====
         col1, col2 = st.columns(2)
         
         with col1:
             if st.button("💾 حفظ التكميل", type="primary", use_container_width=True):
-                st.success("✅ تم حفظ التكميل بنجاح")
-                st.balloons()
+                # حفظ في session_state
+                _save_attendance_to_session(center_id, selected_date, attendance_data, delegator, substitute, notes)
+                
+                st.success("✅ تم حفظ التكميل محلياً")
                 
                 # رفع التقرير إلى Supabase
                 with st.spinner("جاري رفع التقرير إلى التخزين السحابي..."):
@@ -319,7 +373,7 @@ def show_attendance():
                     """, unsafe_allow_html=True)
         
         with col2:
-            # زر طباعة التقرير (يظهر بعد حفظ البيانات)
+            # زر طباعة التقرير
             if st.button("🖨️ طباعة التقرير", use_container_width=True):
                 # تجهيز بيانات الطباعة
                 print_data = []
