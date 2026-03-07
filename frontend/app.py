@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ===== تحسينات PWA =====
+# تنسيقات محسنة
 st.markdown("""
 <style>
     /* إخفاء عناصر Streamlit غير المرغوب فيها */
@@ -32,69 +32,111 @@ st.markdown("""
     .stApp [data-testid="stDecoration"] {display: none;}
     .stApp [data-testid="stStatusWidget"] {display: none;}
     
-    /* تحسين للجوال */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-        }
-        .stRadio > div {
-            gap: 0.25rem;
-        }
-        .stRadio label {
-            padding: 0.3rem 0.5rem;
-            font-size: 0.8rem;
-        }
+    /* تنسيقات الشريط الجانبي */
+    [data-testid="stSidebarNav"] { display: none; }
+    section[data-testid="stSidebar"] {
+        background: white;
+        border-left: 1px solid #E2E8F0;
+        padding: 1rem 0.5rem;
+        box-shadow: -4px 0 12px rgba(0,0,0,0.02);
     }
     
-    /* تنسيقات عامة */
-    [data-testid="stSidebarNav"] { display: none; }
-    .main > div { padding-top: 0; }
+    /* الشعار في الشريط الجانبي */
     .sidebar-logo {
         text-align: center;
         margin-bottom: 1rem;
-        padding: 1rem 0;
+        padding: 1rem;
+        border-bottom: 1px solid #F1F5F9;
     }
     .sidebar-logo img {
-        width: 70px;
+        width: 60px;
         height: auto;
+        display: block;
+        margin: 0 auto;
     }
+    .sidebar-title {
+        text-align: center;
+        color: #1A2B5C;
+        font-weight: 700;
+        font-size: 0.9rem;
+        margin: 0.5rem 0 0 0;
+    }
+    
+    /* شعار قطاع الجنوب */
     .south-sector-badge {
         background: linear-gradient(135deg, #3B4A82 0%, #1A2B5C 100%);
         color: white;
         padding: 0.5rem 1rem;
-        border-radius: 20px;
+        border-radius: 30px;
         text-align: center;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        margin: 0.5rem auto 1rem auto;
+        margin: 1rem auto;
         width: fit-content;
+        letter-spacing: 0.3px;
     }
+    
+    /* معلومات المستخدم */
     .user-info {
         background: #F8FAFC;
-        padding: 0.8rem;
-        border-radius: 12px;
-        margin-bottom: 1rem;
+        padding: 1rem;
+        border-radius: 16px;
+        margin: 1rem 0;
         text-align: center;
         border: 1px solid #E2E8F0;
     }
+    .user-name {
+        font-weight: 700;
+        color: #1A1A2E;
+        margin-bottom: 0.25rem;
+    }
+    .user-status {
+        font-size: 0.7rem;
+        color: #42924B;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+    
+    /* قائمة التنقل */
     .stRadio > div {
-        gap: 0.5rem;
+        gap: 0.25rem;
     }
     .stRadio label {
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        border-radius: 12px;
         transition: all 0.2s;
         font-size: 0.9rem;
+        color: #475569 !important;
     }
     .stRadio label:hover {
         background: #FEE7E7;
-        color: #CE2E26;
+        color: #CE2E26 !important;
     }
     .stRadio label[data-checked="true"] {
-        background: #CE2E26;
+        background: linear-gradient(135deg, #CE2E26 0%, #B71C1C 100%);
         color: white !important;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(206,46,38,0.2);
     }
+    
+    /* زر الخروج */
+    .stButton > button {
+        background: #F1F5F9;
+        color: #475569;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    .stButton > button:hover {
+        background: #FEE7E7;
+        color: #CE2E26;
+        border-color: #CE2E26;
+    }
+    
+    /* فواصل */
     hr {
         margin: 1rem 0;
         border: none;
@@ -102,21 +144,16 @@ st.markdown("""
         background: linear-gradient(90deg, transparent, #E2E8F0, transparent);
     }
     
-    /* تحسين شريط التمرير */
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-        background: #F1F1F1;
-        border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: #CE2E26;
-        border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: #B71C1C;
+    /* تحسين للجوال */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+        }
+        .stRadio label {
+            padding: 0.4rem 0.5rem;
+            font-size: 0.8rem;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -140,8 +177,6 @@ if "user_center_id" not in st.session_state:
     st.session_state.user_center_id = None
 if "user_employee_id" not in st.session_state:
     st.session_state.user_employee_id = None
-if "show_prediction" not in st.session_state:
-    st.session_state.show_prediction = False
 
 # إذا لم يكن مسجل دخول
 if not st.session_state.authenticated:
@@ -152,33 +187,29 @@ if not st.session_state.authenticated:
 
 # ===== الشريط الجانبي =====
 with st.sidebar:
-    # ===== شعار الهيئة - الرابط الجديد =====
+    # الشعار
     st.markdown("""
-    <div style="text-align: center; margin-bottom: 1rem;">
+    <div class="sidebar-logo">
         <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6W6KLMYsA2ztLnTnKcsENtV9SOBCeYHV17g&s" 
-             style="width: 70px; height: auto;">
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # عنوان النظام
-    st.markdown(f"""
-    <div style="text-align: center; margin-bottom: 0.25rem;">
-        <h1 style="color: #1A2B5C; font-size: 1rem; margin: 0;">{config.APP_NAME}</h1>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # ===== شعار قطاع الجنوب =====
-    st.markdown("""
-    <div class="south-sector-badge">
-        <span>📍 قطاع الجنوب - الرياض</span>
+             style="width: 60px; height: auto;">
+        <div class="sidebar-title">الهلال الأحمر السعودي</div>
     </div>
     """, unsafe_allow_html=True)
     
     # معلومات المستخدم
     st.markdown(f"""
     <div class="user-info">
-        <div style="font-size: 0.9rem; color: #1A1A2E;">👤 {st.session_state.get('username', '')}</div>
-        <div style="font-size: 0.7rem; color: #64748B;">🟢 متصل</div>
+        <div class="user-name">{st.session_state.get('username', '')}</div>
+        <div class="user-status">
+            <span>🟢</span> متصل
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # شعار قطاع الجنوب
+    st.markdown("""
+    <div class="south-sector-badge">
+        قطاع الجنوب - الرياض
     </div>
     """, unsafe_allow_html=True)
     
@@ -196,11 +227,9 @@ with st.sidebar:
         "⚙️ الإعدادات": "settings",
     }
     
-    # تحديث الصفحة الحالية
     labels = list(pages.keys())
     current_label = next((l for l, k in pages.items() if k == st.session_state.current_page), labels[0])
     
-    # عرض القائمة
     selected = st.radio(
         "",
         labels,
@@ -209,23 +238,20 @@ with st.sidebar:
         key="sidebar_menu"
     )
     
-    # تغيير الصفحة
     if pages[selected] != st.session_state.current_page:
         st.session_state.current_page = pages[selected]
         st.rerun()
     
     st.divider()
     
-    # زر تسجيل الخروج
     if st.button("🚪 تسجيل خروج", use_container_width=True):
         st.session_state.auth_service.logout()
         st.session_state.authenticated = False
-        # مسح البيانات المخزنة
         for key in ["employee_service", "center_service", "shift_service", "current_page", "user_role"]:
             st.session_state.pop(key, None)
         st.rerun()
 
-# ===== توجيه الصفحات =====
+# توجيه الصفحات
 page = st.session_state.get("current_page", "dashboard")
 
 if page == "dashboard":
@@ -253,5 +279,4 @@ elif page == "settings":
     from pages.settings import show_settings
     show_settings()
 
-# ===== تذييل الصفحة =====
 footer()
