@@ -5,6 +5,7 @@ from components.cards import center_card, kpi_row
 from components.charts import create_bar_chart, create_gauge, display_chart
 from utils.helpers import page_header, section_title
 
+st.cache_data.clear()
 
 def _get_service():
     auth = st.session_state.auth_service
