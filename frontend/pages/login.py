@@ -1,24 +1,16 @@
 # frontend/pages/login.py
 import streamlit as st
+import httpx
 from config import config
 
 def show_login_page():
     """صفحة تسجيل الدخول"""
     
-    # إخفاء الشريط الجانبي بالكامل
+    # إخفاء الشريط الجانبي
     st.markdown("""
     <style>
-        [data-testid="stSidebar"] {
-            display: none !important;
-        }
-        [data-testid="stSidebarContent"] {
-            display: none !important;
-        }
-        .main .block-container {
-            max-width: 100% !important;
-            padding-left: 2rem !important;
-            padding-right: 2rem !important;
-        }
+        [data-testid="stSidebar"] { display: none !important; }
+        .main .block-container { max-width: 100% !important; }
         .stApp { background: #F8FAFC; }
         .login-container {
             max-width: 400px;
@@ -29,9 +21,6 @@ def show_login_page():
             box-shadow: 0 8px 24px rgba(0,0,0,0.1);
             text-align: center;
             border-top: 4px solid #CE2E26;
-        }
-        .logo-container {
-            margin-bottom: 1.5rem;
         }
         .logo-circle {
             width: 120px;
@@ -44,34 +33,11 @@ def show_login_page():
             margin: 0 auto 1rem auto;
             font-size: 3rem;
             color: white;
-            box-shadow: 0 4px 12px rgba(206,46,38,0.3);
         }
         .south-sector-text {
             color: #3B4A82;
             font-weight: 600;
-            margin-top: -0.5rem;
             margin-bottom: 2rem;
-            font-size: 0.9rem;
-        }
-        .login-title {
-            color: #1A1A2E;
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-        .stTextInput > div > div > input {
-            text-align: right;
-            padding: 0.75rem;
-            border-radius: 8px;
-            border: 1px solid #E2E8F0;
-        }
-        .stButton > button {
-            background: linear-gradient(135deg, #CE2E26 0%, #B71C1C 100%);
-            color: white;
-            font-weight: 700;
-            padding: 0.75rem;
-            border-radius: 8px;
-            border: none;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -83,21 +49,14 @@ def show_login_page():
         
         # الشعار
         st.markdown("""
-        <div class="logo-container">
+        <div>
             <div class="logo-circle">🚑</div>
             <div style="color: #CE2E26; font-weight: 700;">الهلال الأحمر السعودي</div>
         </div>
         """, unsafe_allow_html=True)
         
-        st.markdown(f"""
-        <div class="login-title">{config.APP_NAME}</div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="south-sector-text">
-            قطاع الجنوب - هيئة الهلال الأحمر السعودي
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"<h2>{config.APP_NAME}</h2>", unsafe_allow_html=True)
+        st.markdown('<div class="south-sector-text">قطاع الجنوب - هيئة الهلال الأحمر السعودي</div>', unsafe_allow_html=True)
         
         # نموذج تسجيل الدخول
         with st.form("login_form"):
