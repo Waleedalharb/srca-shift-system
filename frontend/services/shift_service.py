@@ -2,7 +2,7 @@
 import requests
 import streamlit as st
 from config import config
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class ShiftService:
     def __init__(self, auth_service):
@@ -31,22 +31,26 @@ class ShiftService:
             print(f"خطأ في جلب المناوبات: {e}")
             return {"total": 0, "items": []}
     
-    def get_shifts_by_date(self, center_id, date):
+    def get_shifts_by_date(self, center_id, target_date):
         """جلب المناوبات ليوم محدد"""
         try:
-            date_str = date.strftime("%Y-%m-%d")
-            params = {
-                "center_id": center_id,
-                "date": date_str
-            }
+            date_str = target_date.strftime("%Y-%m-%d")
+            next_day = (target_date + timedelta(days=1)).strftime("%Y-%m-%d")
+            
             response = requests.get(
-                f"{self.base_url}/by_date",
+                f"{self.base_url}/by_month",
                 headers=self.auth.get_headers(),
-                params=params,
+                params={
+                    "center_id": center_id,
+                    "start_date": date_str,
+                    "end_date": next_day,
+                    "limit": 100
+                },
                 timeout=10
             )
             if response.status_code == 200:
-                return response.json().get("items", [])
+                data = response.json()
+                return data.get("items", [])
             return []
         except Exception as e:
             print(f"خطأ في جلب المناوبات لليوم: {e}")
@@ -61,16 +65,15 @@ class ShiftService:
             else:
                 end_date = f"{year}-{month+1:02d}-01"
             
-            params = {
-                "center_id": center_id,
-                "start_date": start_date,
-                "end_date": end_date,
-                "limit": 500
-            }
             response = requests.get(
                 f"{self.base_url}/by_month",
                 headers=self.auth.get_headers(),
-                params=params,
+                params={
+                    "center_id": center_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "limit": 500
+                },
                 timeout=10
             )
             if response.status_code == 200:
@@ -111,7 +114,6 @@ class ShiftService:
             print(f"خطأ في assign_employee: {e}")
             return False
     
-    # ===== دالة تحديث مناوبة موظف مع طباعة الأخطاء =====
     def update_employee_shift(self, employee_id, date, shift_type):
         """تحديث مناوبة موظف ليوم محدد"""
         try:
@@ -121,11 +123,9 @@ class ShiftService:
                 "shift_type": shift_type
             }
             
-            # طباعة التفاصيل قبل الإرسال
             print(f"\n📤 إرسال تحديث مناوبة:")
             print(f"   - الرابط: {self.base_url}/update")
             print(f"   - البيانات: {data}")
-            print(f"   - التوكن: {self.auth.token[:20]}...")
             
             response = requests.put(
                 f"{self.base_url}/update",
@@ -134,31 +134,13 @@ class ShiftService:
                 timeout=10
             )
             
-            # طباعة الرد
-            print(f"📥 الرد من السيرفر:")
-            print(f"   - الحالة: {response.status_code}")
-            print(f"   - المحتوى: {response.text}")
+            print(f"📥 الرد: {response.status_code} - {response.text}")
             
             if response.status_code == 200:
                 return True
             else:
-                error_msg = f"❌ خطأ من السيرفر: {response.status_code} - {response.text}"
-                print(error_msg)
-                st.error(error_msg)
+                st.error(f"❌ خطأ: {response.text}")
                 return False
-            
-        except requests.exceptions.ConnectionError:
-            error_msg = "❌ فشل الاتصال بالسيرفر. تأكد من تشغيله."
-            print(error_msg)
-            st.error(error_msg)
-            return False
-        except requests.exceptions.Timeout:
-            error_msg = "❌ انتهت مهلة الاتصال بالسيرفر."
-            print(error_msg)
-            st.error(error_msg)
-            return False
         except Exception as e:
-            error_msg = f"❌ خطأ غير متوقع: {str(e)}"
-            print(error_msg)
-            st.error(error_msg)
+            st.error(f"❌ فشل الاتصال: {str(e)}")
             return False
