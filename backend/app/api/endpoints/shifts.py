@@ -1,9 +1,10 @@
 # backend/app/api/endpoints/shifts.py
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Body
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from uuid import UUID
 from datetime import date, datetime
+import uuid
 
 from app.api import deps
 from app.models.shift import Shift, ShiftAssignment
@@ -95,3 +96,71 @@ def assign_employee(
     db.commit()
     
     return {"message": "تم تعيين الموظف بنجاح"}
+
+# ===== دالة تحديث مناوبة موظف (مضافة حديثًا) =====
+@router.put("/update")
+def update_employee_shift(
+    data: dict = Body(...),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+):
+    """تحديث مناوبة موظف ليوم محدد"""
+    employee_id = data.get("employee_id")
+    date_str = data.get("date")
+    shift_type = data.get("shift_type")
+    
+    if not employee_id or not date_str or not shift_type:
+        raise HTTPException(status_code=400, detail="بيانات ناقصة")
+    
+    # تحويل النص إلى UUID
+    try:
+        emp_uuid = UUID(employee_id)
+    except:
+        raise HTTPException(status_code=400, detail="معرف موظف غير صالح")
+    
+    # تحويل التاريخ
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except:
+        raise HTTPException(status_code=400, detail="صيغة تاريخ غير صالحة")
+    
+    # البحث عن المناوبة في ذلك اليوم للمركز
+    shift = db.query(Shift).filter(
+        Shift.center_id == current_user.employee.center_id,
+        Shift.date == target_date
+    ).first()
+    
+    if not shift:
+        # إذا ما في مناوبة، ننشئ واحدة جديدة
+        shift = Shift(
+            id=uuid.uuid4(),
+            date=target_date,
+            shift_type=shift_type,
+            center_id=current_user.employee.center_id
+        )
+        db.add(shift)
+        db.commit()
+        db.refresh(shift)
+    
+    # البحث عن تعيين الموظف
+    assignment = db.query(ShiftAssignment).filter(
+        ShiftAssignment.shift_id == shift.id,
+        ShiftAssignment.employee_id == emp_uuid
+    ).first()
+    
+    if assignment:
+        # تحديث المناوبة
+        assignment.shift_type = shift_type
+    else:
+        # إضافة تعيين جديد
+        assignment = ShiftAssignment(
+            id=uuid.uuid4(),
+            shift_id=shift.id,
+            employee_id=emp_uuid,
+            shift_type=shift_type
+        )
+        db.add(assignment)
+    
+    db.commit()
+    
+    return {"message": "تم التحديث بنجاح"}
