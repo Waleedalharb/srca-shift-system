@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date, time, timedelta
 from utils.helpers import page_header
-from utils.supabase_storage import SupabaseStorage
 
 # دالة مساعدة للوقت الآمن
 def safe_time(time_str, default="08:00"):
@@ -64,18 +63,24 @@ def _get_services():
 def show_attendance():
     """صفحة التكميل الذكي - مع طباعة تقرير قديم"""
     
-    # التحقق من حالة الطباعة
+    # التحقق من حالة الطباعة أولاً
     if st.session_state.get("print_page", False):
-        from pages.print_attendance import show_print_attendance
-        show_print_attendance(
-            st.session_state.print_data,
-            st.session_state.print_center,
-            st.session_state.print_date.strftime("%Y-%m-%d")
-        )
+        try:
+            from pages.print_attendance import show_print_attendance
+            show_print_attendance(
+                st.session_state.print_data,
+                st.session_state.print_center,
+                st.session_state.print_date.strftime("%Y-%m-%d")
+            )
+        except Exception as e:
+            st.error(f"⚠️ خطأ في تحميل صفحة الطباعة: {e}")
+            st.session_state.print_page = False
+            st.rerun()
         return
     
     page_header("📋 التكميل الذكي", "تسجيل الحضور مع أرشفة سحابية", "📝")
     
+    from utils.supabase_storage import SupabaseStorage
     storage = SupabaseStorage()
     
     # تبويبات
