@@ -62,7 +62,17 @@ def _get_services():
     return es, cs, ss
 
 def show_attendance():
-    """صفحة التكميل الذكي - مع التخزين السحابي"""
+    """صفحة التكميل الذكي - مع طباعة تقرير قديم"""
+    
+    # التحقق من حالة الطباعة
+    if st.session_state.get("print_page", False):
+        from pages.print_attendance import show_print_attendance
+        show_print_attendance(
+            st.session_state.print_data,
+            st.session_state.print_center,
+            st.session_state.print_date.strftime("%Y-%m-%d")
+        )
+        return
     
     page_header("📋 التكميل الذكي", "تسجيل الحضور مع أرشفة سحابية", "📝")
     
@@ -201,6 +211,7 @@ def show_attendance():
                 attendance_data.append({
                     "employee_id": emp_id,
                     "employee_name": emp['full_name'],
+                    "emp_no": emp.get('emp_no', ''),
                     "planned_shift": planned_info['name'],
                     "planned_start": planned_info['start'],
                     "planned_end": planned_info['end'],
@@ -229,75 +240,107 @@ def show_attendance():
         notes = st.text_area("📝 ملاحظات", placeholder="أي ملاحظات إضافية...")
         
         # ===== حفظ التكميل =====
-        if st.button("💾 حفظ التكميل", type="primary", use_container_width=True):
-            st.success("✅ تم حفظ التكميل بنجاح")
-            st.balloons()
-            
-            # رفع التقرير إلى Supabase
-            with st.spinner("جاري رفع التقرير إلى التخزين السحابي..."):
-                upload_result = storage.upload_attendance_report(
-                    attendance_data, 
-                    selected_center, 
-                    selected_date
-                )
-            
-            if upload_result["success"]:
-                st.info(f"📤 تم حفظ التقرير في التخزين السحابي")
-                st.markdown(f"🔗 [رابط التقرير]({upload_result['url']})")
-            
-            # ===== عرض التقرير النهائي =====
-            st.markdown("---")
-            st.markdown("## 📄 تقرير التكميل النهائي")
-            
-            col1, col2, col3 = st.columns(3)
-            col1.markdown(f"**المركز:** {selected_center}")
-            col2.markdown(f"**التاريخ:** {selected_date}")
-            col3.markdown(f"**إجمالي الموظفين:** {len(attendance_data)}")
-            
-            report_data = []
-            for item in attendance_data:
-                actual_info = SHIFT_TYPES.get(item['actual_shift'], SHIFT_TYPES["off"])
-                status_color = {
-                    "حاضر": "🟢",
-                    "غائب": "🔴",
-                    "متأخر": "🟡",
-                    "مهمة رسمية": "🟠"
-                }.get(item['status'], "⚪")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("💾 حفظ التكميل", type="primary", use_container_width=True):
+                st.success("✅ تم حفظ التكميل بنجاح")
+                st.balloons()
                 
-                # حساب التأخير
-                late_info = item['late_time'] if item['late_time'] else ""
+                # رفع التقرير إلى Supabase
+                with st.spinner("جاري رفع التقرير إلى التخزين السحابي..."):
+                    upload_result = storage.upload_attendance_report(
+                        attendance_data, 
+                        selected_center, 
+                        selected_date
+                    )
                 
-                report_data.append({
-                    "الموظف": item['employee_name'],
-                    "المخطط": item['planned_shift'],
-                    "الفعلية": actual_info['name'],
-                    "الحالة": f"{status_color} {item['status']}",
-                    "الحضور": item['actual_start'],
-                    "الانصراف": item['actual_end'],
-                    "التأخير": late_info
-                })
-            
-            df_report = pd.DataFrame(report_data)
-            st.dataframe(df_report, use_container_width=True, hide_index=True)
-            
-            # إحصائيات
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("👥 إجمالي", len(attendance_data))
-            col2.metric("✅ حاضر", sum(1 for r in attendance_data if r['status'] == "حاضر"))
-            col3.metric("❌ غائب", sum(1 for r in attendance_data if r['status'] == "غائب"))
-            col4.metric("⏰ متأخر", sum(1 for r in attendance_data if r['status'] == "متأخر"))
-            
-            # التوكيل
-            if delegator != "لا يوجد" and substitute != "لا يوجد":
+                if upload_result["success"]:
+                    st.info(f"📤 تم حفظ التقرير في التخزين السحابي")
+                    st.markdown(f"🔗 [رابط التقرير]({upload_result['url']})")
+                
+                # ===== عرض التقرير النهائي =====
                 st.markdown("---")
-                st.markdown("### 🔄 تفاصيل التوكيل")
-                st.markdown(f"""
-                <div style="background: #F0F9FF; padding: 1rem; border-radius: 8px; border-right: 4px solid #3B4A82;">
-                    <p><strong>👤 الموكل:</strong> {delegator}</p>
-                    <p><strong>🔄 البديل:</strong> {substitute}</p>
-                    <p><strong>📝 ملاحظات:</strong> {notes if notes else "لا توجد"}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown("## 📄 تقرير التكميل النهائي")
+                
+                col1, col2, col3 = st.columns(3)
+                col1.markdown(f"**المركز:** {selected_center}")
+                col2.markdown(f"**التاريخ:** {selected_date}")
+                col3.markdown(f"**إجمالي الموظفين:** {len(attendance_data)}")
+                
+                report_data = []
+                for item in attendance_data:
+                    actual_info = SHIFT_TYPES.get(item['actual_shift'], SHIFT_TYPES["off"])
+                    status_color = {
+                        "حاضر": "🟢",
+                        "غائب": "🔴",
+                        "متأخر": "🟡",
+                        "مهمة رسمية": "🟠"
+                    }.get(item['status'], "⚪")
+                    
+                    # حساب التأخير
+                    late_info = item['late_time'] if item['late_time'] else ""
+                    
+                    report_data.append({
+                        "الموظف": item['employee_name'],
+                        "المخطط": item['planned_shift'],
+                        "الفعلية": actual_info['name'],
+                        "الحالة": f"{status_color} {item['status']}",
+                        "الحضور": item['actual_start'],
+                        "الانصراف": item['actual_end'],
+                        "التأخير": late_info
+                    })
+                
+                df_report = pd.DataFrame(report_data)
+                st.dataframe(df_report, use_container_width=True, hide_index=True)
+                
+                # إحصائيات
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("👥 إجمالي", len(attendance_data))
+                col2.metric("✅ حاضر", sum(1 for r in attendance_data if r['status'] == "حاضر"))
+                col3.metric("❌ غائب", sum(1 for r in attendance_data if r['status'] == "غائب"))
+                col4.metric("⏰ متأخر", sum(1 for r in attendance_data if r['status'] == "متأخر"))
+                
+                # التوكيل
+                if delegator != "لا يوجد" and substitute != "لا يوجد":
+                    st.markdown("---")
+                    st.markdown("### 🔄 تفاصيل التوكيل")
+                    st.markdown(f"""
+                    <div style="background: #F0F9FF; padding: 1rem; border-radius: 8px; border-right: 4px solid #3B4A82;">
+                        <p><strong>👤 الموكل:</strong> {delegator}</p>
+                        <p><strong>🔄 البديل:</strong> {substitute}</p>
+                        <p><strong>📝 ملاحظات:</strong> {notes if notes else "لا توجد"}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        with col2:
+            # زر طباعة التقرير (يظهر بعد حفظ البيانات)
+            if st.button("🖨️ طباعة التقرير", use_container_width=True):
+                # تجهيز بيانات الطباعة
+                print_data = []
+                for item in attendance_data:
+                    emp = next((e for e in active_employees if str(e["id"]) == item["employee_id"]), {})
+                    actual_info = SHIFT_TYPES.get(item['actual_shift'], SHIFT_TYPES["off"])
+                    print_data.append({
+                        "emp_no": item.get("emp_no", ""),
+                        "employee_name": item["employee_name"],
+                        "status": item["status"],
+                        "planned_shift": item["planned_shift"],
+                        "actual_shift_name": actual_info['name'],
+                        "planned_start": item["planned_start"],
+                        "planned_end": item["planned_end"],
+                        "actual_start": item["actual_start"],
+                        "actual_end": item["actual_end"],
+                        "late_time": item["late_time"],
+                        "notes": notes if notes else ""
+                    })
+                
+                # تخزين البيانات في session_state
+                st.session_state.print_data = print_data
+                st.session_state.print_center = selected_center
+                st.session_state.print_date = selected_date
+                st.session_state.print_page = True
+                st.rerun()
     
     # ===== تبويب تاريخ التكميل =====
     with tabs[1]:
