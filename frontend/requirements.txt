@@ -9,5 +9,5 @@ httpx==0.27.2
 PyPDF2==3.0.1
 weasyprint==60.2
 
-# Supabase - مكتبة واحدة فقط
-supabase==2.19.0
+# Supabase - نسخة مستقرة ومتوافقة
+supabase==2.12.0
