@@ -152,10 +152,10 @@ if not st.session_state.authenticated:
 
 # ===== الشريط الجانبي =====
 with st.sidebar:
-    # ===== شعار الهيئة =====
+    # ===== شعار الهيئة - الرابط الجديد =====
     st.markdown("""
-    <div class="sidebar-logo">
-        <img src="https://upload.wikimedia.org/wikipedia/ar/thumb/9/9e/Saudi_Red_Crescent.png/200px-Saudi_Red_Crescent.png" 
+    <div style="text-align: center; margin-bottom: 1rem;">
+        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6W6KLMYsA2ztLnTnKcsENtV9SOBCeYHV17g&s" 
              style="width: 70px; height: auto;">
     </div>
     """, unsafe_allow_html=True)
@@ -184,14 +184,14 @@ with st.sidebar:
     
     st.divider()
     
-    # قائمة الصفحات - مع إضافة صفحة التنبؤ
+    # قائمة الصفحات
     pages = {
         "🏠 لوحة المعلومات": "dashboard",
         "👥 الموظفين": "employees",
         "🏥 المراكز": "centers",
         "📅 المناوبات": "shifts",
         "📱 التكميل": "attendance",
-        "🔮 التنبؤ": "prediction",  # ✅ صفحة التنبؤ
+        "🔮 التنبؤ": "prediction",
         "📊 التقارير": "reports",
         "⚙️ الإعدادات": "settings",
     }
@@ -243,7 +243,7 @@ elif page == "shifts":
 elif page == "attendance":
     from pages.attendance import show_attendance
     show_attendance()
-elif page == "prediction":  # ✅ صفحة التنبؤ
+elif page == "prediction":
     from pages.prediction import show_prediction
     show_prediction()
 elif page == "reports":
