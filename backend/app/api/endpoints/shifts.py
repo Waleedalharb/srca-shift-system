@@ -116,14 +116,14 @@ def update_employee_shift(
     # تحويل النص إلى UUID
     try:
         emp_uuid = UUID(employee_id)
-    except:
-        raise HTTPException(status_code=400, detail="معرف موظف غير صالح")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"معرف موظف غير صالح: {employee_id}, خطأ: {str(e)}")
     
     # تحويل التاريخ
     try:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except:
-        raise HTTPException(status_code=400, detail="صيغة تاريخ غير صالحة")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"صيغة تاريخ غير صالحة: {date_str}, خطأ: {str(e)}")
     
     # التحقق من وجود الموظف في قاعدة البيانات
     employee = db.query(Employee).filter(Employee.id == emp_uuid).first()
@@ -152,6 +152,9 @@ def update_employee_shift(
         db.add(shift)
         db.commit()
         db.refresh(shift)
+    else:
+        # تحديث نوع المناوبة في جدول Shift نفسه
+        shift.shift_type = shift_type
     
     # البحث عن تعيين الموظف
     assignment = db.query(ShiftAssignment).filter(
@@ -159,16 +162,12 @@ def update_employee_shift(
         ShiftAssignment.employee_id == emp_uuid
     ).first()
     
-    if assignment:
-        # تحديث المناوبة
-        assignment.shift_type = shift_type
-    else:
-        # إضافة تعيين جديد
+    if not assignment:
+        # إضافة تعيين جديد (بدون shift_type)
         assignment = ShiftAssignment(
             id=uuid.uuid4(),
             shift_id=shift.id,
-            employee_id=emp_uuid,
-            shift_type=shift_type
+            employee_id=emp_uuid
         )
         db.add(assignment)
     
