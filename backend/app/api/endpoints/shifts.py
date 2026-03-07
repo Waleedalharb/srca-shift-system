@@ -9,6 +9,7 @@ import uuid
 from app.api import deps
 from app.models.shift import Shift, ShiftAssignment
 from app.models.user import User
+from app.models.employee import Employee
 from app.schemas.shift import Shift as ShiftSchema, ShiftCreate, ShiftUpdate, ShiftList
 from app.schemas.shift import ShiftAssignment as ShiftAssignmentSchema, ShiftAssignmentCreate
 
@@ -97,7 +98,7 @@ def assign_employee(
     
     return {"message": "تم تعيين الموظف بنجاح"}
 
-# ===== دالة تحديث مناوبة موظف (مضافة حديثًا) =====
+# ===== دالة تحديث مناوبة موظف =====
 @router.put("/update")
 def update_employee_shift(
     data: dict = Body(...),
@@ -124,9 +125,19 @@ def update_employee_shift(
     except:
         raise HTTPException(status_code=400, detail="صيغة تاريخ غير صالحة")
     
+    # التحقق من وجود الموظف في قاعدة البيانات
+    employee = db.query(Employee).filter(Employee.id == emp_uuid).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="الموظف غير موجود")
+    
+    # الحصول على مركز الموظف
+    center_id = employee.center_id
+    if not center_id:
+        raise HTTPException(status_code=400, detail="الموظف غير مرتبط بمركز")
+    
     # البحث عن المناوبة في ذلك اليوم للمركز
     shift = db.query(Shift).filter(
-        Shift.center_id == current_user.employee.center_id,
+        Shift.center_id == center_id,
         Shift.date == target_date
     ).first()
     
@@ -136,7 +147,7 @@ def update_employee_shift(
             id=uuid.uuid4(),
             date=target_date,
             shift_type=shift_type,
-            center_id=current_user.employee.center_id
+            center_id=center_id
         )
         db.add(shift)
         db.commit()
