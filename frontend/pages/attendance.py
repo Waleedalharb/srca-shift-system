@@ -61,9 +61,9 @@ def _get_services():
     return es, cs, ss
 
 def show_attendance():
-    """صفحة التكميل الذكي - مع التواقيت الكاملة"""
+    """صفحة التكميل الذكي - مع فلترة الإجازات"""
     
-    page_header("📋 التكميل الذكي", "تسجيل الحضور مع أوقات المناوبة الكاملة", "📝")
+    page_header("📋 التكميل الذكي", "تسجيل الحضور (الإجازات لا تظهر)", "📝")
     
     es, cs, ss = _get_services()
     
@@ -104,13 +104,27 @@ def show_attendance():
             if emp_id:
                 planned_map[emp_id] = shift.get("shift_type", "off")
     
+    # ===== فلترة الموظفين: نحذف اللي في إجازة =====
+    active_employees = []
+    for emp in employees:
+        emp_id = str(emp["id"])
+        shift_type = planned_map.get(emp_id, "off")
+        if shift_type != "off":  # فقط الموظفين اللي عندهم مناوبة (مو إجازة)
+            active_employees.append(emp)
+    
+    if not active_employees:
+        st.info("ℹ️ لا يوجد موظفون على رأس العمل لهذا اليوم (الكل في إجازة)")
+        return
+    
+    st.success(f"✅ عدد الموظفين المطلوب حضورهم: {len(active_employees)}")
+    
     # ===== نموذج التكميل =====
     st.markdown("---")
     st.markdown("### 📝 تسجيل الحضور")
     
     attendance_data = []
     
-    for emp in employees:
+    for emp in active_employees:
         emp_id = str(emp["id"])
         planned_shift = planned_map.get(emp_id, "off")
         planned_info = SHIFT_TYPES.get(planned_shift, SHIFT_TYPES["off"])
@@ -144,7 +158,7 @@ def show_attendance():
                 # الحالة
                 status = st.selectbox(
                     "الحالة",
-                    ["حاضر", "غائب", "متأخر", "إجازة", "مهمة رسمية"],
+                    ["حاضر", "غائب", "متأخر", "مهمة رسمية"],  # ❌ إزالة "إجازة" لأنهم أصلاً مو في إجازة
                     key=f"status_{emp_id}"
                 )
             
@@ -194,7 +208,7 @@ def show_attendance():
     # ===== التوكيل والبديل =====
     st.markdown("### 🔄 التوكيل والبديل")
     
-    emp_options = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in employees]
+    emp_options = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in active_employees]
     
     col1, col2 = st.columns(2)
     
@@ -227,7 +241,6 @@ def show_attendance():
                 "حاضر": "🟢",
                 "غائب": "🔴",
                 "متأخر": "🟡",
-                "إجازة": "🔵",
                 "مهمة رسمية": "🟠"
             }.get(item['status'], "⚪")
             
