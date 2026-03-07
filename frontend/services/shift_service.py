@@ -111,7 +111,7 @@ class ShiftService:
             print(f"خطأ في assign_employee: {e}")
             return False
     
-    # ===== دالة جديدة لتحديث مناوبة موظف =====
+    # ===== دالة تحديث مناوبة موظف مع طباعة الأخطاء =====
     def update_employee_shift(self, employee_id, date, shift_type):
         """تحديث مناوبة موظف ليوم محدد"""
         try:
@@ -120,13 +120,45 @@ class ShiftService:
                 "date": date,
                 "shift_type": shift_type
             }
+            
+            # طباعة التفاصيل قبل الإرسال
+            print(f"\n📤 إرسال تحديث مناوبة:")
+            print(f"   - الرابط: {self.base_url}/update")
+            print(f"   - البيانات: {data}")
+            print(f"   - التوكن: {self.auth.token[:20]}...")
+            
             response = requests.put(
                 f"{self.base_url}/update",
                 headers=self.auth.get_headers(),
                 json=data,
                 timeout=10
             )
-            return response.status_code == 200
+            
+            # طباعة الرد
+            print(f"📥 الرد من السيرفر:")
+            print(f"   - الحالة: {response.status_code}")
+            print(f"   - المحتوى: {response.text}")
+            
+            if response.status_code == 200:
+                return True
+            else:
+                error_msg = f"❌ خطأ من السيرفر: {response.status_code} - {response.text}"
+                print(error_msg)
+                st.error(error_msg)
+                return False
+            
+        except requests.exceptions.ConnectionError:
+            error_msg = "❌ فشل الاتصال بالسيرفر. تأكد من تشغيله."
+            print(error_msg)
+            st.error(error_msg)
+            return False
+        except requests.exceptions.Timeout:
+            error_msg = "❌ انتهت مهلة الاتصال بالسيرفر."
+            print(error_msg)
+            st.error(error_msg)
+            return False
         except Exception as e:
-            print(f"خطأ في تحديث المناوبة: {e}")
+            error_msg = f"❌ خطأ غير متوقع: {str(e)}"
+            print(error_msg)
+            st.error(error_msg)
             return False
