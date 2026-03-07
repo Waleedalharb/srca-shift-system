@@ -1,6 +1,5 @@
 # frontend/pages/login.py
 import streamlit as st
-import httpx
 from config import config
 
 def show_login_page():
@@ -10,7 +9,11 @@ def show_login_page():
     st.markdown("""
     <style>
         [data-testid="stSidebar"] { display: none !important; }
-        .main .block-container { max-width: 100% !important; }
+        .main .block-container {
+            max-width: 100% !important;
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
+        }
         .stApp { background: #F8FAFC; }
         .login-container {
             max-width: 400px;
@@ -22,17 +25,12 @@ def show_login_page():
             text-align: center;
             border-top: 4px solid #CE2E26;
         }
-        .logo-circle {
-            width: 120px;
-            height: 120px;
-            background: linear-gradient(135deg, #CE2E26 0%, #B71C1C 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 1rem auto;
-            font-size: 3rem;
-            color: white;
+        .logo-container {
+            margin-bottom: 1.5rem;
+        }
+        .logo-container img {
+            width: 100px;
+            height: auto;
         }
         .south-sector-text {
             color: #3B4A82;
@@ -47,18 +45,25 @@ def show_login_page():
     with col2:
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
         
-        # الشعار
+        # ===== شعار الهيئة - الرابط الجديد =====
         st.markdown("""
-        <div>
-            <div class="logo-circle">🚑</div>
-            <div style="color: #CE2E26; font-weight: 700;">الهلال الأحمر السعودي</div>
+        <div class="logo-container">
+            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6W6KLMYsA2ztLnTnKcsENtV9SOBCeYHV17g&s" 
+                 style="width: 100px; height: auto;">
         </div>
         """, unsafe_allow_html=True)
         
-        st.markdown(f"<h2>{config.APP_NAME}</h2>", unsafe_allow_html=True)
-        st.markdown('<div class="south-sector-text">قطاع الجنوب - هيئة الهلال الأحمر السعودي</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <h1 style="border-bottom: none; font-size: 1.5rem; margin: 0;">{config.APP_NAME}</h1>
+        """, unsafe_allow_html=True)
         
-        # نموذج تسجيل الدخول
+        st.markdown("""
+        <div class="south-sector-text">
+            قطاع الجنوب - هيئة الهلال الأحمر السعودي
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # ===== نموذج تسجيل الدخول =====
         with st.form("login_form"):
             username = st.text_input("👤 اسم المستخدم", placeholder="أدخل اسم المستخدم")
             password = st.text_input("🔐 كلمة المرور", type="password", placeholder="أدخل كلمة المرور")
