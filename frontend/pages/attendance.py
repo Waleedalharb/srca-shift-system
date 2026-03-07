@@ -4,7 +4,17 @@ import pandas as pd
 from datetime import datetime, date, time, timedelta
 from utils.helpers import page_header
 
-# ===== أنواع المناوبات (مطابقة لصفحة المناوبات) =====
+# دالة مساعدة للوقت الآمن
+def safe_time(time_str, default="08:00"):
+    """تحويل النص إلى وقت بأمان"""
+    if time_str == "--:--" or not time_str:
+        return datetime.strptime(default, "%H:%M").time()
+    try:
+        return datetime.strptime(time_str, "%H:%M").time()
+    except:
+        return datetime.strptime(default, "%H:%M").time()
+
+# ===== أنواع المناوبات =====
 SHIFT_TYPES = {
     "morning_6":  {"name": "صباحية 6 س", "icon": "🌅", "color": "#FFB74D", "text": "#7A5800", "hours": 6, "start": "08:00", "end": "14:00"},
     "morning_8":  {"name": "صباحية 8 س", "icon": "🌅", "color": "#FFB74D", "text": "#7A5800", "hours": 8, "start": "08:00", "end": "16:00"},
@@ -51,9 +61,9 @@ def _get_services():
     return es, cs, ss
 
 def show_attendance():
-    """صفحة التكميل الذكي - مع اختيار نوع المناوبة"""
+    """صفحة التكميل الذكي - مع التواقيت الكاملة"""
     
-    page_header("📋 التكميل الذكي", "تسجيل الحضور مع تحديد نوع المناوبة", "📝")
+    page_header("📋 التكميل الذكي", "تسجيل الحضور مع أوقات المناوبة الكاملة", "📝")
     
     es, cs, ss = _get_services()
     
@@ -103,47 +113,80 @@ def show_attendance():
     for emp in employees:
         emp_id = str(emp["id"])
         planned_shift = planned_map.get(emp_id, "off")
-        shift_info = SHIFT_TYPES.get(planned_shift, SHIFT_TYPES["off"])
+        planned_info = SHIFT_TYPES.get(planned_shift, SHIFT_TYPES["off"])
         
         with st.container():
             st.markdown(f"#### 👤 {emp['full_name']} ({emp.get('emp_no', '')})")
             
-            col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
+            # معلومات المناوبة المخطط لها
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown(f"**المخطط:** {planned_info['name']}")
+            with col2:
+                st.markdown(f"**من:** {planned_info['start']}")
+            with col3:
+                st.markdown(f"**إلى:** {planned_info['end']}")
+            
+            # بيانات الحضور الفعلية
+            col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
-                st.markdown(f"**المناوبة المخطط لها:** {shift_info['name']}")
-            
-            with col2:
-                # اختيار نوع المناوبة الفعلية (كل الخيارات متاحة)
+                # نوع المناوبة الفعلية
                 actual_shift = st.selectbox(
-                    "نوع المناوبة الفعلية",
+                    "المناوبة الفعلية",
                     options=list(SHIFT_TYPES.keys()),
                     format_func=lambda x: f"{SHIFT_TYPES[x]['icon']} {SHIFT_TYPES[x]['name']}",
                     index=list(SHIFT_TYPES.keys()).index(planned_shift) if planned_shift in SHIFT_TYPES else 0,
                     key=f"shift_{emp_id}"
                 )
             
-            with col3:
+            with col2:
+                # الحالة
                 status = st.selectbox(
                     "الحالة",
                     ["حاضر", "غائب", "متأخر", "إجازة", "مهمة رسمية"],
                     key=f"status_{emp_id}"
                 )
             
-            with col4:
-                check_in = st.time_input(
+            with col3:
+                # وقت الحضور الفعلي
+                actual_start = st.time_input(
                     "⏰ وقت الحضور",
-                    value=datetime.strptime(SHIFT_TYPES[actual_shift]['start'], "%H:%M").time(),
-                    key=f"in_{emp_id}"
+                    value=safe_time(planned_info['start']),
+                    key=f"start_{emp_id}"
                 )
+            
+            with col4:
+                # وقت الانصراف الفعلي
+                actual_end = st.time_input(
+                    "🕒 وقت الانصراف",
+                    value=safe_time(planned_info['end']),
+                    key=f"end_{emp_id}"
+                )
+            
+            with col5:
+                # وقت التأخير (يظهر فقط إذا كان متأخر)
+                if status == "متأخر":
+                    late_time = st.time_input(
+                        "⏱️ وقت التأخير",
+                        value=time(8, 15),
+                        key=f"late_{emp_id}"
+                    )
+                else:
+                    late_time = None
+                    st.markdown("—")
             
             attendance_data.append({
                 "employee_id": emp_id,
                 "employee_name": emp['full_name'],
-                "planned_shift": shift_info['name'],
+                "planned_shift": planned_info['name'],
+                "planned_start": planned_info['start'],
+                "planned_end": planned_info['end'],
                 "actual_shift": actual_shift,
                 "status": status,
-                "check_in": check_in
+                "actual_start": actual_start,
+                "actual_end": actual_end,
+                "late_time": late_time
             })
             
             st.markdown("---")
@@ -168,13 +211,14 @@ def show_attendance():
         st.success("✅ تم حفظ التكميل بنجاح")
         st.balloons()
         
-        # عرض التقرير
+        # ===== عرض التقرير النهائي =====
         st.markdown("---")
         st.markdown("## 📄 تقرير التكميل النهائي")
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         col1.markdown(f"**المركز:** {selected_center}")
         col2.markdown(f"**التاريخ:** {selected_date}")
+        col3.markdown(f"**إجمالي الموظفين:** {len(attendance_data)}")
         
         report_data = []
         for item in attendance_data:
@@ -187,13 +231,39 @@ def show_attendance():
                 "مهمة رسمية": "🟠"
             }.get(item['status'], "⚪")
             
+            # حساب التأخير
+            late_info = ""
+            if item['status'] == "متأخر" and item['late_time']:
+                late_info = f"⏱️ {item['late_time'].strftime('%H:%M')}"
+            
             report_data.append({
                 "الموظف": item['employee_name'],
                 "المخطط": item['planned_shift'],
                 "الفعلية": actual_info['name'],
                 "الحالة": f"{status_color} {item['status']}",
-                "الحضور": item['check_in'].strftime("%H:%M")
+                "الحضور": item['actual_start'].strftime("%H:%M"),
+                "الانصراف": item['actual_end'].strftime("%H:%M"),
+                "التأخير": late_info
             })
         
         df_report = pd.DataFrame(report_data)
         st.dataframe(df_report, use_container_width=True, hide_index=True)
+        
+        # إحصائيات
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("👥 إجمالي", len(attendance_data))
+        col2.metric("✅ حاضر", sum(1 for r in attendance_data if r['status'] == "حاضر"))
+        col3.metric("❌ غائب", sum(1 for r in attendance_data if r['status'] == "غائب"))
+        col4.metric("⏰ متأخر", sum(1 for r in attendance_data if r['status'] == "متأخر"))
+        
+        # التوكيل
+        if delegator != "لا يوجد" and substitute != "لا يوجد":
+            st.markdown("---")
+            st.markdown("### 🔄 تفاصيل التوكيل")
+            st.markdown(f"""
+            <div style="background: #F0F9FF; padding: 1rem; border-radius: 8px; border-right: 4px solid #3B4A82;">
+                <p><strong>👤 الموكل:</strong> {delegator}</p>
+                <p><strong>🔄 البديل:</strong> {substitute}</p>
+                <p><strong>📝 ملاحظات:</strong> {notes if notes else "لا توجد"}</p>
+            </div>
+            """, unsafe_allow_html=True)
