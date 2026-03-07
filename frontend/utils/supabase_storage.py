@@ -1,5 +1,6 @@
 # frontend/utils/supabase_storage.py
 import streamlit as st
+import os
 from supabase import create_client, Client
 from datetime import datetime
 import uuid
@@ -9,10 +10,25 @@ import io
 class SupabaseStorage:
     def __init__(self):
         """تهيئة الاتصال مع Supabase Storage"""
-        self.supabase_url = st.secrets["SUPABASE_URL"]
-        self.supabase_key = st.secrets["SUPABASE_KEY"]
+        # قراءة من متغيرات البيئة
+        self.supabase_url = os.environ.get("SUPABASE_URL")
+        self.supabase_key = os.environ.get("SUPABASE_KEY")
         self.bucket_name = "srca-reports"
-        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        
+        # طبقة للتحقق (للتشخيص)
+        print(f"SUPABASE_URL: {self.supabase_url}")
+        print(f"SUPABASE_KEY: {self.supabase_key[:10]}..." if self.supabase_key else "None")
+        
+        if not self.supabase_url or not self.supabase_key:
+            st.error("❌ لم يتم تعيين متغيرات SUPABASE_URL و SUPABASE_KEY في Environment Variables")
+            st.stop()
+        
+        try:
+            self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+            print("✅ تم الاتصال بـ Supabase بنجاح")
+        except Exception as e:
+            st.error(f"❌ فشل الاتصال بـ Supabase: {e}")
+            st.stop()
     
     def upload_file(self, file_bytes, file_name, folder="reports", content_type="text/csv"):
         """رفع ملف إلى Supabase Storage"""
