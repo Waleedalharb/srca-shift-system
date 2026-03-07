@@ -41,6 +41,52 @@ def get_shifts(
         "items": shifts
     }
 
+@router.get("/by_month")
+def get_shifts_by_month(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+    center_id: Optional[UUID] = Query(None, description="معرف المركز"),
+    start_date: Optional[date] = Query(None, description="تاريخ البداية (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="تاريخ النهاية (YYYY-MM-DD)"),
+    limit: int = Query(500, description="الحد الأقصى للنتائج"),
+) -> dict:
+    """جلب المناوبات لشهر محدد"""
+    query = db.query(Shift)
+    
+    if center_id:
+        query = query.filter(Shift.center_id == center_id)
+    
+    if start_date:
+        query = query.filter(Shift.date >= start_date)
+    
+    if end_date:
+        query = query.filter(Shift.date < end_date)
+    
+    shifts = query.limit(limit).all()
+    
+    # تحويل النتيجة إلى الشكل المطلوب مع إضافة الموظفين
+    result = []
+    for shift in shifts:
+        shift_data = {
+            "id": str(shift.id),
+            "date": shift.date.isoformat(),
+            "shift_type": shift.shift_type,
+            "center_id": str(shift.center_id) if shift.center_id else None,
+            "assignments": []
+        }
+        
+        # إضافة تعيينات الموظفين
+        for assignment in shift.assignments:
+            employee = db.query(Employee).filter(Employee.id == assignment.employee_id).first()
+            shift_data["assignments"].append({
+                "employee_id": str(assignment.employee_id),
+                "employee_name": employee.full_name if employee else "غير معروف"
+            })
+        
+        result.append(shift_data)
+    
+    return {"items": result}
+
 @router.post("/", response_model=ShiftSchema, status_code=status.HTTP_201_CREATED)
 def create_shift(
     shift_in: ShiftCreate,
