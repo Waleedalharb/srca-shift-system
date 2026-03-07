@@ -32,7 +32,7 @@ class ShiftService:
             return {"total": 0, "items": []}
     
     def get_shifts_by_date(self, center_id, date):
-        """جلب المناوبات ليوم محدد (للتكميل الذكي)"""
+        """جلب المناوبات ليوم محدد"""
         try:
             date_str = date.strftime("%Y-%m-%d")
             params = {
@@ -109,4 +109,24 @@ class ShiftService:
             return response.status_code == 200
         except Exception as e:
             print(f"خطأ في assign_employee: {e}")
+            return False
+    
+    # ===== دالة جديدة لتحديث مناوبة موظف =====
+    def update_employee_shift(self, employee_id, date, shift_type):
+        """تحديث مناوبة موظف ليوم محدد"""
+        try:
+            data = {
+                "employee_id": employee_id,
+                "date": date,
+                "shift_type": shift_type
+            }
+            response = requests.put(
+                f"{self.base_url}/update",
+                headers=self.auth.get_headers(),
+                json=data,
+                timeout=10
+            )
+            return response.status_code == 200
+        except Exception as e:
+            print(f"خطأ في تحديث المناوبة: {e}")
             return False

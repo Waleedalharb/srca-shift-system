@@ -177,7 +177,17 @@ def show_shifts():
                 )
             
             if st.button("💾 تحديث", use_container_width=True, type="primary"):
-                st.success(f"✅ تم تحديث يوم {day} إلى {SHIFT_TYPES[new_shift]['name']}")
+                # تحضير التاريخ
+                date_str = f"{year}-{month:02d}-{day:02d}"
+                
+                # إرسال التحديث إلى API
+                success = ss.update_employee_shift(emp_id, date_str, new_shift)
+                
+                if success:
+                    st.success(f"✅ تم تحديث يوم {day} إلى {SHIFT_TYPES[new_shift]['name']}")
+                    st.rerun()  # إعادة تحميل الصفحة لرؤية التغيير
+                else:
+                    st.error("❌ فشل في تحديث المناوبة")
         
         elif edit_type == "نطاق أيام":
             col1, col2 = st.columns(2)
@@ -193,16 +203,25 @@ def show_shifts():
             )
             
             if st.button("💾 تحديث النطاق", use_container_width=True, type="primary"):
-                st.success(f"✅ تم تحديث الأيام {from_day}-{to_day} إلى {SHIFT_TYPES[new_shift]['name']}")
+                success_count = 0
+                for day in range(from_day, to_day + 1):
+                    date_str = f"{year}-{month:02d}-{day:02d}"
+                    if ss.update_employee_shift(emp_id, date_str, new_shift):
+                        success_count += 1
+                
+                if success_count > 0:
+                    st.success(f"✅ تم تحديث {success_count} يوم إلى {SHIFT_TYPES[new_shift]['name']}")
+                    st.rerun()
+                else:
+                    st.error("❌ فشل في تحديث المناوبات")
         
         else:  # تطبيق نمط
             st.markdown("#### أنماط التناوب")
-            # أنماط التناوب (معدلة لتتوافق مع SHIFT_TYPES الموجودة)
             patterns = {
-                "نظام 2+2+4": ["morning_12", "morning_12", "night_12", "night_12", "off", "off", "off", "off"],
+                "نظام 2+2+4": ["morning_12", "morning_12", "night_10", "night_10", "off", "off", "off", "off"],
                 "نظام دوام رسمي": ["morning_8", "morning_8", "morning_8", "morning_8", "morning_8", "off", "off"],
                 "نظام تداخلي": ["overlap_8", "overlap_8", "off"],
-                "نظام 3+3+3": ["morning_12", "morning_12", "morning_12", "night_12", "night_12", "night_12", "off", "off", "off"],
+                "نظام 3+3+3": ["morning_12", "morning_12", "morning_12", "night_10", "night_10", "night_10", "off", "off", "off"],
                 "نظام نهاية أسبوع": ["morning_8", "morning_8", "evening_8", "evening_8", "off", "off", "off"],
             }
             
@@ -218,7 +237,16 @@ def show_shifts():
             start_day = st.number_input("بدءًا من يوم", 1, days_in_month, 1)
             
             if st.button("✅ تطبيق النمط", use_container_width=True, type="primary"):
-                st.success(f"✅ تم تطبيق نمط {selected_pattern}")
+                success_count = 0
+                for i, day in enumerate(range(start_day, days_in_month + 1)):
+                    pattern_idx = (i) % len(pattern)
+                    shift_type = pattern[pattern_idx]
+                    date_str = f"{year}-{month:02d}-{day:02d}"
+                    if ss.update_employee_shift(emp_id, date_str, shift_type):
+                        success_count += 1
+                
+                st.success(f"✅ تم تطبيق نمط {selected_pattern} على {success_count} يوم")
+                st.rerun()
     
     # ===== وضع الإضافة =====
     elif view_mode == "➕ إضافة":
