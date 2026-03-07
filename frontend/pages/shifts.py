@@ -168,11 +168,12 @@ def show_shifts():
                 day = st.number_input("اليوم", 1, days_in_month, 1)
             with col2:
                 current_shift = emp_shifts.get(day, "off")
+                current_index = list(SHIFT_TYPES.keys()).index(current_shift) if current_shift in SHIFT_TYPES else 0
                 new_shift = st.selectbox(
                     "المناوبة",
                     options=list(SHIFT_TYPES.keys()),
                     format_func=lambda x: f"{SHIFT_TYPES[x]['icon']} {SHIFT_TYPES[x]['name']}",
-                    index=list(SHIFT_TYPES.keys()).index(current_shift)
+                    index=current_index
                 )
             
             if st.button("💾 تحديث", use_container_width=True, type="primary"):
@@ -196,10 +197,13 @@ def show_shifts():
         
         else:  # تطبيق نمط
             st.markdown("#### أنماط التناوب")
+            # أنماط التناوب (معدلة لتتوافق مع SHIFT_TYPES الموجودة)
             patterns = {
                 "نظام 2+2+4": ["morning_12", "morning_12", "night_12", "night_12", "off", "off", "off", "off"],
-                "نظام دوام رسمي": ["official_8"]*5 + ["off"]*2,
-                "نظام تداخلي": ["overlap_morning", "overlap_evening", "off"],
+                "نظام دوام رسمي": ["morning_8", "morning_8", "morning_8", "morning_8", "morning_8", "off", "off"],
+                "نظام تداخلي": ["overlap_8", "overlap_8", "off"],
+                "نظام 3+3+3": ["morning_12", "morning_12", "morning_12", "night_12", "night_12", "night_12", "off", "off", "off"],
+                "نظام نهاية أسبوع": ["morning_8", "morning_8", "evening_8", "evening_8", "off", "off", "off"],
             }
             
             selected_pattern = st.selectbox("اختر النمط", list(patterns.keys()))
