@@ -160,6 +160,8 @@ def show_attendance():
         
         # ===== استرجاع البيانات المحفوظة إذا وجدت =====
         saved_data = _get_saved_attendance(center_id, selected_date)
+        if saved_data:
+            st.info("📋 تم تحميل تكميل سابق لهذا اليوم")
         
         # ===== نموذج التكميل =====
         st.markdown("---")
@@ -287,23 +289,28 @@ def show_attendance():
         col1, col2 = st.columns(2)
         
         with col1:
-            delegator = st.selectbox("👤 الموكل (الموظف الأساسي)", ["لا يوجد"] + emp_options, 
-                                      index=0 if saved_delegator == "لا يوجد" else (["لا يوجد"] + emp_options).index(saved_delegator) if saved_delegator in emp_options else 0)
+            delegator_options = ["لا يوجد"] + emp_options
+            delegator_index = 0
+            if saved_delegator in delegator_options:
+                delegator_index = delegator_options.index(saved_delegator)
+            delegator = st.selectbox("👤 الموكل (الموظف الأساسي)", delegator_options, index=delegator_index)
         
         with col2:
-            substitute = st.selectbox("🔄 البديل", ["لا يوجد"] + emp_options,
-                                       index=0 if saved_substitute == "لا يوجد" else (["لا يوجد"] + emp_options).index(saved_substitute) if saved_substitute in emp_options else 0)
+            substitute_options = ["لا يوجد"] + emp_options
+            substitute_index = 0
+            if saved_substitute in substitute_options:
+                substitute_index = substitute_options.index(saved_substitute)
+            substitute = st.selectbox("🔄 البديل", substitute_options, index=substitute_index)
         
         notes = st.text_area("📝 ملاحظات", value=saved_notes, placeholder="أي ملاحظات إضافية...")
         
-        # ===== حفظ التكميل =====
-        col1, col2 = st.columns(2)
+        # ===== أزرار التحكم =====
+        col1, col2, col3 = st.columns(3)
         
         with col1:
             if st.button("💾 حفظ التكميل", type="primary", use_container_width=True):
                 # حفظ في session_state
                 _save_attendance_to_session(center_id, selected_date, attendance_data, delegator, substitute, notes)
-                
                 st.success("✅ تم حفظ التكميل محلياً")
                 
                 # رفع التقرير إلى Supabase
@@ -314,11 +321,12 @@ def show_attendance():
                         selected_date
                     )
                 
-                if upload_result["success"]:
+                if upload_result and upload_result.get("success"):
                     st.info(f"📤 تم حفظ التقرير في التخزين السحابي")
-                    st.markdown(f"🔗 [رابط التقرير]({upload_result['url']})")
+                    if upload_result.get("url"):
+                        st.markdown(f"🔗 [رابط التقرير]({upload_result['url']})")
                 
-                # ===== عرض التقرير النهائي =====
+                # عرض التقرير النهائي
                 st.markdown("---")
                 st.markdown("## 📄 تقرير التكميل النهائي")
                 
@@ -373,6 +381,11 @@ def show_attendance():
                     """, unsafe_allow_html=True)
         
         with col2:
+            # زر تحديث الصفحة
+            if st.button("🔄 تحديث الصفحة", use_container_width=True):
+                st.rerun()
+        
+        with col3:
             # زر طباعة التقرير
             if st.button("🖨️ طباعة التقرير", use_container_width=True):
                 # تجهيز بيانات الطباعة
