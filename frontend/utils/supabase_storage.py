@@ -96,6 +96,61 @@ class SupabaseStorage:
         except Exception as e:
             return {"success": False, "message": f"❌ {str(e)}"}
     
+    # ===== دوال جديدة لحفظ واسترجاع التكميل اليومي =====
+    def save_daily_attendance(self, center_id, center_name, report_date, employee_data, summary, delegator=None, substitute=None, notes=None):
+        """حفظ التكميل اليومي في قاعدة البيانات"""
+        try:
+            data = {
+                "center_id": center_id,
+                "center_name": center_name,
+                "report_date": report_date.isoformat(),
+                "employee_data": employee_data,
+                "summary": summary,
+                "delegator": delegator,
+                "substitute": substitute,
+                "notes": notes,
+                "created_by": st.session_state.get("username", "unknown"),
+                "created_at": datetime.now().isoformat()
+            }
+            
+            # استخدام upsert (update if exists, insert if not)
+            result = self.supabase.table("daily_attendance").upsert(data, on_conflict=["center_id", "report_date"]).execute()
+            return True
+        except Exception as e:
+            print(f"خطأ في حفظ التكميل: {e}")
+            return False
+
+    def get_daily_attendance(self, center_id, report_date):
+        """جلب التكميل ليوم محدد"""
+        try:
+            result = self.supabase.table("daily_attendance") \
+                .select("*") \
+                .eq("center_id", center_id) \
+                .eq("report_date", report_date.isoformat()) \
+                .execute()
+            
+            if result.data and len(result.data) > 0:
+                return result.data[0]
+            return None
+        except Exception as e:
+            print(f"خطأ في جلب التكميل: {e}")
+            return None
+
+    def get_attendance_history_by_center(self, center_id, limit=30):
+        """جلب تاريخ التكميل لمركز محدد"""
+        try:
+            result = self.supabase.table("daily_attendance") \
+                .select("*") \
+                .eq("center_id", center_id) \
+                .order("report_date", desc=True) \
+                .limit(limit) \
+                .execute()
+            
+            return result.data
+        except Exception as e:
+            print(f"خطأ في جلب تاريخ التكميل: {e}")
+            return []
+    
     def _save_file_metadata(self, file_path, file_name, public_url):
         """حفظ معلومات الملف في قاعدة البيانات"""
         try:
