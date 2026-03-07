@@ -58,6 +58,14 @@ def show_shifts():
     
     page_header("📅 إدارة المناوبات", "عرض، إضافة، تعديل المناوبات", "⏰")
     
+    # زر تحديث يدوي
+    col1, col2 = st.columns([10, 1])
+    with col2:
+        if st.button("🔄 تحديث الجدول"):
+            st.cache_data.clear()
+            st.session_state.shift_service = None
+            st.rerun()
+    
     cs, es, ss = _get_services()
     centers = cs.get_centers() or []
     
@@ -185,7 +193,10 @@ def show_shifts():
                 
                 if success:
                     st.success(f"✅ تم تحديث يوم {day} إلى {SHIFT_TYPES[new_shift]['name']}")
-                    st.rerun()  # إعادة تحميل الصفحة لرؤية التغيير
+                    # مسح الكاش وإعادة تعيين الخدمة
+                    st.cache_data.clear()
+                    st.session_state.shift_service = None
+                    st.rerun()
                 else:
                     st.error("❌ فشل في تحديث المناوبة")
         
@@ -211,6 +222,8 @@ def show_shifts():
                 
                 if success_count > 0:
                     st.success(f"✅ تم تحديث {success_count} يوم إلى {SHIFT_TYPES[new_shift]['name']}")
+                    st.cache_data.clear()
+                    st.session_state.shift_service = None
                     st.rerun()
                 else:
                     st.error("❌ فشل في تحديث المناوبات")
@@ -246,6 +259,8 @@ def show_shifts():
                         success_count += 1
                 
                 st.success(f"✅ تم تطبيق نمط {selected_pattern} على {success_count} يوم")
+                st.cache_data.clear()
+                st.session_state.shift_service = None
                 st.rerun()
     
     # ===== وضع الإضافة =====
