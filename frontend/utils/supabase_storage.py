@@ -6,50 +6,45 @@ from datetime import datetime
 import uuid
 import pandas as pd
 import io
+import hashlib
 
 class SupabaseStorage:
     def __init__(self):
         """تهيئة الاتصال مع Supabase Storage"""
-        # قراءة من متغيرات البيئة
         self.supabase_url = os.environ.get("SUPABASE_URL")
         self.supabase_key = os.environ.get("SUPABASE_KEY")
         self.bucket_name = "srca-reports"
         
-        # طبقة للتحقق (للتشخيص)
-        print(f"SUPABASE_URL: {self.supabase_url}")
-        print(f"SUPABASE_KEY: {self.supabase_key[:10]}..." if self.supabase_key else "None")
-        
         if not self.supabase_url or not self.supabase_key:
-            st.error("❌ لم يتم تعيين متغيرات SUPABASE_URL و SUPABASE_KEY في Environment Variables")
+            st.error("❌ لم يتم تعيين متغيرات SUPABASE_URL و SUPABASE_KEY")
             st.stop()
         
         try:
             self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
-            print("✅ تم الاتصال بـ Supabase بنجاح")
         except Exception as e:
             st.error(f"❌ فشل الاتصال بـ Supabase: {e}")
             st.stop()
     
+    def _get_user_session_key(self):
+        """مفتاح فريد لكل مستخدم وجهاز"""
+        user = st.session_state.get("username", "guest")
+        device = hashlib.md5(str(st.session_state.get("session_id", "")).encode()).hexdigest()[:8]
+        return f"{user}_{device}"
+    
     def upload_file(self, file_bytes, file_name, folder="reports", content_type="text/csv"):
         """رفع ملف إلى Supabase Storage"""
         try:
-            # إنشاء مسار فريد للملف
             date_str = datetime.now().strftime("%Y/%m/%d")
             unique_id = str(uuid.uuid4())[:8]
             file_path = f"{folder}/{date_str}/{unique_id}_{file_name}"
             
-            # رفع الملف
-            result = self.supabase.storage.from_(self.bucket_name).upload(
+            self.supabase.storage.from_(self.bucket_name).upload(
                 path=file_path,
                 file=file_bytes,
                 file_options={"content-type": content_type}
             )
             
-            # الحصول على الرابط العام
             public_url = self.supabase.storage.from_(self.bucket_name).get_public_url(file_path)
-            
-            # حفظ معلومات الملف في قاعدة البيانات
-            self._save_file_metadata(file_path, file_name, public_url)
             
             return {
                 "success": True,
@@ -67,7 +62,6 @@ class SupabaseStorage:
     def upload_dataframe(self, df, report_name, folder="reports"):
         """رفع DataFrame كملف CSV"""
         try:
-            # تحويل DataFrame إلى CSV
             csv_buffer = io.StringIO()
             df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
             file_bytes = csv_buffer.getvalue().encode('utf-8-sig')
@@ -80,95 +74,20 @@ class SupabaseStorage:
     def upload_attendance_report(self, attendance_data, center_name, report_date):
         """رفع تقرير التكميل اليومي"""
         try:
-            # تحويل بيانات التكميل إلى DataFrame
             df = pd.DataFrame(attendance_data)
-            
-            # اسم التقرير
             report_name = f"تكميل_{center_name}_{report_date.strftime('%Y%m%d')}"
-            
-            # رفع الملف
             result = self.upload_dataframe(df, report_name, folder="attendance")
             
-            # حفظ في جدول attendance_history
-            self._save_attendance_history(attendance_data, center_name, report_date, result.get("url"))
+            if result["success"]:
+                self._save_attendance_history(attendance_data, center_name, report_date, result["url"])
             
             return result
         except Exception as e:
             return {"success": False, "message": f"❌ {str(e)}"}
     
-    # ===== دوال جديدة لحفظ واسترجاع التكميل اليومي =====
-    def save_daily_attendance(self, center_id, center_name, report_date, employee_data, summary, delegator=None, substitute=None, notes=None):
-        """حفظ التكميل اليومي في قاعدة البيانات"""
-        try:
-            data = {
-                "center_id": center_id,
-                "center_name": center_name,
-                "report_date": report_date.isoformat(),
-                "employee_data": employee_data,
-                "summary": summary,
-                "delegator": delegator,
-                "substitute": substitute,
-                "notes": notes,
-                "created_by": st.session_state.get("username", "unknown"),
-                "created_at": datetime.now().isoformat()
-            }
-            
-            # استخدام upsert (update if exists, insert if not)
-            result = self.supabase.table("daily_attendance").upsert(data, on_conflict=["center_id", "report_date"]).execute()
-            return True
-        except Exception as e:
-            print(f"خطأ في حفظ التكميل: {e}")
-            return False
-
-    def get_daily_attendance(self, center_id, report_date):
-        """جلب التكميل ليوم محدد"""
-        try:
-            result = self.supabase.table("daily_attendance") \
-                .select("*") \
-                .eq("center_id", center_id) \
-                .eq("report_date", report_date.isoformat()) \
-                .execute()
-            
-            if result.data and len(result.data) > 0:
-                return result.data[0]
-            return None
-        except Exception as e:
-            print(f"خطأ في جلب التكميل: {e}")
-            return None
-
-    def get_attendance_history_by_center(self, center_id, limit=30):
-        """جلب تاريخ التكميل لمركز محدد"""
-        try:
-            result = self.supabase.table("daily_attendance") \
-                .select("*") \
-                .eq("center_id", center_id) \
-                .order("report_date", desc=True) \
-                .limit(limit) \
-                .execute()
-            
-            return result.data
-        except Exception as e:
-            print(f"خطأ في جلب تاريخ التكميل: {e}")
-            return []
-    
-    def _save_file_metadata(self, file_path, file_name, public_url):
-        """حفظ معلومات الملف في قاعدة البيانات"""
-        try:
-            data = {
-                "file_path": file_path,
-                "file_name": file_name,
-                "public_url": public_url,
-                "uploaded_by": st.session_state.get("username", "unknown"),
-                "uploaded_at": datetime.now().isoformat()
-            }
-            self.supabase.table("uploaded_files").insert(data).execute()
-        except Exception as e:
-            print(f"خطأ في حفظ معلومات الملف: {e}")
-    
     def _save_attendance_history(self, attendance_data, center_name, report_date, file_url):
         """حفظ تاريخ التكميل في قاعدة البيانات"""
         try:
-            # حساب الإحصائيات
             total = len(attendance_data)
             present = sum(1 for r in attendance_data if r.get("status") == "حاضر")
             absent = sum(1 for r in attendance_data if r.get("status") == "غائب")
@@ -185,33 +104,19 @@ class SupabaseStorage:
                 "created_by": st.session_state.get("username", "unknown"),
                 "created_at": datetime.now().isoformat()
             }
+            
             self.supabase.table("attendance_history").insert(data).execute()
         except Exception as e:
             print(f"خطأ في حفظ تاريخ التكميل: {e}")
     
-    def list_files(self, folder="reports", limit=50):
-        """عرض الملفات المرفوعة"""
-        try:
-            # جلب من قاعدة البيانات
-            result = self.supabase.table("uploaded_files") \
-                .select("*") \
-                .order("uploaded_at", desc=True) \
-                .limit(limit) \
-                .execute()
-            
-            return result.data
-        except Exception as e:
-            st.error(f"❌ فشل جلب الملفات: {e}")
-            return []
-    
-    def get_attendance_history(self, center_name=None, days_back=30):
+    def get_attendance_history(self, center_name=None):
         """جلب تاريخ التكميل"""
         try:
             query = self.supabase.table("attendance_history") \
                 .select("*") \
                 .order("report_date", desc=True)
             
-            if center_name:
+            if center_name and center_name != "الكل":
                 query = query.eq("center_name", center_name)
             
             result = query.limit(100).execute()
@@ -220,14 +125,24 @@ class SupabaseStorage:
             st.error(f"❌ فشل جلب تاريخ التكميل: {e}")
             return []
     
+    def get_attendance_by_date(self, center_name, report_date):
+        """جلب تكميل ليوم محدد"""
+        try:
+            result = self.supabase.table("attendance_history") \
+                .select("*") \
+                .eq("center_name", center_name) \
+                .eq("report_date", report_date.isoformat()) \
+                .execute()
+            
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"خطأ في جلب التكميل: {e}")
+            return None
+    
     def delete_file(self, file_path):
         """حذف ملف من التخزين"""
         try:
             self.supabase.storage.from_(self.bucket_name).remove([file_path])
-            
-            # حذف من قاعدة البيانات
-            self.supabase.table("uploaded_files").delete().eq("file_path", file_path).execute()
-            
             return True
         except Exception as e:
             st.error(f"❌ فشل حذف الملف: {e}")
