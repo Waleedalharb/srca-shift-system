@@ -77,7 +77,10 @@ class SupabaseStorage:
         try:
             # تحويل بيانات التكميل إلى DataFrame
             df = pd.DataFrame(attendance_data)
-            report_name = f"تكميل_{center_name}_{report_date.strftime('%Y%m%d')}"
+            
+            # ✅ إزالة المسافات من اسم المركز (سبب المشكلة)
+            clean_center_name = center_name.replace(" ", "_")
+            report_name = f"تكميل_{clean_center_name}_{report_date.strftime('%Y%m%d')}"
             
             print(f"📤 محاولة رفع تقرير: {report_name}")
             
@@ -140,7 +143,6 @@ class SupabaseStorage:
             print(f"❌ فشل إدراج البيانات في Supabase:")
             print(f"   - نوع الخطأ: {type(e).__name__}")
             print(f"   - تفاصيل الخطأ: {str(e)}")
-            # إذا كان الخطأ من Supabase نفسه، قد يكون له جسم استجابة
             if hasattr(e, 'response') and e.response is not None:
                 try:
                     response_text = e.response.text if hasattr(e.response, 'text') else 'لا يوجد'
