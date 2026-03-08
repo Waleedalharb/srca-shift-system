@@ -195,189 +195,201 @@ def show_attendance():
         if saved_data or permanent_day:
             st.info("📋 تم تحميل تكميل سابق")
         
-        # نموذج التكميل
-        st.markdown("---")
-        st.markdown("### 📝 تسجيل الحضور")
-        
-        attendance_data = []
-        
-        for emp in active_employees:
-            emp_id = str(emp["id"])
-            planned_shift = planned_map.get(emp_id, "off")
-            planned_info = SHIFT_TYPES.get(planned_shift, SHIFT_TYPES["off"])
+        # نموذج التكميل - ملاحظة: هنا بدأ الـ Form
+        with st.form("attendance_form"):
+            attendance_data = []
             
-            # بحث عن بيانات محفوظة
-            saved_emp_data = None
-            if saved_data and "data" in saved_data:
-                saved_emp_data = next((item for item in saved_data["data"] if item["employee_id"] == emp_id), None)
-            
-            emp_key = f"{day_key}_{emp['emp_no']}"
-            permanent_emp = permanent_day.get(emp_key, {})
-            
-            with st.container():
-                st.markdown(f"#### 👤 {emp['full_name']} ({emp.get('emp_no', '')})")
+            for emp in active_employees:
+                emp_id = str(emp["id"])
+                planned_shift = planned_map.get(emp_id, "off")
+                planned_info = SHIFT_TYPES.get(planned_shift, SHIFT_TYPES["off"])
                 
-                # معلومات المناوبة المخطط لها
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.markdown(f"**المخطط:** {planned_info['name']}")
-                with col2:
-                    st.markdown(f"**من:** {planned_info['start']}")
-                with col3:
-                    st.markdown(f"**إلى:** {planned_info['end']}")
+                # بحث عن بيانات محفوظة
+                saved_emp_data = None
+                if saved_data and "data" in saved_data:
+                    saved_emp_data = next((item for item in saved_data["data"] if item["employee_id"] == emp_id), None)
                 
-                # بيانات الحضور
-                col1, col2, col3, col4, col5 = st.columns(5)
+                emp_key = f"{day_key}_{emp['emp_no']}"
+                permanent_emp = permanent_day.get(emp_key, {})
                 
-                with col1:
-                    # نوع المناوبة الفعلية
-                    default_shift_index = list(SHIFT_TYPES.keys()).index(planned_shift) if planned_shift in SHIFT_TYPES else 0
-                    if saved_emp_data and saved_emp_data.get("actual_shift"):
-                        try:
-                            default_shift_index = list(SHIFT_TYPES.keys()).index(saved_emp_data["actual_shift"])
-                        except:
-                            pass
-                    elif permanent_emp.get("actual_shift"):
-                        try:
-                            default_shift_index = list(SHIFT_TYPES.keys()).index(permanent_emp["actual_shift"])
-                        except:
-                            pass
+                with st.container():
+                    st.markdown(f"#### 👤 {emp['full_name']} ({emp.get('emp_no', '')})")
                     
-                    actual_shift = st.selectbox(
-                        "المناوبة الفعلية",
-                        options=list(SHIFT_TYPES.keys()),
-                        format_func=lambda x: f"{SHIFT_TYPES[x]['icon']} {SHIFT_TYPES[x]['name']}",
-                        index=default_shift_index,
-                        key=f"shift_{emp_id}"
-                    )
-                
-                with col2:
-                    # الحالة
-                    default_status = "حاضر"
-                    if saved_emp_data and saved_emp_data.get("status"):
-                        default_status = saved_emp_data["status"]
-                    elif permanent_emp.get("status"):
-                        default_status = permanent_emp["status"]
+                    # معلومات المناوبة المخطط لها
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.markdown(f"**المخطط:** {planned_info['name']}")
+                    with col2:
+                        st.markdown(f"**من:** {planned_info['start']}")
+                    with col3:
+                        st.markdown(f"**إلى:** {planned_info['end']}")
                     
-                    status_options = ["حاضر", "غائب", "متأخر", "مهمة رسمية", "إجازة"]
-                    default_status_index = status_options.index(default_status) if default_status in status_options else 0
+                    # بيانات الحضور
+                    col1, col2, col3, col4, col5 = st.columns(5)
                     
-                    status = st.selectbox(
-                        "الحالة",
-                        status_options,
-                        index=default_status_index,
-                        key=f"status_{emp_id}"
-                    )
-                
-                with col3:
-                    # وقت الحضور
-                    default_start = safe_time(planned_info['start'])
-                    if saved_emp_data and saved_emp_data.get("actual_start"):
-                        default_start = safe_time(saved_emp_data["actual_start"])
-                    elif permanent_emp.get("check_in"):
-                        default_start = safe_time(permanent_emp["check_in"])
-                    
-                    actual_start = st.time_input(
-                        "⏰ وقت الحضور",
-                        value=default_start,
-                        key=f"start_{emp_id}"
-                    )
-                
-                with col4:
-                    # وقت الانصراف
-                    default_end = safe_time(planned_info['end'])
-                    if saved_emp_data and saved_emp_data.get("actual_end"):
-                        default_end = safe_time(saved_emp_data["actual_end"])
-                    elif permanent_emp.get("check_out"):
-                        default_end = safe_time(permanent_emp["check_out"])
-                    
-                    actual_end = st.time_input(
-                        "🕒 وقت الانصراف",
-                        value=default_end,
-                        key=f"end_{emp_id}"
-                    )
-                
-                with col5:
-                    # وقت التأخير
-                    if status == "متأخر":
-                        default_late = time(8, 15)
-                        if saved_emp_data and saved_emp_data.get("late_time"):
+                    with col1:
+                        # نوع المناوبة الفعلية
+                        default_shift_index = list(SHIFT_TYPES.keys()).index(planned_shift) if planned_shift in SHIFT_TYPES else 0
+                        if saved_emp_data and saved_emp_data.get("actual_shift"):
                             try:
-                                default_late = datetime.strptime(saved_emp_data["late_time"], "%H:%M").time()
+                                default_shift_index = list(SHIFT_TYPES.keys()).index(saved_emp_data["actual_shift"])
                             except:
                                 pass
-                        elif permanent_emp.get("late_time"):
+                        elif permanent_emp.get("actual_shift"):
                             try:
-                                default_late = datetime.strptime(permanent_emp["late_time"], "%H:%M").time()
+                                default_shift_index = list(SHIFT_TYPES.keys()).index(permanent_emp["actual_shift"])
                             except:
                                 pass
                         
-                        late_time = st.time_input(
-                            "⏱️ وقت التأخير",
-                            value=default_late,
-                            key=f"late_{emp_id}"
+                        actual_shift = st.selectbox(
+                            "المناوبة الفعلية",
+                            options=list(SHIFT_TYPES.keys()),
+                            format_func=lambda x: f"{SHIFT_TYPES[x]['icon']} {SHIFT_TYPES[x]['name']}",
+                            index=default_shift_index,
+                            key=f"shift_{emp_id}"
                         )
-                    else:
-                        late_time = None
-                        st.markdown("—")
-                
-                attendance_data.append({
-                    "employee_id": emp_id,
-                    "employee_name": emp['full_name'],
-                    "emp_no": emp.get('emp_no', ''),
-                    "planned_shift": planned_info['name'],
-                    "planned_start": planned_info['start'],
-                    "planned_end": planned_info['end'],
-                    "actual_shift": actual_shift,
-                    "status": status,
-                    "actual_start": actual_start.strftime("%H:%M") if actual_start else "",
-                    "actual_end": actual_end.strftime("%H:%M") if actual_end else "",
-                    "late_time": late_time.strftime("%H:%M") if late_time else ""
-                })
-                
-                st.markdown("---")
-        
-        # التوكيل والبديل
-        st.markdown("### 🔄 التوكيل والبديل")
-        
-        emp_options = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in active_employees]
-        
-        saved_delegator = "لا يوجد"
-        saved_substitute = "لا يوجد"
-        saved_notes = ""
-        
-        if saved_data:
-            saved_delegator = saved_data.get("delegator", "لا يوجد")
-            saved_substitute = saved_data.get("substitute", "لا يوجد")
-            saved_notes = saved_data.get("notes", "")
-        elif permanent_day:
-            saved_delegator = permanent_day.get("delegator", "لا يوجد")
-            saved_substitute = permanent_day.get("substitute", "لا يوجد")
-            saved_notes = permanent_day.get("notes", "")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            delegator_options = ["لا يوجد"] + emp_options
-            delegator_index = 0
-            if saved_delegator in delegator_options:
-                delegator_index = delegator_options.index(saved_delegator)
-            delegator = st.selectbox("👤 الموكل (الموظف الأساسي)", delegator_options, index=delegator_index)
-        
-        with col2:
-            substitute_options = ["لا يوجد"] + emp_options
-            substitute_index = 0
-            if saved_substitute in substitute_options:
-                substitute_index = substitute_options.index(saved_substitute)
-            substitute = st.selectbox("🔄 البديل", substitute_options, index=substitute_index)
-        
-        notes = st.text_area("📝 ملاحظات", value=saved_notes, placeholder="أي ملاحظات إضافية...")
-        
-        # أزرار التحكم
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if st.button("💾 حفظ", type="primary", use_container_width=True):
+                    
+                    with col2:
+                        # الحالة
+                        default_status = "حاضر"
+                        if saved_emp_data and saved_emp_data.get("status"):
+                            default_status = saved_emp_data["status"]
+                        elif permanent_emp.get("status"):
+                            default_status = permanent_emp["status"]
+                        
+                        status_options = ["حاضر", "غائب", "متأخر", "مهمة رسمية", "إجازة"]
+                        default_status_index = status_options.index(default_status) if default_status in status_options else 0
+                        
+                        status = st.selectbox(
+                            "الحالة",
+                            status_options,
+                            index=default_status_index,
+                            key=f"status_{emp_id}"
+                        )
+                    
+                    with col3:
+                        # وقت الحضور
+                        default_start = safe_time(planned_info['start'])
+                        if saved_emp_data and saved_emp_data.get("actual_start"):
+                            default_start = safe_time(saved_emp_data["actual_start"])
+                        elif permanent_emp.get("check_in"):
+                            default_start = safe_time(permanent_emp["check_in"])
+                        
+                        actual_start = st.time_input(
+                            "⏰ وقت الحضور",
+                            value=default_start,
+                            key=f"start_{emp_id}"
+                        )
+                    
+                    with col4:
+                        # وقت الانصراف
+                        default_end = safe_time(planned_info['end'])
+                        if saved_emp_data and saved_emp_data.get("actual_end"):
+                            default_end = safe_time(saved_emp_data["actual_end"])
+                        elif permanent_emp.get("check_out"):
+                            default_end = safe_time(permanent_emp["check_out"])
+                        
+                        actual_end = st.time_input(
+                            "🕒 وقت الانصراف",
+                            value=default_end,
+                            key=f"end_{emp_id}"
+                        )
+                    
+                    with col5:
+                        # وقت التأخير
+                        if status == "متأخر":
+                            default_late = time(8, 15)
+                            if saved_emp_data and saved_emp_data.get("late_time"):
+                                try:
+                                    default_late = datetime.strptime(saved_emp_data["late_time"], "%H:%M").time()
+                                except:
+                                    pass
+                            elif permanent_emp.get("late_time"):
+                                try:
+                                    default_late = datetime.strptime(permanent_emp["late_time"], "%H:%M").time()
+                                except:
+                                    pass
+                            
+                            late_time = st.time_input(
+                                "⏱️ وقت التأخير",
+                                value=default_late,
+                                key=f"late_{emp_id}"
+                            )
+                        else:
+                            late_time = None
+                            st.markdown("—")
+                    
+                    attendance_data.append({
+                        "employee_id": emp_id,
+                        "employee_name": emp['full_name'],
+                        "emp_no": emp.get('emp_no', ''),
+                        "planned_shift": planned_info['name'],
+                        "planned_start": planned_info['start'],
+                        "planned_end": planned_info['end'],
+                        "actual_shift": actual_shift,
+                        "status": status,
+                        "actual_start": actual_start.strftime("%H:%M") if actual_start else "",
+                        "actual_end": actual_end.strftime("%H:%M") if actual_end else "",
+                        "late_time": late_time.strftime("%H:%M") if late_time else ""
+                    })
+                    
+                    st.markdown("---")
+            
+            # التوكيل والبديل
+            st.markdown("### 🔄 التوكيل والبديل")
+            
+            emp_options = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in active_employees]
+            
+            saved_delegator = "لا يوجد"
+            saved_substitute = "لا يوجد"
+            saved_notes = ""
+            
+            if saved_data:
+                saved_delegator = saved_data.get("delegator", "لا يوجد")
+                saved_substitute = saved_data.get("substitute", "لا يوجد")
+                saved_notes = saved_data.get("notes", "")
+            elif permanent_day:
+                saved_delegator = permanent_day.get("delegator", "لا يوجد")
+                saved_substitute = permanent_day.get("substitute", "لا يوجد")
+                saved_notes = permanent_day.get("notes", "")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                delegator_options = ["لا يوجد"] + emp_options
+                delegator_index = 0
+                if saved_delegator in delegator_options:
+                    delegator_index = delegator_options.index(saved_delegator)
+                delegator = st.selectbox("👤 الموكل (الموظف الأساسي)", delegator_options, index=delegator_index)
+            
+            with col2:
+                substitute_options = ["لا يوجد"] + emp_options
+                substitute_index = 0
+                if saved_substitute in substitute_options:
+                    substitute_index = substitute_options.index(saved_substitute)
+                substitute = st.selectbox("🔄 البديل", substitute_options, index=substitute_index)
+            
+            notes = st.text_area("📝 ملاحظات", value=saved_notes, placeholder="أي ملاحظات إضافية...")
+            
+            # أزرار التحكم داخل الـ Form
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                # ✅ تم تغيير st.button إلى st.form_submit_button
+                submitted = st.form_submit_button("💾 حفظ", type="primary", use_container_width=True)
+            
+            with col2:
+                # ملاحظة: أزرار الطباعة والتحديث والإلغاء يجب أن تكون خارج الـ Form
+                pass
+            
+            with col3:
+                pass
+            
+            with col4:
+                pass
+            
+            # تم نقل كود الحفظ خارج الـ Form ولكنه مرتبط بـ submitted
+            if submitted:
                 # حفظ في session_state
                 _save_attendance_to_session(center_id, selected_date, attendance_data, delegator, substitute, notes)
                 
@@ -414,6 +426,9 @@ def show_attendance():
                 
                 st.success("✅ تم الحفظ بنجاح")
                 st.balloons()
+        
+        # أزرار خارج الـ Form (طباعة، تحديث، إلغاء)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col2:
             if st.button("🖨️ طباعة", use_container_width=True):
