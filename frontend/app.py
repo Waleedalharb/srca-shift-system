@@ -2,6 +2,9 @@
 import streamlit as st
 from pathlib import Path
 import sys
+import hashlib
+import base64
+from datetime import datetime
 
 # إضافة المجلد الحالي للمسار
 sys.path.append(str(Path(__file__).parent))
@@ -9,6 +12,29 @@ sys.path.append(str(Path(__file__).parent))
 from config import config
 from services.auth_service import AuthService
 from utils.helpers import load_css, setup_rtl, footer
+
+# ===== مدير الجلسات لحل مشكلة تعدد المستخدمين =====
+class SessionManager:
+    def __init__(self):
+        self.sessions = {}
+    
+    def create_session(self, username):
+        """إنشاء جلسة فريدة لكل مستخدم وجهاز"""
+        session_id = base64.b64encode(hashlib.sha256(
+            f"{username}_{datetime.now().timestamp()}".encode()
+        ).digest()).decode()[:16]
+        self.sessions[session_id] = {
+            "username": username,
+            "created_at": datetime.now()
+        }
+        return session_id
+    
+    def validate_session(self, session_id):
+        """التحقق من صحة الجلسة"""
+        if session_id in self.sessions:
+            self.sessions[session_id]["created_at"] = datetime.now()
+            return True
+        return False
 
 # إعداد الصفحة
 st.set_page_config(
@@ -18,7 +44,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# تنسيقات محسنة
+# تنسيقات محسنة (سيتم استبدالها بملف CSS)
 st.markdown("""
 <style>
     /* إخفاء عناصر Streamlit غير المرغوب فيها */
@@ -164,6 +190,10 @@ load_css()
 # إعداد RTL
 setup_rtl()
 
+# تهيئة مدير الجلسات
+if "session_manager" not in st.session_state:
+    st.session_state.session_manager = SessionManager()
+
 # تهيئة حالة الجلسة
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -177,6 +207,8 @@ if "user_center_id" not in st.session_state:
     st.session_state.user_center_id = None
 if "user_employee_id" not in st.session_state:
     st.session_state.user_employee_id = None
+if "session_id" not in st.session_state:
+    st.session_state.session_id = None
 
 # إذا لم يكن مسجل دخول
 if not st.session_state.authenticated:
@@ -184,6 +216,12 @@ if not st.session_state.authenticated:
     show_login_page()
     footer()
     st.stop()
+
+# إنشاء جلسة فريدة للمستخدم
+if st.session_state.session_id is None:
+    st.session_state.session_id = st.session_state.session_manager.create_session(
+        st.session_state.get("username", "guest")
+    )
 
 # ===== الشريط الجانبي =====
 with st.sidebar:
@@ -247,6 +285,7 @@ with st.sidebar:
     if st.button("🚪 تسجيل خروج", use_container_width=True):
         st.session_state.auth_service.logout()
         st.session_state.authenticated = False
+        st.session_state.session_id = None
         for key in ["employee_service", "center_service", "shift_service", "current_page", "user_role"]:
             st.session_state.pop(key, None)
         st.rerun()

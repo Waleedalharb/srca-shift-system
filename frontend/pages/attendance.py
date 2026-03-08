@@ -3,6 +3,9 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date, time, timedelta
 from utils.helpers import page_header
+import hashlib
+import json
+import os
 
 # دالة مساعدة للوقت الآمن
 def safe_time(time_str, default="08:00"):
@@ -60,7 +63,33 @@ def _get_services():
     
     return es, cs, ss
 
-# ===== دوال الحفظ في session_state =====
+def _get_user_session_key():
+    """مفتاح فريد لكل مستخدم وجهاز"""
+    user = st.session_state.get("username", "guest")
+    device = hashlib.md5(str(st.session_state.get("session_id", "")).encode()).hexdigest()[:8]
+    return f"{user}_{device}"
+
+def _save_attendance_permanent(data):
+    """حفظ في ملف JSON محلي"""
+    try:
+        filename = f"attendance_data_{_get_user_session_key()}.json"
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except:
+        return False
+
+def _load_attendance_permanent():
+    """تحميل من ملف JSON"""
+    try:
+        filename = f"attendance_data_{_get_user_session_key()}.json"
+        if os.path.exists(filename):
+            with open(filename, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except:
+        pass
+    return {}
+
 def _get_saved_attendance(center_id, selected_date):
     """استرجاع البيانات المحفوظة من session_state"""
     key = f"attendance_{center_id}_{selected_date}"
@@ -78,7 +107,7 @@ def _save_attendance_to_session(center_id, selected_date, data, delegator, subst
     }
 
 def show_attendance():
-    """صفحة التكميل الذكي - مع حفظ البيانات في session_state"""
+    """صفحة التكميل الذكي - مع حفظ دائم"""
     
     # التحقق من حالة الطباعة أولاً
     if st.session_state.get("print_page", False):
@@ -95,7 +124,7 @@ def show_attendance():
             st.rerun()
         return
     
-    page_header("📋 التكميل الذكي", "تسجيل الحضور مع حفظ تلقائي", "📝")
+    page_header("📋 التكميل الذكي", "تسجيل الحضور مع حفظ دائم", "📝")
     
     from utils.supabase_storage import SupabaseStorage
     storage = SupabaseStorage()
@@ -158,10 +187,16 @@ def show_attendance():
         
         st.success(f"✅ عدد الموظفين المطلوب حضورهم: {len(active_employees)}")
         
-        # ===== استرجاع البيانات المحفوظة إذا وجدت =====
+        # ===== استرجاع البيانات المحفوظة =====
         saved_data = _get_saved_attendance(center_id, selected_date)
+        permanent_data = _load_attendance_permanent()
+        day_key = f"{selected_date}_{selected_center}"
+        permanent_day = permanent_data.get(day_key, {})
+        
         if saved_data:
-            st.info("📋 تم تحميل تكميل سابق لهذا اليوم")
+            st.info("📋 تم تحميل تكميل سابق من الجلسة")
+        elif permanent_day:
+            st.info("📋 تم تحميل تكميل سابق من الملف المحلي")
         
         # ===== نموذج التكميل =====
         st.markdown("---")
@@ -174,10 +209,13 @@ def show_attendance():
             planned_shift = planned_map.get(emp_id, "off")
             planned_info = SHIFT_TYPES.get(planned_shift, SHIFT_TYPES["off"])
             
-            # البحث عن بيانات محفوظة لهذا الموظف
+            # البحث عن بيانات محفوظة
             saved_emp_data = None
             if saved_data and "data" in saved_data:
                 saved_emp_data = next((item for item in saved_data["data"] if item["employee_id"] == emp_id), None)
+            
+            emp_key = f"{day_key}_{emp['emp_no']}"
+            permanent_emp = permanent_day.get(emp_key, {})
             
             with st.container():
                 st.markdown(f"#### 👤 {emp['full_name']} ({emp.get('emp_no', '')})")
@@ -195,11 +233,16 @@ def show_attendance():
                 col1, col2, col3, col4, col5 = st.columns(5)
                 
                 with col1:
-                    # نوع المناوبة الفعلية (مع استرجاع القيمة المحفوظة)
+                    # نوع المناوبة الفعلية
                     default_shift_index = list(SHIFT_TYPES.keys()).index(planned_shift) if planned_shift in SHIFT_TYPES else 0
                     if saved_emp_data and saved_emp_data.get("actual_shift"):
                         try:
                             default_shift_index = list(SHIFT_TYPES.keys()).index(saved_emp_data["actual_shift"])
+                        except:
+                            pass
+                    elif permanent_emp.get("actual_shift"):
+                        try:
+                            default_shift_index = list(SHIFT_TYPES.keys()).index(permanent_emp["actual_shift"])
                         except:
                             pass
                     
@@ -212,8 +255,13 @@ def show_attendance():
                     )
                 
                 with col2:
-                    # الحالة (مع استرجاع القيمة المحفوظة)
-                    default_status = saved_emp_data.get("status", "حاضر") if saved_emp_data else "حاضر"
+                    # الحالة
+                    default_status = "حاضر"
+                    if saved_emp_data and saved_emp_data.get("status"):
+                        default_status = saved_emp_data["status"]
+                    elif permanent_emp.get("status"):
+                        default_status = permanent_emp["status"]
+                    
                     status_options = ["حاضر", "غائب", "متأخر", "مهمة رسمية"]
                     default_status_index = status_options.index(default_status) if default_status in status_options else 0
                     
@@ -225,8 +273,13 @@ def show_attendance():
                     )
                 
                 with col3:
-                    # وقت الحضور الفعلي (مع استرجاع القيمة المحفوظة)
-                    default_start = safe_time(saved_emp_data.get("actual_start", planned_info['start']) if saved_emp_data else planned_info['start'])
+                    # وقت الحضور الفعلي
+                    default_start = safe_time(planned_info['start'])
+                    if saved_emp_data and saved_emp_data.get("actual_start"):
+                        default_start = safe_time(saved_emp_data["actual_start"])
+                    elif permanent_emp.get("check_in"):
+                        default_start = safe_time(permanent_emp["check_in"])
+                    
                     actual_start = st.time_input(
                         "⏰ وقت الحضور",
                         value=default_start,
@@ -234,8 +287,13 @@ def show_attendance():
                     )
                 
                 with col4:
-                    # وقت الانصراف الفعلي (مع استرجاع القيمة المحفوظة)
-                    default_end = safe_time(saved_emp_data.get("actual_end", planned_info['end']) if saved_emp_data else planned_info['end'])
+                    # وقت الانصراف الفعلي
+                    default_end = safe_time(planned_info['end'])
+                    if saved_emp_data and saved_emp_data.get("actual_end"):
+                        default_end = safe_time(saved_emp_data["actual_end"])
+                    elif permanent_emp.get("check_out"):
+                        default_end = safe_time(permanent_emp["check_out"])
+                    
                     actual_end = st.time_input(
                         "🕒 وقت الانصراف",
                         value=default_end,
@@ -243,7 +301,7 @@ def show_attendance():
                     )
                 
                 with col5:
-                    # وقت التأخير (يظهر فقط إذا كان متأخر)
+                    # وقت التأخير
                     if status == "متأخر":
                         default_late = time(8, 15)
                         if saved_emp_data and saved_emp_data.get("late_time"):
@@ -251,6 +309,12 @@ def show_attendance():
                                 default_late = datetime.strptime(saved_emp_data["late_time"], "%H:%M").time()
                             except:
                                 pass
+                        elif permanent_emp.get("late_time"):
+                            try:
+                                default_late = datetime.strptime(permanent_emp["late_time"], "%H:%M").time()
+                            except:
+                                pass
+                        
                         late_time = st.time_input(
                             "⏱️ وقت التأخير",
                             value=default_late,
@@ -276,15 +340,23 @@ def show_attendance():
                 
                 st.markdown("---")
         
-        # ===== التوكيل والبديل (مع استرجاع القيم المحفوظة) =====
+        # ===== التوكيل والبديل =====
         st.markdown("### 🔄 التوكيل والبديل")
         
         emp_options = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in active_employees]
         
-        # القيم المحفوظة للتوكيل
-        saved_delegator = saved_data.get("delegator", "لا يوجد") if saved_data else "لا يوجد"
-        saved_substitute = saved_data.get("substitute", "لا يوجد") if saved_data else "لا يوجد"
-        saved_notes = saved_data.get("notes", "") if saved_data else ""
+        saved_delegator = "لا يوجد"
+        saved_substitute = "لا يوجد"
+        saved_notes = ""
+        
+        if saved_data:
+            saved_delegator = saved_data.get("delegator", "لا يوجد")
+            saved_substitute = saved_data.get("substitute", "لا يوجد")
+            saved_notes = saved_data.get("notes", "")
+        elif permanent_day:
+            saved_delegator = permanent_day.get("delegator", "لا يوجد")
+            saved_substitute = permanent_day.get("substitute", "لا يوجد")
+            saved_notes = permanent_day.get("notes", "")
         
         col1, col2 = st.columns(2)
         
@@ -305,15 +377,32 @@ def show_attendance():
         notes = st.text_area("📝 ملاحظات", value=saved_notes, placeholder="أي ملاحظات إضافية...")
         
         # ===== أزرار التحكم =====
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if st.button("💾 حفظ التكميل", type="primary", use_container_width=True):
+            if st.button("💾 حفظ", type="primary", use_container_width=True):
                 # حفظ في session_state
                 _save_attendance_to_session(center_id, selected_date, attendance_data, delegator, substitute, notes)
-                st.success("✅ تم حفظ التكميل محلياً")
                 
-                # رفع التقرير إلى Supabase
+                # حفظ في ملف JSON
+                day_data = {}
+                for item in attendance_data:
+                    emp_key = f"{day_key}_{item['emp_no']}"
+                    day_data[emp_key] = {
+                        "status": item['status'],
+                        "check_in": item['actual_start'],
+                        "check_out": item['actual_end'],
+                        "late_time": item['late_time'],
+                        "actual_shift": item['actual_shift']
+                    }
+                day_data["delegator"] = delegator
+                day_data["substitute"] = substitute
+                day_data["notes"] = notes
+                
+                permanent_data[day_key] = day_data
+                _save_attendance_permanent(permanent_data)
+                
+                # رفع إلى Supabase
                 with st.spinner("جاري رفع التقرير إلى التخزين السحابي..."):
                     upload_result = storage.upload_attendance_report(
                         attendance_data, 
@@ -326,68 +415,11 @@ def show_attendance():
                     if upload_result.get("url"):
                         st.markdown(f"🔗 [رابط التقرير]({upload_result['url']})")
                 
-                # عرض التقرير النهائي
-                st.markdown("---")
-                st.markdown("## 📄 تقرير التكميل النهائي")
-                
-                col1, col2, col3 = st.columns(3)
-                col1.markdown(f"**المركز:** {selected_center}")
-                col2.markdown(f"**التاريخ:** {selected_date}")
-                col3.markdown(f"**إجمالي الموظفين:** {len(attendance_data)}")
-                
-                report_data = []
-                for item in attendance_data:
-                    actual_info = SHIFT_TYPES.get(item['actual_shift'], SHIFT_TYPES["off"])
-                    status_color = {
-                        "حاضر": "🟢",
-                        "غائب": "🔴",
-                        "متأخر": "🟡",
-                        "مهمة رسمية": "🟠"
-                    }.get(item['status'], "⚪")
-                    
-                    # حساب التأخير
-                    late_info = item['late_time'] if item['late_time'] else ""
-                    
-                    report_data.append({
-                        "الموظف": item['employee_name'],
-                        "المخطط": item['planned_shift'],
-                        "الفعلية": actual_info['name'],
-                        "الحالة": f"{status_color} {item['status']}",
-                        "الحضور": item['actual_start'],
-                        "الانصراف": item['actual_end'],
-                        "التأخير": late_info
-                    })
-                
-                df_report = pd.DataFrame(report_data)
-                st.dataframe(df_report, use_container_width=True, hide_index=True)
-                
-                # إحصائيات
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("👥 إجمالي", len(attendance_data))
-                col2.metric("✅ حاضر", sum(1 for r in attendance_data if r['status'] == "حاضر"))
-                col3.metric("❌ غائب", sum(1 for r in attendance_data if r['status'] == "غائب"))
-                col4.metric("⏰ متأخر", sum(1 for r in attendance_data if r['status'] == "متأخر"))
-                
-                # التوكيل
-                if delegator != "لا يوجد" and substitute != "لا يوجد":
-                    st.markdown("---")
-                    st.markdown("### 🔄 تفاصيل التوكيل")
-                    st.markdown(f"""
-                    <div style="background: #F0F9FF; padding: 1rem; border-radius: 8px; border-right: 4px solid #3B4A82;">
-                        <p><strong>👤 الموكل:</strong> {delegator}</p>
-                        <p><strong>🔄 البديل:</strong> {substitute}</p>
-                        <p><strong>📝 ملاحظات:</strong> {notes if notes else "لا توجد"}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                st.success("✅ تم الحفظ بنجاح")
+                st.balloons()
         
         with col2:
-            # زر تحديث الصفحة
-            if st.button("🔄 تحديث الصفحة", use_container_width=True):
-                st.rerun()
-        
-        with col3:
-            # زر طباعة التقرير
-            if st.button("🖨️ طباعة التقرير", use_container_width=True):
+            if st.button("🖨️ طباعة", use_container_width=True):
                 # تجهيز بيانات الطباعة
                 print_data = []
                 for item in attendance_data:
@@ -413,6 +445,15 @@ def show_attendance():
                 st.session_state.print_date = selected_date
                 st.session_state.print_page = True
                 st.rerun()
+        
+        with col3:
+            if st.button("🔄 تحديث", use_container_width=True):
+                st.rerun()
+        
+        with col4:
+            if st.button("❌ إلغاء", use_container_width=True):
+                st.session_state.print_page = False
+                st.rerun()
     
     # ===== تبويب تاريخ التكميل =====
     with tabs[1]:
@@ -434,37 +475,38 @@ def show_attendance():
             # تحويل إلى DataFrame
             df_history = pd.DataFrame(history)
             
-            # تنسيق الأعمدة
-            df_history['report_date'] = pd.to_datetime(df_history['report_date']).dt.strftime('%Y-%m-%d')
-            df_history['created_at'] = pd.to_datetime(df_history['created_at']).dt.strftime('%Y-%m-%d %H:%M')
-            
-            # إعادة تسمية الأعمدة
-            df_history = df_history.rename(columns={
-                'center_name': 'المركز',
-                'report_date': 'التاريخ',
-                'total_employees': 'الإجمالي',
-                'present': 'حاضر',
-                'absent': 'غائب',
-                'late': 'متأخر',
-                'created_by': 'بواسطة',
-                'created_at': 'تاريخ الرفع'
-            })
-            
-            st.dataframe(df_history[['المركز', 'التاريخ', 'الإجمالي', 'حاضر', 'غائب', 'متأخر', 'تاريخ الرفع']], 
-                        use_container_width=True, hide_index=True)
-            
-            # عرض الروابط - ✅ تم إصلاح الخطأ هنا
-            st.markdown("### 🔗 روابط التقارير")
-            for i, record in enumerate(history[:5]):  # استخدام enumerate بدلاً من iterrows
-                with st.container():
-                    col1, col2, col3 = st.columns([2, 2, 1])
-                    with col1:
-                        st.write(f"**{record.get('center_name', '')}**")
-                    with col2:
-                        st.write(f"{record.get('report_date', '')}")
-                    with col3:
-                        if record.get('file_url'):
-                            st.link_button("📥 عرض", record['file_url'])
-                    st.divider()
+            if not df_history.empty:
+                # تنسيق الأعمدة
+                df_history['report_date'] = pd.to_datetime(df_history['report_date']).dt.strftime('%Y-%m-%d')
+                df_history['created_at'] = pd.to_datetime(df_history['created_at']).dt.strftime('%Y-%m-%d %H:%M')
+                
+                # إعادة تسمية الأعمدة
+                df_history = df_history.rename(columns={
+                    'center_name': 'المركز',
+                    'report_date': 'التاريخ',
+                    'total_employees': 'الإجمالي',
+                    'present': 'حاضر',
+                    'absent': 'غائب',
+                    'late': 'متأخر',
+                    'created_by': 'بواسطة',
+                    'created_at': 'تاريخ الرفع'
+                })
+                
+                st.dataframe(df_history[['المركز', 'التاريخ', 'الإجمالي', 'حاضر', 'غائب', 'متأخر', 'تاريخ الرفع']], 
+                            use_container_width=True, hide_index=True)
+                
+                # عرض الروابط
+                st.markdown("### 🔗 روابط التقارير")
+                for i, record in enumerate(history[:5]):
+                    with st.container():
+                        col1, col2, col3 = st.columns([2, 2, 1])
+                        with col1:
+                            st.write(f"**{record.get('center_name', '')}**")
+                        with col2:
+                            st.write(f"{record.get('report_date', '')}")
+                        with col3:
+                            if record.get('file_url'):
+                                st.link_button("📥 عرض", record['file_url'])
+                        st.divider()
         else:
             st.info("لا توجد تقارير مرفوعة بعد")
