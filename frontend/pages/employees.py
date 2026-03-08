@@ -4,22 +4,68 @@ import pandas as pd
 from datetime import datetime
 from utils.helpers import page_header, section_title
 
-# ─── أنواع الموظفين ────────────────────────────────────────────────────────────
+# ─── أنواع الموظفين (محدث من ملف Excel) ─────────────────────────────────────
 EMP_TYPE_LABELS = {
-    "paramedic": "أخصائي إسعاف",
-    "emt": "مسعف",
-    "admin": "إداري",
-    "operations": "تحكم عملياتي",
-    "coordinator": "تنسيق استجابة"
+    # القيادات
+    "chief_paramedic": "كبير مسعفين",
+    "assistant_chief": "مساعد كبير مسعفين",
+    "field_leader": "قيادة ميدانية",
+    
+    # العمليات
+    "operations_control": "تحكم عملياتي",
+    "response_coordinator": "تنسيق استجابة",
+    
+    # الطواقم الإسعافية
+    "paramedic": "أخصائي اسعاف",
+    "emt": "فني اسعاف",
+    "health_assistant": "مساعد صحي",
+    
+    # الدعم
+    "logistic_support": "دعم لوجستي",
+    "admin": "إداري"
 }
 
 EMP_TYPE_COLORS = {
-    "paramedic": "green", 
-    "emt": "navy", 
-    "admin": "gold",
-    "operations": "blue",
-    "coordinator": "purple"
+    # القيادات
+    "chief_paramedic": "#CE2E26",      # أحمر
+    "assistant_chief": "#B71C1C",      # أحمر غامق
+    "field_leader": "#3B4A82",         # كحلي
+    
+    # العمليات
+    "operations_control": "#45CFEF",   # أزرق فاتح
+    "response_coordinator": "#513A87", # بنفسجي
+    
+    # الطواقم الإسعافية
+    "paramedic": "#42924B",            # أخضر
+    "emt": "#F1B944",                  # ذهبي
+    "health_assistant": "#FF7C10",     # برتقالي
+    
+    # الدعم
+    "logistic_support": "#64748B",     # رمادي
+    "admin": "#475569"                  # رمادي غامق
 }
+
+# دالة لتحويل النص من Excel إلى المفتاح الصحيح
+def get_employee_type_key(job_title):
+    """تحويل المسمى الوظيفي من Excel إلى المفتاح الداخلي"""
+    job_title = str(job_title).strip()
+    
+    mapping = {
+        "كبير مسعفين": "chief_paramedic",
+        "مساعد كبير مسعفين": "assistant_chief",
+        "تحكم عملياتي": "operations_control",
+        "تنسيق استجابة": "response_coordinator",
+        "أخصائي اسعاف": "paramedic",
+        "فني اسعاف": "emt",
+        "مساعد صحي": "health_assistant",
+        "دعم لوجستي": "logistic_support",
+        "إداري": "admin"
+    }
+    
+    for key, value in mapping.items():
+        if key in job_title:
+            return value
+    return "admin"  # افتراضي
 
 # ─── دوال التحقق من الصلاحية ─────────────────────────────────────────────────
 def has_permission(required_role):
@@ -29,12 +75,15 @@ def has_permission(required_role):
     # صلاحيات كل دور
     permissions = {
         "chief_paramedic": ["view_all", "manage_all", "approve_all"],
+        "assistant_chief": ["view_all", "manage_all"],
         "field_leader": ["view_station", "manage_station", "approve_station"],
         "operations_supervisor": ["view_all", "manage_shifts"],
         "operations_control": ["view_all"],
         "response_coordinator": ["view_all"],
         "paramedic": ["view_self", "request_leave"],
         "emt": ["view_self", "request_leave"],
+        "health_assistant": ["view_self", "request_leave"],
+        "logistic_support": ["view_all"],
         "admin": ["view_all", "manage_employees"]
     }
     
@@ -67,17 +116,11 @@ def _get_services():
 
 # ─── بطاقة موظف ───────────────────────────────────────────────────────────────
 def employee_card(emp):
-    """بطاقة موظف - تصميم نظيف"""
+    """بطاقة موظف - تصميم نظيف مع التصنيفات الجديدة"""
     
     # تحديد النوع بالعربية
     emp_type = EMP_TYPE_LABELS.get(emp.get('employee_type', 'admin'), "إداري")
-    emp_color = {
-        "paramedic": "#42924B",
-        "emt": "#3B4A82",
-        "admin": "#F1B944",
-        "operations": "#45CFEF",
-        "coordinator": "#513A87"
-    }.get(emp.get('employee_type', 'admin'), "#F1B944")
+    emp_color = EMP_TYPE_COLORS.get(emp.get('employee_type', 'admin'), "#475569")
     
     # الحالة
     status = "🟢 نشط" if emp.get('is_active', True) else "🔴 غير نشط"
@@ -130,7 +173,7 @@ def employee_card(emp):
 
 # ─── الصفحة الرئيسية ──────────────────────────────────────────────────────────
 def show_employees():
-    """صفحة إدارة الموظفين - مع صلاحيات"""
+    """صفحة إدارة الموظفين - مع التصنيفات المحدثة"""
     
     # معلومات المستخدم
     user_role = st.session_state.get("user_role", "emt")
@@ -139,9 +182,11 @@ def show_employees():
     # عنوان حسب الصلاحية
     if user_role == "chief_paramedic":
         page_header("إدارة جميع الموظفين", "عرض وإضافة وتعديل جميع كوادر القطاع", "👥")
+    elif user_role == "assistant_chief":
+        page_header("إدارة الموظفين", "عرض وإدارة كوادر القطاع", "👥")
     elif user_role == "field_leader":
         page_header("إدارة فريق المركز", "عرض وإضافة وتعديل موظفي مركزك", "👥")
-    elif user_role in ["paramedic", "emt"]:
+    elif user_role in ["paramedic", "emt", "health_assistant"]:
         page_header("ملفي الشخصي", "عرض بياناتي وجدول مناوباتي", "👤")
     else:
         page_header("الموظفين", "عرض بيانات الموظفين", "👥")
@@ -165,7 +210,7 @@ def show_employees():
         st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
         
         # للموظف العادي - يعرض بياناته فقط
-        if user_role in ["paramedic", "emt"]:
+        if user_role in ["paramedic", "emt", "health_assistant"]:
             emp_id = get_user_employee_id()
             if emp_id:
                 employee = es.get_employee(emp_id)
@@ -192,6 +237,7 @@ def show_employees():
                         - **📱 الجوال:** {employee.get('phone', '—')}
                         - **📧 البريد:** {employee.get('email', '—')}
                         - **📅 تاريخ التعيين:** {employee.get('hire_date', '—')}
+                        - **📌 النوع:** {EMP_TYPE_LABELS.get(employee.get('employee_type'), '—')}
                         """)
                         
                         st.markdown("### 📜 الشهادات")
@@ -205,43 +251,82 @@ def show_employees():
         
         # ===== للمشرفين =====
         # شريط الفلترة
-        fc1, fc2, fc3 = st.columns([2, 2, 3])
-        
-        # قائمة المراكز - مع فلترة حسب صلاحية المشرف
-        if user_role == "field_leader" and user_center_id:
-            # مشرف مركز - يشوف مركزه فقط
-            center_opts = {}
-            for c in centers:
-                if c["id"] == user_center_id:
-                    center_opts[c["name"]] = c["id"]
-                    break
-        else:
-            # المدير يشوف كل المراكز
-            center_opts = {"جميع المراكز": None}
-            for c in centers:
-                center_opts[c["name"]] = c["id"]
-        
-        with fc1:
-            sel_center = st.selectbox("🏥 المركز", list(center_opts.keys()), key="emp_filter_center")
-        
-        with fc2:
-            type_opts = {
-                "جميع الأنواع": None,
-                "أخصائي إسعاف": "paramedic",
-                "مسعف": "emt",
-                "إداري": "admin",
-                "تحكم عملياتي": "operations",
-                "تنسيق استجابة": "coordinator"
-            }
-            sel_type = st.selectbox("👤 النوع", list(type_opts.keys()), key="emp_filter_type")
-        
-        with fc3:
-            search = st.text_input("🔍 بحث بالاسم أو الرقم الوظيفي",
-                                   placeholder="اكتب للبحث...", key="emp_search")
+        with st.container():
+            # استخدام expander للآيباد
+            if st.session_state.get("is_mobile", False):
+                with st.expander("🔍 خيارات البحث", expanded=False):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if user_role == "field_leader" and user_center_id:
+                            center_opts = {}
+                            for c in centers:
+                                if c["id"] == user_center_id:
+                                    center_opts[c["name"]] = c["id"]
+                                    break
+                        else:
+                            center_opts = {"جميع المراكز": None}
+                            for c in centers:
+                                center_opts[c["name"]] = c["id"]
+                        
+                        sel_center = st.selectbox("🏥 المركز", list(center_opts.keys()), key="emp_filter_center")
+                    
+                    with col2:
+                        type_opts = {
+                            "الكل": None,
+                            "كبير مسعفين": "chief_paramedic",
+                            "مساعد كبير مسعفين": "assistant_chief",
+                            "قيادة ميدانية": "field_leader",
+                            "تحكم عملياتي": "operations_control",
+                            "تنسيق استجابة": "response_coordinator",
+                            "أخصائي اسعاف": "paramedic",
+                            "فني اسعاف": "emt",
+                            "مساعد صحي": "health_assistant",
+                            "دعم لوجستي": "logistic_support",
+                            "إداري": "admin"
+                        }
+                        sel_type = st.selectbox("👤 النوع", list(type_opts.keys()), key="emp_filter_type")
+                    
+                    search = st.text_input("🔍 بحث", placeholder="اسم أو رقم...", key="emp_search")
+            else:
+                # للشاشات الكبيرة
+                fc1, fc2, fc3 = st.columns([2, 2, 3])
+                
+                if user_role == "field_leader" and user_center_id:
+                    center_opts = {}
+                    for c in centers:
+                        if c["id"] == user_center_id:
+                            center_opts[c["name"]] = c["id"]
+                            break
+                else:
+                    center_opts = {"جميع المراكز": None}
+                    for c in centers:
+                        center_opts[c["name"]] = c["id"]
+                
+                with fc1:
+                    sel_center = st.selectbox("🏥 المركز", list(center_opts.keys()), key="emp_filter_center")
+                
+                with fc2:
+                    type_opts = {
+                        "جميع الأنواع": None,
+                        "كبير مسعفين": "chief_paramedic",
+                        "مساعد كبير مسعفين": "assistant_chief",
+                        "قيادة ميدانية": "field_leader",
+                        "تحكم عملياتي": "operations_control",
+                        "تنسيق استجابة": "response_coordinator",
+                        "أخصائي اسعاف": "paramedic",
+                        "فني اسعاف": "emt",
+                        "مساعد صحي": "health_assistant",
+                        "دعم لوجستي": "logistic_support",
+                        "إداري": "admin"
+                    }
+                    sel_type = st.selectbox("👤 النوع", list(type_opts.keys()), key="emp_filter_type")
+                
+                with fc3:
+                    search = st.text_input("🔍 بحث بالاسم أو الرقم الوظيفي",
+                                        placeholder="اكتب للبحث...", key="emp_search")
         
         # جلب البيانات
         with st.spinner("جاري التحميل..."):
-            # إذا كان مشرف مركز، نمرر center_id تلقائياً
             if user_role == "field_leader" and user_center_id:
                 result = es.get_employees(
                     center_id=user_center_id,
@@ -267,77 +352,89 @@ def show_employees():
         
         st.markdown("<div style='margin-top:0.75rem;margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
         
-        col1, col2, col3 = st.columns(3)
-        col1.metric("👥 إجمالي", total)
-        col2.metric("🚑 على رأس العمل", on_duty)
-        col3.metric("✅ نشطين", active)
+        cols = st.columns(3)
+        cols[0].metric("👥 إجمالي", total)
+        cols[1].metric("🚑 على رأس العمل", on_duty)
+        cols[2].metric("✅ نشطين", active)
         
         st.markdown("<div style='margin-bottom:1rem;'></div>", unsafe_allow_html=True)
         
         if employees:
-            # جدول البيانات
-            df_data = []
-            for emp in employees:
-                df_data.append({
-                    "الرقم الوظيفي": emp.get("emp_no", ""),
-                    "الاسم": emp.get("full_name", ""),
-                    "النوع": EMP_TYPE_LABELS.get(emp.get("employee_type",""), "-"),
-                    "على رأس العمل": "🚑 نعم" if emp.get("is_on_duty") else "—",
-                    "الحالة": "✅ نشط" if emp.get("is_active", True) else "❌ متوقف",
-                    "الجوال": emp.get("phone", "—"),
-                    "id": emp.get("id", "")
-                })
-            
-            df = pd.DataFrame(df_data)
-            st.dataframe(df, use_container_width=True, hide_index=True,
-                        column_config={
-                            "id": None  # إخفاء عمود id
-                        })
-            
-            # أزرار التحكم - تظهر فقط للمشرفين
-            if has_permission("manage_all") or has_permission("manage_station"):
-                st.markdown("<hr style='border-color:#E2E8F0;margin:1.25rem 0;'>", unsafe_allow_html=True)
-                st.markdown("### ⚙️ إدارة الموظفين")
+            # عرض بطاقات للآيباد
+            if st.session_state.get("is_mobile", False):
+                for emp in employees:
+                    employee_card(emp)
+                    
+                    if has_permission("manage_all") or has_permission("manage_station"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✏️ تعديل", key=f"edit_{emp['id']}", use_container_width=True):
+                                st.session_state.editing_employee = emp
+                                st.session_state.active_emp_tab = 2
+                                st.rerun()
+                        with col2:
+                            if has_permission("manage_all"):
+                                if st.button("🗑️ حذف", key=f"del_{emp['id']}", use_container_width=True):
+                                    if es.delete_employee(emp["id"]):
+                                        st.success(f"✅ تم حذف {emp['full_name']}")
+                                        st.rerun()
+                        st.markdown("---")
+            else:
+                # جدول البيانات للشاشات الكبيرة
+                df_data = []
+                for emp in employees:
+                    df_data.append({
+                        "الرقم الوظيفي": emp.get("emp_no", ""),
+                        "الاسم": emp.get("full_name", ""),
+                        "النوع": EMP_TYPE_LABELS.get(emp.get("employee_type",""), "-"),
+                        "على رأس العمل": "🚑 نعم" if emp.get("is_on_duty") else "—",
+                        "الحالة": "✅ نشط" if emp.get("is_active", True) else "❌ متوقف",
+                        "الجوال": emp.get("phone", "—"),
+                        "id": emp.get("id", "")
+                    })
                 
-                for emp in employees[:5]:  # أول 5 موظفين فقط
-                    col1, col2, col3 = st.columns([3, 1, 1])
-                    with col1:
-                        st.write(f"**{emp['full_name']}** ({emp.get('emp_no', '')})")
-                    with col2:
-                        if st.button("✏️ تعديل", key=f"edit_{emp['id']}"):
-                            st.session_state.editing_employee = emp
-                            st.session_state.active_emp_tab = 2
-                            st.rerun()
-                    with col3:
-                        if has_permission("manage_all"):  # فقط المدير يقدر يحذف
-                            if st.button("🗑️ حذف", key=f"del_{emp['id']}"):
-                                if es.delete_employee(emp["id"]):
-                                    st.success(f"✅ تم حذف {emp['full_name']}")
-                                    st.rerun()
+                df = pd.DataFrame(df_data)
+                st.dataframe(df, use_container_width=True, hide_index=True,
+                            column_config={"id": None})
+                
+                if has_permission("manage_all") or has_permission("manage_station"):
+                    st.markdown("<hr style='border-color:#E2E8F0;margin:1.25rem 0;'>", unsafe_allow_html=True)
+                    st.markdown("### ⚙️ إدارة الموظفين")
+                    
+                    for emp in employees[:5]:
+                        col1, col2, col3 = st.columns([3, 1, 1])
+                        with col1:
+                            st.write(f"**{emp['full_name']}** ({emp.get('emp_no', '')})")
+                        with col2:
+                            if st.button("✏️ تعديل", key=f"edit_{emp['id']}"):
+                                st.session_state.editing_employee = emp
+                                st.session_state.active_emp_tab = 2
+                                st.rerun()
+                        with col3:
+                            if has_permission("manage_all"):
+                                if st.button("🗑️ حذف", key=f"del_{emp['id']}"):
+                                    if es.delete_employee(emp["id"]):
+                                        st.success(f"✅ تم حذف {emp['full_name']}")
+                                        st.rerun()
         else:
             st.info("لا يوجد موظفون")
     
     # ══════════════════════════════════════════════════════
-    # تبويب 2 — إضافة موظف / جدول مناوباتي
+    # تبويب 2 — إضافة موظف
     # ══════════════════════════════════════════════════════
     with tabs[1]:
         st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
         
-        # للموظف العادي - يعرض جدول مناوباته
-        if user_role in ["paramedic", "emt"]:
+        if user_role in ["paramedic", "emt", "health_assistant"]:
             st.subheader("📅 جدول مناوباتي")
-            
-            # هنا نجيب جدول المناوبات للموظف
             from pages.shifts import show_employee_shifts
             emp_id = get_user_employee_id()
             if emp_id:
                 show_employee_shifts(emp_id)
             else:
                 st.info("لا يوجد جدول مناوبات")
-            
             return
         
-        # ===== للمشرفين - إضافة موظف جديد =====
         st.subheader("➕ إضافة موظف جديد")
         
         with st.form("add_employee_form", clear_on_submit=True):
@@ -345,10 +442,10 @@ def show_employees():
             
             with c1:
                 emp_no = st.text_input("📋 الرقم الوظيفي *", placeholder="مثال: 5001")
-                full_name = st.text_input("👤 الاسم الكامل *",  placeholder="الاسم الرباعي")
+                full_name = st.text_input("👤 الاسم الكامل *", placeholder="الاسم الرباعي")
                 employee_type = st.selectbox(
                     "📌 الفئة الوظيفية",
-                    ["paramedic","emt","admin","operations","coordinator"],
+                    list(EMP_TYPE_LABELS.keys()),
                     format_func=lambda x: EMP_TYPE_LABELS.get(x, x)
                 )
                 hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.now())
@@ -358,9 +455,7 @@ def show_employees():
                 phone = st.text_input("📱 رقم الجوال", placeholder="05xxxxxxxx")
                 email = st.text_input("📧 البريد الإلكتروني", placeholder="name@srca.gov.sa")
                 
-                # قائمة المراكز - مع تقييد المشرف
                 if user_role == "field_leader" and user_center_id:
-                    # مشرف مركز - يضيف لمركزه فقط
                     center_name = next((c["name"] for c in centers if c["id"] == user_center_id), "")
                     st.text_input("🏥 المركز", value=center_name, disabled=True)
                     center_id = user_center_id
@@ -402,7 +497,7 @@ def show_employees():
                         st.rerun()
     
     # ══════════════════════════════════════════════════════
-    # تبويب 3 — تعديل موظف (للمشرفين فقط)
+    # تبويب 3 — تعديل موظف
     # ══════════════════════════════════════════════════════
     if len(tabs) > 2:
         with tabs[2]:
@@ -421,18 +516,20 @@ def show_employees():
                     with c1:
                         emp_no = st.text_input("📋 الرقم الوظيفي", value=emp.get("emp_no",""))
                         full_name = st.text_input("👤 الاسم الكامل", value=emp.get("full_name",""))
+                        type_list = list(EMP_TYPE_LABELS.keys())
+                        current_type = emp.get("employee_type", "admin")
+                        type_index = type_list.index(current_type) if current_type in type_list else 0
                         employee_type = st.selectbox(
                             "📌 الفئة",
-                            ["paramedic","emt","admin","operations","coordinator"],
-                            index=["paramedic","emt","admin","operations","coordinator"].index(emp.get("employee_type","paramedic")),
-                            format_func=lambda x: EMP_TYPE_LABELS.get(x,x)
+                            type_list,
+                            index=type_index,
+                            format_func=lambda x: EMP_TYPE_LABELS.get(x, x)
                         )
                     
                     with c2:
                         phone = st.text_input("📱 الجوال", value=emp.get("phone",""))
                         email = st.text_input("📧 البريد", value=emp.get("email",""))
                         
-                        # قائمة المراكز
                         center_opts = {c["name"]: c["id"] for c in centers}
                         current_center = next((c["name"] for c in centers if c["id"] == emp.get("center_id")), "")
                         sel_center = st.selectbox(
