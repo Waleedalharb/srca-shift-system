@@ -114,8 +114,9 @@ class ShiftService:
             print(f"خطأ في assign_employee: {e}")
             return False
     
-    def update_employee_shift(self, employee_id, date, shift_type):
-        """تحديث مناوبة موظف ليوم محدد"""
+    # دالة موحدة للحفظ (جديدة)
+    def save_shift(self, employee_id, date, shift_type):
+        """حفظ مناوبة (إنشاء أو تحديث)"""
         try:
             data = {
                 "employee_id": employee_id,
@@ -144,3 +145,7 @@ class ShiftService:
         except Exception as e:
             st.error(f"❌ فشل الاتصال: {str(e)}")
             return False
+    
+    def update_employee_shift(self, employee_id, date, shift_type):
+        """تحديث مناوبة موظف ليوم محدد (نفس save_shift)"""
+        return self.save_shift(employee_id, date, shift_type)

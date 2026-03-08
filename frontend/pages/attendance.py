@@ -17,7 +17,7 @@ def safe_time(time_str, default="08:00"):
     except:
         return datetime.strptime(default, "%H:%M").time()
 
-# ===== أنواع المناوبات =====
+# ===== أنواع المناوبات كاملة =====
 SHIFT_TYPES = {
     "morning_6":  {"name": "صباحية 6 س", "icon": "🌅", "color": "#FFB74D", "text": "#7A5800", "hours": 6, "start": "08:00", "end": "14:00"},
     "morning_8":  {"name": "صباحية 8 س", "icon": "🌅", "color": "#FFB74D", "text": "#7A5800", "hours": 8, "start": "08:00", "end": "16:00"},
@@ -107,9 +107,9 @@ def _save_attendance_to_session(center_id, selected_date, data, delegator, subst
     }
 
 def show_attendance():
-    """صفحة التكميل الذكي - مع حفظ دائم"""
+    """صفحة التكميل - مع كل الميزات"""
     
-    # التحقق من حالة الطباعة أولاً
+    # التحقق من حالة الطباعة
     if st.session_state.get("print_page", False):
         try:
             from pages.print_attendance import show_print_attendance
@@ -132,7 +132,6 @@ def show_attendance():
     # تبويبات
     tabs = st.tabs(["📝 تسجيل التكميل", "📜 تاريخ التكميل"])
     
-    # ===== تبويب تسجيل التكميل =====
     with tabs[0]:
         es, cs, ss = _get_services()
         
@@ -143,7 +142,7 @@ def show_attendance():
             st.warning("⚠️ لا توجد مراكز")
             return
         
-        # ===== اختيار التاريخ والمركز =====
+        # اختيار التاريخ والمركز
         col1, col2 = st.columns(2)
         
         with col1:
@@ -161,11 +160,11 @@ def show_attendance():
             st.warning(f"⚠️ لا يوجد موظفون في {selected_center}")
             return
         
-        # جلب المناوبات المخطط لها لهذا اليوم
+        # جلب المناوبات المخطط لها
         with st.spinner("جاري تحميل المناوبات..."):
             planned_shifts = ss.get_shifts_by_date(center_id, selected_date)
         
-        # إنشاء خريطة للمناوبات المخطط لها (employee_id -> shift_type)
+        # خريطة المناوبات
         planned_map = {}
         for shift in planned_shifts:
             for assignment in shift.get("assignments", []):
@@ -173,32 +172,30 @@ def show_attendance():
                 if emp_id:
                     planned_map[emp_id] = shift.get("shift_type", "off")
         
-        # ===== فلترة الموظفين: نحذف اللي في إجازة =====
+        # فلترة الموظفين
         active_employees = []
         for emp in employees:
             emp_id = str(emp["id"])
             shift_type = planned_map.get(emp_id, "off")
-            if shift_type != "off":  # فقط الموظفين اللي عندهم مناوبة (مو إجازة)
+            if shift_type != "off":
                 active_employees.append(emp)
         
         if not active_employees:
-            st.info("ℹ️ لا يوجد موظفون على رأس العمل لهذا اليوم (الكل في إجازة)")
+            st.info("ℹ️ لا يوجد موظفون على رأس العمل لهذا اليوم")
             return
         
-        st.success(f"✅ عدد الموظفين المطلوب حضورهم: {len(active_employees)}")
+        st.success(f"✅ عدد الموظفين: {len(active_employees)}")
         
-        # ===== استرجاع البيانات المحفوظة =====
+        # استرجاع البيانات المحفوظة
         saved_data = _get_saved_attendance(center_id, selected_date)
         permanent_data = _load_attendance_permanent()
         day_key = f"{selected_date}_{selected_center}"
         permanent_day = permanent_data.get(day_key, {})
         
-        if saved_data:
-            st.info("📋 تم تحميل تكميل سابق من الجلسة")
-        elif permanent_day:
-            st.info("📋 تم تحميل تكميل سابق من الملف المحلي")
+        if saved_data or permanent_day:
+            st.info("📋 تم تحميل تكميل سابق")
         
-        # ===== نموذج التكميل =====
+        # نموذج التكميل
         st.markdown("---")
         st.markdown("### 📝 تسجيل الحضور")
         
@@ -209,7 +206,7 @@ def show_attendance():
             planned_shift = planned_map.get(emp_id, "off")
             planned_info = SHIFT_TYPES.get(planned_shift, SHIFT_TYPES["off"])
             
-            # البحث عن بيانات محفوظة
+            # بحث عن بيانات محفوظة
             saved_emp_data = None
             if saved_data and "data" in saved_data:
                 saved_emp_data = next((item for item in saved_data["data"] if item["employee_id"] == emp_id), None)
@@ -229,7 +226,7 @@ def show_attendance():
                 with col3:
                     st.markdown(f"**إلى:** {planned_info['end']}")
                 
-                # بيانات الحضور الفعلية
+                # بيانات الحضور
                 col1, col2, col3, col4, col5 = st.columns(5)
                 
                 with col1:
@@ -262,7 +259,7 @@ def show_attendance():
                     elif permanent_emp.get("status"):
                         default_status = permanent_emp["status"]
                     
-                    status_options = ["حاضر", "غائب", "متأخر", "مهمة رسمية"]
+                    status_options = ["حاضر", "غائب", "متأخر", "مهمة رسمية", "إجازة"]
                     default_status_index = status_options.index(default_status) if default_status in status_options else 0
                     
                     status = st.selectbox(
@@ -273,7 +270,7 @@ def show_attendance():
                     )
                 
                 with col3:
-                    # وقت الحضور الفعلي
+                    # وقت الحضور
                     default_start = safe_time(planned_info['start'])
                     if saved_emp_data and saved_emp_data.get("actual_start"):
                         default_start = safe_time(saved_emp_data["actual_start"])
@@ -287,7 +284,7 @@ def show_attendance():
                     )
                 
                 with col4:
-                    # وقت الانصراف الفعلي
+                    # وقت الانصراف
                     default_end = safe_time(planned_info['end'])
                     if saved_emp_data and saved_emp_data.get("actual_end"):
                         default_end = safe_time(saved_emp_data["actual_end"])
@@ -340,7 +337,7 @@ def show_attendance():
                 
                 st.markdown("---")
         
-        # ===== التوكيل والبديل =====
+        # التوكيل والبديل
         st.markdown("### 🔄 التوكيل والبديل")
         
         emp_options = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in active_employees]
@@ -376,7 +373,7 @@ def show_attendance():
         
         notes = st.text_area("📝 ملاحظات", value=saved_notes, placeholder="أي ملاحظات إضافية...")
         
-        # ===== أزرار التحكم =====
+        # أزرار التحكم
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -403,7 +400,7 @@ def show_attendance():
                 _save_attendance_permanent(permanent_data)
                 
                 # رفع إلى Supabase
-                with st.spinner("جاري رفع التقرير إلى التخزين السحابي..."):
+                with st.spinner("جاري رفع التقرير..."):
                     upload_result = storage.upload_attendance_report(
                         attendance_data, 
                         selected_center, 
@@ -411,7 +408,7 @@ def show_attendance():
                     )
                 
                 if upload_result and upload_result.get("success"):
-                    st.info(f"📤 تم حفظ التقرير في التخزين السحابي")
+                    st.info(f"📤 تم حفظ التقرير")
                     if upload_result.get("url"):
                         st.markdown(f"🔗 [رابط التقرير]({upload_result['url']})")
                 
@@ -423,7 +420,6 @@ def show_attendance():
                 # تجهيز بيانات الطباعة
                 print_data = []
                 for item in attendance_data:
-                    emp = next((e for e in active_employees if str(e["id"]) == item["employee_id"]), {})
                     actual_info = SHIFT_TYPES.get(item['actual_shift'], SHIFT_TYPES["off"])
                     print_data.append({
                         "emp_no": item.get("emp_no", ""),
@@ -439,7 +435,6 @@ def show_attendance():
                         "notes": notes if notes else ""
                     })
                 
-                # تخزين البيانات في session_state
                 st.session_state.print_data = print_data
                 st.session_state.print_center = selected_center
                 st.session_state.print_date = selected_date
@@ -455,7 +450,6 @@ def show_attendance():
                 st.session_state.print_page = False
                 st.rerun()
     
-    # ===== تبويب تاريخ التكميل =====
     with tabs[1]:
         st.subheader("📜 تاريخ التكميل اليومي")
         
@@ -472,15 +466,12 @@ def show_attendance():
                 history = storage.get_attendance_history(center_name=filter_center)
         
         if history:
-            # تحويل إلى DataFrame
             df_history = pd.DataFrame(history)
             
             if not df_history.empty:
-                # تنسيق الأعمدة
                 df_history['report_date'] = pd.to_datetime(df_history['report_date']).dt.strftime('%Y-%m-%d')
                 df_history['created_at'] = pd.to_datetime(df_history['created_at']).dt.strftime('%Y-%m-%d %H:%M')
                 
-                # إعادة تسمية الأعمدة
                 df_history = df_history.rename(columns={
                     'center_name': 'المركز',
                     'report_date': 'التاريخ',
@@ -497,7 +488,7 @@ def show_attendance():
                 
                 # عرض الروابط
                 st.markdown("### 🔗 روابط التقارير")
-                for i, record in enumerate(history[:5]):
+                for record in history[:5]:
                     with st.container():
                         col1, col2, col3 = st.columns([2, 2, 1])
                         with col1:

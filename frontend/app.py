@@ -170,6 +170,37 @@ st.markdown("""
         background: linear-gradient(90deg, transparent, #E2E8F0, transparent);
     }
     
+    /* تحسين للآيباد والأجهزة اللوحية */
+    @media (max-width: 1024px) {
+        /* تكبير الأزرار */
+        .stButton > button, .stDownloadButton > button {
+            min-height: 44px !important;
+            min-width: 44px !important;
+            padding: 12px 20px !important;
+            font-size: 16px !important;
+        }
+        
+        /* تكبير القوائم */
+        .stRadio label, .stSelectbox label, .stCheckbox label {
+            padding: 12px !important;
+            font-size: 16px !important;
+        }
+        
+        /* تكبير حقول الإدخال */
+        .stTextInput > div > div > input,
+        .stSelectbox > div > div > select,
+        .stTextArea > div > textarea {
+            padding: 12px !important;
+            font-size: 16px !important;
+            min-height: 44px !important;
+        }
+        
+        /* تحسين اللمس */
+        .stRadio > div, .stSelectbox > div {
+            touch-action: manipulation;
+        }
+    }
+    
     /* تحسين للجوال */
     @media (max-width: 768px) {
         .block-container {
@@ -178,7 +209,7 @@ st.markdown("""
         }
         .stRadio label {
             padding: 0.4rem 0.5rem;
-            font-size: 0.8rem;
+            font-size: 0.9rem;
         }
     }
 </style>
@@ -209,6 +240,8 @@ if "user_employee_id" not in st.session_state:
     st.session_state.user_employee_id = None
 if "session_id" not in st.session_state:
     st.session_state.session_id = None
+if "is_mobile" not in st.session_state:
+    st.session_state.is_mobile = False
 
 # إذا لم يكن مسجل دخول
 if not st.session_state.authenticated:

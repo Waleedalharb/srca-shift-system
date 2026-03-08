@@ -7,7 +7,7 @@ from utils.helpers import page_header, section_title
 from components.cards import kpi_row
 from components.charts import create_line_chart, display_chart
 
-# ===== أنواع المناوبات =====
+# ===== أنواع المناوبات كاملة =====
 SHIFT_TYPES = {
     "morning_6":  {"name": "صباحية 6 س", "icon": "🌅", "color": "#FFB74D", "text": "#7A5800", "hours": 6, "start": "08:00", "end": "14:00"},
     "morning_8":  {"name": "صباحية 8 س", "icon": "🌅", "color": "#FFB74D", "text": "#7A5800", "hours": 8, "start": "08:00", "end": "16:00"},
@@ -285,4 +285,14 @@ def show_shifts():
                 if not employee_ids:
                     st.error("❌ اختر موظفًا واحدًا على الأقل")
                 else:
-                    st.success(f"✅ تم إضافة المناوبة لـ {len(employee_ids)} موظف")
+                    # إنشاء مناوبة لكل موظف
+                    success_count = 0
+                    for emp_id in employee_ids:
+                        date_str = shift_date.strftime("%Y-%m-%d")
+                        if ss.save_shift(emp_id, date_str, shift_type):
+                            success_count += 1
+                    
+                    st.success(f"✅ تم إضافة المناوبة لـ {success_count} موظف")
+                    st.cache_data.clear()
+                    st.session_state.shift_service = None
+                    st.rerun()
