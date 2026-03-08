@@ -41,6 +41,7 @@ class SupabaseStorage:
 
             # الحصول على الرابط العام
             public_url = self.supabase.storage.from_(self.bucket_name).get_public_url(file_path)
+            print(f"✅ تم رفع الملف بنجاح: {public_url}")
 
             return {
                 "success": True,
@@ -49,10 +50,12 @@ class SupabaseStorage:
                 "message": "✅ تم رفع الملف بنجاح"
             }
         except Exception as e:
+            error_msg = f"❌ فشل رفع الملف: {str(e)}"
+            print(error_msg)
             return {
                 "success": False,
                 "error": str(e),
-                "message": f"❌ فشل رفع الملف: {e}"
+                "message": error_msg
             }
 
     def upload_dataframe(self, df, report_name, folder="reports"):
@@ -65,7 +68,9 @@ class SupabaseStorage:
             file_name = f"{report_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             return self.upload_file(file_bytes, file_name, folder, "text/csv")
         except Exception as e:
-            return {"success": False, "message": f"❌ فشل تحويل البيانات: {str(e)}"}
+            error_msg = f"❌ فشل تحويل البيانات: {str(e)}"
+            print(error_msg)
+            return {"success": False, "message": error_msg}
 
     def upload_attendance_report(self, attendance_data, center_name, report_date):
         """رفع تقرير التكميل اليومي"""
@@ -74,11 +79,14 @@ class SupabaseStorage:
             df = pd.DataFrame(attendance_data)
             report_name = f"تكميل_{center_name}_{report_date.strftime('%Y%m%d')}"
             
+            print(f"📤 محاولة رفع تقرير: {report_name}")
+            
             # 1. محاولة رفع الملف
             upload_result = self.upload_dataframe(df, report_name, folder="attendance")
 
             # 2. إذا نجح الرفع، نحاول حفظ البيانات في جدول history
             if upload_result["success"]:
+                print("✅ تم رفع الملف، جاري حفظ التاريخ...")
                 history_saved = self._save_attendance_history(
                     attendance_data, 
                     center_name, 
@@ -86,18 +94,22 @@ class SupabaseStorage:
                     upload_result["url"]
                 )
                 
-                # نضيف حالة نجاح/فشل حفظ التاريخ للنتيجة النهائية
                 upload_result["history_saved"] = history_saved
                 if not history_saved:
                     upload_result["message"] += " (لكن فشل حفظ التاريخ)"
+                    print("⚠️ فشل حفظ التاريخ في الجدول")
+            else:
+                print(f"❌ فشل رفع الملف: {upload_result.get('message')}")
             
             return upload_result
 
         except Exception as e:
-            return {"success": False, "message": f"❌ خطأ في رفع التقرير: {str(e)}"}
+            error_msg = f"❌ خطأ في رفع التقرير: {str(e)}"
+            print(error_msg)
+            return {"success": False, "message": error_msg}
 
     def _save_attendance_history(self, attendance_data, center_name, report_date, file_url):
-        """حفظ تاريخ التكميل في قاعدة البيانات"""
+        """حفظ تاريخ التكميل في قاعدة البيانات مع طباعة الأخطاء"""
         try:
             # حساب الإحصائيات
             total = len(attendance_data)
@@ -117,15 +129,30 @@ class SupabaseStorage:
                 "created_at": datetime.now().isoformat()
             }
             
-            self.supabase.table("attendance_history").insert(data).execute()
+            # محاولة الإدراج
+            print(f"📤 إرسال البيانات إلى Supabase: {data}")
+            result = self.supabase.table("attendance_history").insert(data).execute()
+            
+            print(f"✅ تم إدراج البيانات في Supabase بنجاح. النتيجة: {result}")
             return True
+
         except Exception as e:
-            print(f"خطأ في حفظ تاريخ التكميل: {e}")
+            print(f"❌ فشل إدراج البيانات في Supabase:")
+            print(f"   - نوع الخطأ: {type(e).__name__}")
+            print(f"   - تفاصيل الخطأ: {str(e)}")
+            # إذا كان الخطأ من Supabase نفسه، قد يكون له جسم استجابة
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    response_text = e.response.text if hasattr(e.response, 'text') else 'لا يوجد'
+                    print(f"   - استجابة Supabase: {response_text}")
+                except:
+                    print("   - لا يمكن قراءة استجابة Supabase")
             return False
 
     def get_attendance_history(self, center_name=None):
         """جلب تاريخ التكميل"""
         try:
+            print(f"📤 جلب تاريخ التكميل للمركز: {center_name if center_name else 'الكل'}")
             query = self.supabase.table("attendance_history") \
                 .select("*") \
                 .order("report_date", desc=True)
@@ -134,8 +161,10 @@ class SupabaseStorage:
                 query = query.eq("center_name", center_name)
 
             result = query.limit(100).execute()
+            print(f"✅ تم جلب {len(result.data)} سجل")
             return result.data
         except Exception as e:
+            print(f"❌ فشل جلب تاريخ التكميل: {e}")
             st.error(f"❌ فشل جلب تاريخ التكميل: {e}")
             return []
 
