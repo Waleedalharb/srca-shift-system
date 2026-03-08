@@ -78,9 +78,11 @@ class SupabaseStorage:
             # تحويل بيانات التكميل إلى DataFrame
             df = pd.DataFrame(attendance_data)
             
-            # ✅ إزالة المسافات من اسم المركز (سبب المشكلة)
+            # ✅ إزالة المسافات من اسم المركز
             clean_center_name = center_name.replace(" ", "_")
-            report_name = f"تكميل_{clean_center_name}_{report_date.strftime('%Y%m%d')}"
+            
+            # ✅ هنا التغيير المهم - نحذف التاريخ لأن upload_dataframe بتضيفه
+            report_name = f"تكميل_{clean_center_name}"
             
             print(f"📤 محاولة رفع تقرير: {report_name}")
             
