@@ -65,6 +65,7 @@ class SupabaseStorage:
             df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
             file_bytes = csv_buffer.getvalue().encode('utf-8-sig')
 
+            # ✅ اسم الملف النهائي (التاريخ يضاف هنا فقط)
             file_name = f"{report_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             return self.upload_file(file_bytes, file_name, folder, "text/csv")
         except Exception as e:
@@ -81,8 +82,8 @@ class SupabaseStorage:
             # ✅ إزالة المسافات من اسم المركز
             clean_center_name = center_name.replace(" ", "_")
             
-            # ✅ هنا التغيير المهم - نحذف التاريخ لأن upload_dataframe بتضيفه
-            report_name = f"تكميل_{clean_center_name}"
+            # ✅ اسم أبسط وأقصر (بدون تاريخ)
+            report_name = f"rep_{clean_center_name}"
             
             print(f"📤 محاولة رفع تقرير: {report_name}")
             
