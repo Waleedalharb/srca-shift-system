@@ -1,7 +1,7 @@
 ﻿# frontend/requirements.txt
 streamlit==1.32.0
 requests==2.31.0
-pandas==2.0.3              # تم تغيير الإصدار
+pandas==1.5.3              # تم تغيير الإصدار
 plotly==5.18.0
 python-dotenv==1.0.0
 pillow==10.1.0
