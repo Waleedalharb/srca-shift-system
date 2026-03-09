@@ -126,8 +126,9 @@ def show_attendance():
     
     page_header("📋 التكميل الذكي", "تسجيل الحضور مع حفظ دائم", "📝")
     
-    from utils.supabase_storage import SupabaseStorage
-    storage = SupabaseStorage()
+    # ✅ استبدال Supabase بـ LocalStorage
+    from utils.local_storage import LocalStorage
+    storage = LocalStorage()
     
     # تبويبات
     tabs = st.tabs(["📝 تسجيل التكميل", "📜 تاريخ التكميل"])
@@ -195,7 +196,7 @@ def show_attendance():
         if saved_data or permanent_day:
             st.info("📋 تم تحميل تكميل سابق")
         
-        # نموذج التكميل - ملاحظة: هنا بدأ الـ Form
+        # نموذج التكميل - داخل الـ Form
         with st.form("attendance_form"):
             attendance_data = []
             
@@ -371,24 +372,11 @@ def show_attendance():
             
             notes = st.text_area("📝 ملاحظات", value=saved_notes, placeholder="أي ملاحظات إضافية...")
             
-            # أزرار التحكم داخل الـ Form
+            # زر الحفظ داخل الـ Form
             col1, col2, col3, col4 = st.columns(4)
-            
             with col1:
-                # ✅ تم تغيير st.button إلى st.form_submit_button
                 submitted = st.form_submit_button("💾 حفظ", type="primary", use_container_width=True)
             
-            with col2:
-                # ملاحظة: أزرار الطباعة والتحديث والإلغاء يجب أن تكون خارج الـ Form
-                pass
-            
-            with col3:
-                pass
-            
-            with col4:
-                pass
-            
-            # تم نقل كود الحفظ خارج الـ Form ولكنه مرتبط بـ submitted
             if submitted:
                 # حفظ في session_state
                 _save_attendance_to_session(center_id, selected_date, attendance_data, delegator, substitute, notes)
@@ -411,23 +399,21 @@ def show_attendance():
                 permanent_data[day_key] = day_data
                 _save_attendance_permanent(permanent_data)
                 
-                # رفع إلى Supabase
-                with st.spinner("جاري رفع التقرير..."):
-                    upload_result = storage.upload_attendance_report(
+                # ✅ حفظ محلياً (بدون Supabase)
+                with st.spinner("جاري حفظ التقرير..."):
+                    upload_result = storage.save_attendance_report(
                         attendance_data, 
                         selected_center, 
                         selected_date
                     )
                 
                 if upload_result and upload_result.get("success"):
-                    st.info(f"📤 تم حفظ التقرير")
-                    if upload_result.get("url"):
-                        st.markdown(f"🔗 [رابط التقرير]({upload_result['url']})")
+                    st.info(f"📤 تم حفظ التقرير محلياً")
                 
                 st.success("✅ تم الحفظ بنجاح")
                 st.balloons()
         
-        # أزرار خارج الـ Form (طباعة، تحديث، إلغاء)
+        # أزرار خارج الـ Form
         col1, col2, col3, col4 = st.columns(4)
         
         with col2:
@@ -473,46 +459,20 @@ def show_attendance():
         center_names = ["الكل"] + [c["name"] for c in all_centers]
         filter_center = st.selectbox("🏥 تصفية حسب المركز", center_names)
         
-        # جلب التاريخ
+        # جلب التاريخ من LocalStorage
         with st.spinner("جاري تحميل التاريخ..."):
-            if filter_center == "الكل":
-                history = storage.get_attendance_history()
-            else:
-                history = storage.get_attendance_history(center_name=filter_center)
+            history = storage.get_attendance_history(
+                center_name=None if filter_center == "الكل" else filter_center
+            )
         
         if history:
             df_history = pd.DataFrame(history)
             
             if not df_history.empty:
-                df_history['report_date'] = pd.to_datetime(df_history['report_date']).dt.strftime('%Y-%m-%d')
-                df_history['created_at'] = pd.to_datetime(df_history['created_at']).dt.strftime('%Y-%m-%d %H:%M')
-                
-                df_history = df_history.rename(columns={
+                st.dataframe(df_history[['center_name', 'report_date', 'timestamp']].rename(columns={
                     'center_name': 'المركز',
                     'report_date': 'التاريخ',
-                    'total_employees': 'الإجمالي',
-                    'present': 'حاضر',
-                    'absent': 'غائب',
-                    'late': 'متأخر',
-                    'created_by': 'بواسطة',
-                    'created_at': 'تاريخ الرفع'
-                })
-                
-                st.dataframe(df_history[['المركز', 'التاريخ', 'الإجمالي', 'حاضر', 'غائب', 'متأخر', 'تاريخ الرفع']], 
-                            use_container_width=True, hide_index=True)
-                
-                # عرض الروابط
-                st.markdown("### 🔗 روابط التقارير")
-                for record in history[:5]:
-                    with st.container():
-                        col1, col2, col3 = st.columns([2, 2, 1])
-                        with col1:
-                            st.write(f"**{record.get('center_name', '')}**")
-                        with col2:
-                            st.write(f"{record.get('report_date', '')}")
-                        with col3:
-                            if record.get('file_url'):
-                                st.link_button("📥 عرض", record['file_url'])
-                        st.divider()
+                    'timestamp': 'وقت الحفظ'
+                }), use_container_width=True, hide_index=True)
         else:
-            st.info("لا توجد تقارير مرفوعة بعد")
+            st.info("لا توجد تقارير محفوظة بعد")
