@@ -40,7 +40,7 @@ SHIFT_TYPES = {
 }
 
 def _get_services():
-    """تهيئة الخدمات"""
+    """تهيئة الخ services"""
     auth = st.session_state.auth_service
     es = st.session_state.get("employee_service")
     cs = st.session_state.get("center_service")
@@ -126,13 +126,14 @@ def show_attendance():
     
     page_header("📋 التكميل الذكي", "تسجيل الحضور مع حفظ دائم", "📝")
     
-    # ✅ استبدال Supabase بـ LocalStorage
+    # استبدال Supabase بـ LocalStorage
     from utils.local_storage import LocalStorage
     storage = LocalStorage()
     
     # تبويبات
     tabs = st.tabs(["📝 تسجيل التكميل", "📜 تاريخ التكميل"])
     
+    # ===== تبويب تسجيل التكميل =====
     with tabs[0]:
         es, cs, ss = _get_services()
         
@@ -399,7 +400,7 @@ def show_attendance():
                 permanent_data[day_key] = day_data
                 _save_attendance_permanent(permanent_data)
                 
-                # ✅ حفظ محلياً (بدون Supabase)
+                # حفظ محلياً (بدون Supabase)
                 with st.spinner("جاري حفظ التقرير..."):
                     upload_result = storage.save_attendance_report(
                         attendance_data, 
@@ -451,28 +452,171 @@ def show_attendance():
                 st.session_state.print_page = False
                 st.rerun()
     
+    # ===== تبويب تاريخ التكميل (نسخة محسنة) =====
     with tabs[1]:
-        st.subheader("📜 تاريخ التكميل اليومي")
+        st.subheader("📜 أرشيف التكميل اليومي")
         
-        # فلترة حسب المركز
-        all_centers = cs.get_centers() or []
-        center_names = ["الكل"] + [c["name"] for c in all_centers]
-        filter_center = st.selectbox("🏥 تصفية حسب المركز", center_names)
+        # ─── شريط البحث والفلترة ───
+        with st.expander("🔍 خيارات البحث المتقدم", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # فلترة حسب المركز
+                all_centers = cs.get_centers() or []
+                center_names = ["📋 الكل"] + [c["name"] for c in all_centers]
+                filter_center = st.selectbox("🏥 المركز", center_names, key="history_center")
+                if filter_center == "📋 الكل":
+                    filter_center = None
+            
+            with col2:
+                # فلترة حسب التاريخ
+                today = date.today()
+                date_options = {
+                    "📅 اليوم": today,
+                    "📆 هذا الأسبوع": today - timedelta(days=7),
+                    "📅 هذا الشهر": today - timedelta(days=30),
+                    "🗓️ هذا العام": today - timedelta(days=365),
+                    "🎯 تاريخ محدد": None
+                }
+                filter_date_range = st.selectbox("📆 الفترة", list(date_options.keys()), key="history_date_range")
+                
+                if filter_date_range == "🎯 تاريخ محدد":
+                    filter_date = st.date_input("اختر التاريخ", value=today, key="history_specific_date")
+                else:
+                    filter_date = date_options[filter_date_range]
+            
+            with col3:
+                # بحث نصي
+                search_text = st.text_input("🔎 بحث في التقارير", placeholder="اسم الموظف، ملاحظات...", key="history_search")
         
-        # جلب التاريخ من LocalStorage
-        with st.spinner("جاري تحميل التاريخ..."):
-            history = storage.get_attendance_history(
-                center_name=None if filter_center == "الكل" else filter_center
-            )
+        # ─── جلب التاريخ من LocalStorage ───
+        with st.spinner("📂 جاري تحميل الأرشيف..."):
+            history = storage.get_attendance_history()
         
         if history:
+            # تحويل إلى DataFrame للتصفية
             df_history = pd.DataFrame(history)
+            df_history['report_date'] = pd.to_datetime(df_history['report_date'])
             
-            if not df_history.empty:
-                st.dataframe(df_history[['center_name', 'report_date', 'timestamp']].rename(columns={
-                    'center_name': 'المركز',
-                    'report_date': 'التاريخ',
-                    'timestamp': 'وقت الحفظ'
-                }), use_container_width=True, hide_index=True)
+            # تطبيق الفلاتر
+            filtered_df = df_history.copy()
+            
+            # فلترة حسب المركز
+            if filter_center:
+                filtered_df = filtered_df[filtered_df['center_name'] == filter_center]
+            
+            # فلترة حسب التاريخ
+            if filter_date and filter_date_range != "🎯 تاريخ محدد":
+                filtered_df = filtered_df[filtered_df['report_date'] >= pd.Timestamp(filter_date)]
+            
+            # فلترة حسب البحث النصي
+            if search_text:
+                mask = filtered_df['center_name'].str.contains(search_text, case=False, na=False) | \
+                       filtered_df['file_path'].str.contains(search_text, case=False, na=False)
+                filtered_df = filtered_df[mask]
+            
+            # إحصائيات سريعة
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("📊 إجمالي التقارير", len(filtered_df))
+            col2.metric("🏥 مراكز", filtered_df['center_name'].nunique())
+            col3.metric("📅 أيام", filtered_df['report_date'].dt.date.nunique())
+            col4.metric("🕒 آخر تحديث", filtered_df['timestamp'].max() if not filtered_df.empty else "—")
+            
+            st.markdown("---")
+            
+            if not filtered_df.empty:
+                # عرض التقارير في بطاقات
+                for idx, row in filtered_df.sort_values('report_date', ascending=False).iterrows():
+                    with st.container():
+                        # تحديد لون البطاقة حسب التاريخ
+                        is_today = row['report_date'].date() == date.today()
+                        bg_color = "#FFF9E6" if is_today else "white"
+                        border_color = "#CE2E26" if is_today else "#E2E8F0"
+                        
+                        col1, col2, col3, col4, col5 = st.columns([2, 1.5, 1, 1, 1])
+                        
+                        with col1:
+                            st.markdown(f"""
+                            <div style="
+                                background: {bg_color};
+                                padding: 0.8rem;
+                                border-radius: 8px;
+                                border-right: 3px solid {border_color};
+                            ">
+                                <strong>🏥 {row['center_name']}</strong><br>
+                                <span style="color: #64748B; font-size: 0.8rem;">
+                                    📅 {row['report_date'].strftime('%Y-%m-%d')}
+                                </span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with col2:
+                            st.markdown(f"""
+                            <div style="padding: 0.8rem;">
+                                <span style="color: #475569;">⏱️ {row['timestamp']}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with col3:
+                            if st.button("👁️ عرض", key=f"view_{idx}", use_container_width=True):
+                                # تجهيز بيانات للعرض
+                                st.session_state.preview_report = {
+                                    "center": row['center_name'],
+                                    "date": row['report_date'].strftime('%Y-%m-%d'),
+                                    "file": row['file_path']
+                                }
+                                st.info("📄 جاري تجهيز التقرير...")
+                        
+                        with col4:
+                            if st.button("🖨️ طباعة", key=f"print_{idx}", use_container_width=True):
+                                # محاولة قراءة الملف
+                                try:
+                                    if os.path.exists(row['file_path']):
+                                        df = pd.read_csv(row['file_path'])
+                                        st.dataframe(df)
+                                    else:
+                                        st.warning("⚠️ ملف التقرير غير موجود")
+                                except:
+                                    st.warning("⚠️ لا يمكن قراءة الملف")
+                        
+                        with col5:
+                            if st.button("📥 CSV", key=f"csv_{idx}", use_container_width=True):
+                                try:
+                                    if os.path.exists(row['file_path']):
+                                        with open(row['file_path'], 'rb') as f:
+                                            st.download_button(
+                                                "تحميل",
+                                                data=f,
+                                                file_name=f"تقرير_{row['center_name']}_{row['report_date'].strftime('%Y%m%d')}.csv",
+                                                mime="text/csv",
+                                                key=f"download_{idx}"
+                                            )
+                                except:
+                                    st.warning("⚠️ الملف غير متوفر")
+                        
+                        st.markdown("---")
+                
+                # زر تصدير كل النتائج
+                if st.button("📥 تصدير كل النتائج كـ CSV", use_container_width=True):
+                    csv = filtered_df.to_csv(index=False, encoding='utf-8-sig')
+                    st.download_button(
+                        "تحميل",
+                        data=csv,
+                        file_name=f"تقرير_التكميل_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+            else:
+                st.info("ℹ️ لا توجد تقارير تطابق بحثك")
         else:
-            st.info("لا توجد تقارير محفوظة بعد")
+            st.info("📭 لا توجد تقارير محفوظة بعد")
+            
+            # زر تجريبي لإضافة تقرير تجريبي
+            if st.button("➕ إضافة تقرير تجريبي", use_container_width=True):
+                demo_data = [{
+                    "center_name": "مركز الحائر",
+                    "report_date": date.today().strftime("%Y-%m-%d"),
+                    "file_path": "/opt/reports/attendance/demo.csv",
+                    "timestamp": datetime.now().strftime("%H:%M:%S")
+                }]
+                st.session_state.attendance_history = demo_data
+                st.rerun()
