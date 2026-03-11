@@ -12,6 +12,7 @@ sys.path.append(str(Path(__file__).parent))
 from config import config
 from services.auth_service import AuthService
 from utils.helpers import load_css, setup_rtl, footer
+from utils.auth import init_session_state  # ✅ استيراد دالة تهيئة الجلسة
 
 # ===== مدير الجلسات لحل مشكلة تعدد المستخدمين =====
 class SessionManager:
@@ -35,6 +36,9 @@ class SessionManager:
             self.sessions[session_id]["created_at"] = datetime.now()
             return True
         return False
+
+# ✅ تهيئة الجلسة مع localStorage (هذا السطر مهم جداً)
+init_session_state()
 
 # إعداد الصفحة
 st.set_page_config(
@@ -242,6 +246,8 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = None
 if "is_mobile" not in st.session_state:
     st.session_state.is_mobile = False
+if "token" not in st.session_state:
+    st.session_state.token = None
 
 # إذا لم يكن مسجل دخول
 if not st.session_state.authenticated:
@@ -319,6 +325,7 @@ with st.sidebar:
         st.session_state.auth_service.logout()
         st.session_state.authenticated = False
         st.session_state.session_id = None
+        st.session_state.token = None
         for key in ["employee_service", "center_service", "shift_service", "current_page", "user_role"]:
             st.session_state.pop(key, None)
         st.rerun()
