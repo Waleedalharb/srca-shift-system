@@ -1,32 +1,13 @@
+# frontend/utils/auth.py
 import streamlit as st
 from services.auth_service import AuthService
 import streamlit.components.v1 as components
+import time
 
 def init_session_state():
     """تهيئة متغيرات الجلسة مع دعم localStorage"""
     
-    # استرجاع التوكن من localStorage عند تحميل الصفحة
-    components.html("""
-    <script>
-    // استرجاع التوكن من localStorage
-    const token = localStorage.getItem('srca_token');
-    const username = localStorage.getItem('srca_username');
-    
-    // إرسال البيانات إلى Streamlit
-    if (token && username) {
-        window.parent.postMessage({
-            type: 'streamlit:setSessionState',
-            data: {
-                token: token,
-                username: username,
-                authenticated: true
-            }
-        }, '*');
-    }
-    </script>
-    """, height=0)
-    
-    # تهيئة session_state
+    # أولاً: تهيئة المتغيرات الأساسية
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     if "username" not in st.session_state:
@@ -41,6 +22,28 @@ def init_session_state():
         st.session_state.user_center_id = None
     if "user_employee_id" not in st.session_state:
         st.session_state.user_employee_id = None
+    
+    # ثم نستعيد التوكن من localStorage (مع تأخير بسيط)
+    components.html("""
+    <script>
+    // استرجاع التوكن من localStorage
+    setTimeout(function() {
+        const token = localStorage.getItem('srca_token');
+        const username = localStorage.getItem('srca_username');
+        
+        if (token && username) {
+            window.parent.postMessage({
+                type: 'streamlit:setSessionState',
+                data: {
+                    token: token,
+                    username: username,
+                    authenticated: true
+                }
+            }, '*');
+        }
+    }, 100); // تأخير 100 ملي ثانية
+    </script>
+    """, height=0)
 
 def login_page():
     """صفحة تسجيل الدخول"""
@@ -89,14 +92,8 @@ def login_page():
                     <script>
                     localStorage.setItem('srca_token', '{auth_service.token}');
                     localStorage.setItem('srca_username', '{username}');
-                    window.parent.postMessage({{
-                        type: 'streamlit:setSessionState',
-                        data: {{
-                            token: '{auth_service.token}',
-                            username: '{username}',
-                            authenticated: true
-                        }}
-                    }}, '*');
+                    // تأكيد الحفظ
+                    console.log('✅ تم حفظ التوكن');
                     </script>
                     """, height=0)
                     
@@ -113,6 +110,7 @@ def logout():
     <script>
     localStorage.removeItem('srca_token');
     localStorage.removeItem('srca_username');
+    console.log('✅ تم حذف التوكن');
     </script>
     """, height=0)
     
