@@ -3,8 +3,62 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from utils.helpers import page_header, section_title
+from typing import Dict, List, Any, Optional
 
-# ─── أنواع الموظفين ─────────────────────────────────────
+# ============================================================================
+# نظام الترميز المتكامل (Complete Coding System)
+# ============================================================================
+
+# 1. رموز المناوبات (Shift Types)
+SHIFT_TYPES = {
+    'A': {'name': 'صباحية', 'icon': '🌅', 'color': '#FFB74D'},
+    'B': {'name': 'مسائية', 'icon': '🌆', 'color': '#4A6FA5'},
+    'C': {'name': 'ليلية', 'icon': '🌙', 'color': '#2D4A6E'},
+    'D': {'name': 'صباحية', 'icon': '🌅', 'color': '#FFB74D'},
+    'O': {'name': 'تداخلية (Overlap)', 'icon': '🔄', 'color': '#45CFEF'},
+    'RR': {'name': 'تدخل سريع', 'icon': '⚡', 'color': '#CE2E26'},
+    'XW': {'name': 'عمليات (حالي)', 'icon': '🖥️', 'color': '#513A87'},
+    'C00': {'name': 'عمليات (مستقبلي)', 'icon': '💻', 'color': '#3B4A82'},
+}
+
+# 2. رموز المراكز (Center Codes)
+CENTER_CODES = {
+    # المراكز الحقيقية (1-10)
+    1: {'name': 'المنصور', 'city': 'الرياض', 'is_virtual': False},
+    2: {'name': 'الخالدية', 'city': 'الرياض', 'is_virtual': False},
+    3: {'name': 'منفوحة', 'city': 'الرياض', 'is_virtual': False},
+    4: {'name': 'طريق الخرج', 'city': 'الرياض', 'is_virtual': False},
+    5: {'name': 'العزيزية/الدار البيضاء', 'city': 'الرياض', 'is_virtual': False},
+    6: {'name': 'الإسكان', 'city': 'الرياض', 'is_virtual': False},
+    7: {'name': 'الحائر', 'city': 'الرياض', 'is_virtual': False},
+    8: {'name': 'الشفاء', 'city': 'الرياض', 'is_virtual': False},
+    9: {'name': 'عكاظ', 'city': 'الرياض', 'is_virtual': False},
+    10: {'name': 'ديراب', 'city': 'الرياض', 'is_virtual': False},
+    
+    # المراكز الوهمية (قوى دعم متنقلة)
+    12: {'name': 'قوة دعم متحركة 1', 'city': 'متنقل', 'is_virtual': True},
+    14: {'name': 'قوة دعم متحركة 2', 'city': 'متنقل', 'is_virtual': True},
+}
+
+# 3. رموز الوحدات الخاصة (Special Units)
+SPECIAL_UNITS = {
+    'ST': {'name': 'وحدة نقل', 'icon': '🚛', 'color': '#64748B'},
+    'TT': {'name': 'باص استجابة', 'icon': '🚑', 'color': '#CE2E26'},
+    'XX': {'name': 'إجازة', 'icon': '🏖️', 'color': '#9CA3AF'},
+    'Y': {'name': 'إداري', 'icon': '📋', 'color': '#475569'},
+    'YY': {'name': 'صيانة مركبات', 'icon': '🔧', 'color': '#6B7280'},
+    'YYY': {'name': 'تموين طبي', 'icon': '💊', 'color': '#42924B'},
+    'YYYY': {'name': 'أوكسجين', 'icon': '💨', 'color': '#45CFEF'},
+    'Z': {'name': 'صيانة أجهزة', 'icon': '⚙️', 'color': '#F1B944'},
+}
+
+# 4. رموز القيادة (Leadership Codes)
+LEADERSHIP_TYPES = {
+    'chief_paramedic': 'كبير مسعفين',
+    'assistant_chief': 'مساعد كبير مسعفين',
+}
+
+# 5. أنواع الموظفين (للتوافق مع النظام القديم)
 EMP_TYPE_LABELS = {
     "chief_paramedic": "كبير مسعفين",
     "assistant_chief": "مساعد كبير مسعفين",
@@ -31,8 +85,263 @@ EMP_TYPE_COLORS = {
     "admin": "#475569"
 }
 
-# ─── دوال التحقق من الصلاحية ───────────────────────────
+# ============================================================================
+# دوال فك الترميز (Decoding Functions)
+# ============================================================================
+
+def is_hq_employee(emp_code: str) -> bool:
+    """التحقق إذا كان الموظف تابعاً للمركز الرئيسي"""
+    if not emp_code:
+        return False
+    
+    # القيادات (A0, B0, C0, D0)
+    if emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD':
+        return True
+    
+    # العمليات (XW1 → XW5)
+    if emp_code.startswith('XW'):
+        return True
+    
+    # الوحدات الخاصة والدعم (ST, TT, Y, YY, YYY, YYYY, Z)
+    if emp_code in SPECIAL_UNITS:
+        return True
+    
+    return False
+
+def decode_employee_code(code: str) -> Dict[str, Any]:
+    """فك شفرة الموظف بشكل كامل"""
+    if not code:
+        return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
+    
+    # 1. المركز الرئيسي (للقادة والعمليات والدعم)
+    if is_hq_employee(code):
+        # القيادة (A0, B0, C0, D0)
+        if code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD':
+            shift = code[0]
+            return {
+                'type': 'قيادة',
+                'category': 'leadership',
+                'shift': shift,
+                'shift_name': SHIFT_TYPES.get(shift, {}).get('name', ''),
+                'icon': '👑',
+                'color': '#CE2E26',
+                'center': 'المركز الرئيسي للقطاع',
+                'center_id': 'HQ',
+                'is_hq': True,
+                'original': code
+            }
+        
+        # العمليات (XW1 → XW5)
+        if code.startswith('XW'):
+            return {
+                'type': 'عمليات',
+                'category': 'operations',
+                'icon': '🖥️',
+                'color': '#513A87',
+                'center': 'المركز الرئيسي للقطاع',
+                'center_id': 'HQ',
+                'is_hq': True,
+                'original': code
+            }
+        
+        # الوحدات الخاصة والدعم
+        if code in SPECIAL_UNITS:
+            unit = SPECIAL_UNITS[code]
+            category = 'special_unit' if code in ['ST', 'TT'] else 'support'
+            return {
+                'type': unit['name'],
+                'category': category,
+                'icon': unit['icon'],
+                'color': unit['color'],
+                'center': 'المركز الرئيسي للقطاع',
+                'center_id': 'HQ',
+                'is_hq': True,
+                'original': code
+            }
+    
+    # 2. رموز التدخل السريع (RR)
+    if code.startswith('RR') and len(code) > 2:
+        shift = code[2:]
+        shift_info = SHIFT_TYPES.get(shift, {})
+        return {
+            'type': 'تدخل سريع',
+            'category': 'rapid_response',
+            'shift': shift,
+            'shift_name': shift_info.get('name', ''),
+            'icon': '⚡',
+            'color': '#CE2E26',
+            'original': code
+        }
+    
+    # 3. الرموز العادية (A1, B7, O12, etc.)
+    if code and code[0] in 'ABCDO':
+        shift = code[0]
+        shift_info = SHIFT_TYPES.get(shift, {})
+        
+        # معالجة الرقم
+        center_part = code[1:]
+        if center_part.isdigit():
+            center_num = int(center_part)
+            center_info = CENTER_CODES.get(center_num, {
+                'name': f'مركز {center_num}',
+                'is_virtual': False
+            })
+            
+            return {
+                'type': 'مناوبة',
+                'category': 'shift',
+                'shift': shift,
+                'shift_name': shift_info.get('name', ''),
+                'icon': shift_info.get('icon', '👤'),
+                'color': shift_info.get('color', '#64748B'),
+                'center_num': center_num,
+                'center_name': center_info['name'],
+                'is_virtual': center_info.get('is_virtual', False),
+                'original': code
+            }
+    
+    # 4. إذا ما تطابق مع أي شيء
+    return {
+        'type': 'غير معروف',
+        'category': 'unknown',
+        'icon': '❓',
+        'color': '#9CA3AF',
+        'original': code
+    }
+
+def get_employee_type_label(emp_type: str) -> str:
+    """تحويل نوع الموظف إلى نص عربي"""
+    return EMP_TYPE_LABELS.get(emp_type, emp_type)
+
+def get_employee_color(emp_type: str) -> str:
+    """تحديد لون الموظف حسب نوعه"""
+    return EMP_TYPE_COLORS.get(emp_type, '#475569')
+
+# ============================================================================
+# دوال العرض (Display Functions)
+# ============================================================================
+
+def employee_card(emp: Dict[str, Any]):
+    """بطاقة موظف مع أيقونة حسب نوعه"""
+    emp_code = emp.get('emp_code', '')
+    decoded = decode_employee_code(emp_code)
+    
+    # معلومات أساسية
+    full_name = emp.get('full_name', '')
+    emp_no = emp.get('emp_no', '')
+    
+    # تحديد الأيقونة واللون
+    icon = decoded.get('icon', '👤')
+    bg_color = decoded.get('color', '#475569')
+    emp_type_display = decoded.get('type', EMP_TYPE_LABELS.get(emp.get('employee_type', ''), ''))
+    center = decoded.get('center_name', decoded.get('center', ''))
+    
+    # الحالة
+    status = "🟢 نشط" if emp.get('is_active', True) else "🔴 غير نشط"
+    on_duty = "🚑 على رأس العمل" if emp.get('is_on_duty') else "⏸️ في الإجازة"
+    
+    st.markdown(f"""
+    <div style="background: white; border-radius: 16px; padding: 1.2rem; border: 1px solid #E2E8F0; margin-bottom: 1rem; direction: rtl; border-right: 4px solid {bg_color};">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 48px; height: 48px; background: {bg_color}20; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                {icon}
+            </div>
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h4 style="margin: 0; font-size: 1rem; color: #1A1A2E; font-weight: 700;">{full_name}</h4>
+                    <span style="background: {bg_color}10; color: {bg_color}; padding: 0.2rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700;">
+                        {emp_type_display}
+                    </span>
+                </div>
+                <p style="margin: 0.3rem 0 0 0; color: #64748B; font-size: 0.8rem;">
+                    #{emp_no} · {status} · {on_duty}
+                </p>
+                {f'<p style="margin: 0.2rem 0 0 0; color: #3B4A82; font-size: 0.75rem;">📍 {center}</p>' if center else ''}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
+    """لوحة معلومات المركز الرئيسي"""
+    if not hq_employees:
+        st.info("لا يوجد موظفون في المركز الرئيسي")
+        return
+    
+    st.markdown("### 🏢 المركز الرئيسي للقطاع")
+    
+    # تصنيف الموظفين
+    leadership = []
+    operations = []
+    support = []
+    special = []
+    
+    for emp in hq_employees:
+        code = emp.get('emp_code', '')
+        if code.endswith('0') and code[0] in 'ABCD':
+            leadership.append(emp)
+        elif code.startswith('XW'):
+            operations.append(emp)
+        elif code in ['ST', 'TT']:
+            special.append(emp)
+        elif code in ['Y', 'YY', 'YYY', 'YYYY', 'Z']:
+            support.append(emp)
+    
+    # إحصائيات سريعة
+    cols = st.columns(5)
+    with cols[0]:
+        st.metric("👥 الإجمالي", len(hq_employees))
+    with cols[1]:
+        st.metric("👑 القيادات", len(leadership))
+    with cols[2]:
+        st.metric("🖥️ العمليات", len(operations))
+    with cols[3]:
+        st.metric("📋 الدعم", len(support))
+    with cols[4]:
+        st.metric("🚛 وحدات خاصة", len(special))
+    
+    # تبويبات للعرض
+    if leadership or operations or support or special:
+        tab1, tab2, tab3, tab4 = st.tabs(["👑 القيادات", "🖥️ العمليات", "📋 الدعم", "🚛 وحدات خاصة"])
+        
+        with tab1:
+            for emp in leadership:
+                employee_card(emp)
+        
+        with tab2:
+            for emp in operations:
+                employee_card(emp)
+        
+        with tab3:
+            for emp in support:
+                employee_card(emp)
+        
+        with tab4:
+            for emp in special:
+                employee_card(emp)
+
+# ============================================================================
+# دوال الخدمات (Service Functions)
+# ============================================================================
+
+def _get_services():
+    """تهيئة الخدمات"""
+    auth = st.session_state.auth_service
+    es = st.session_state.get("employee_service")
+    cs = st.session_state.get("center_service")
+    
+    if not es:
+        from services.employee_service import EmployeeService
+        from services.center_service import CenterService
+        es = EmployeeService(auth)
+        cs = CenterService(auth)
+        st.session_state.employee_service = es
+        st.session_state.center_service = cs
+    
+    return es, cs
+
 def has_permission(required_role):
+    """التحقق من صلاحية المستخدم"""
     user_role = st.session_state.get("user_role", "emt")
     permissions = {
         "chief_paramedic": ["view_all", "manage_all", "approve_all"],
@@ -55,51 +364,16 @@ def get_user_center():
 def get_user_employee_id():
     return st.session_state.get("user_employee_id")
 
-def _get_services():
-    auth = st.session_state.auth_service
-    es = st.session_state.get("employee_service")
-    cs = st.session_state.get("center_service")
-    
-    if not es:
-        from services.employee_service import EmployeeService
-        from services.center_service import CenterService
-        es = EmployeeService(auth)
-        cs = CenterService(auth)
-        st.session_state.employee_service = es
-        st.session_state.center_service = cs
-    
-    return es, cs
+# ============================================================================
+# دوال استيراد Excel
+# ============================================================================
 
-def employee_card(emp):
-    emp_type = EMP_TYPE_LABELS.get(emp.get('employee_type', 'admin'), "إداري")
-    emp_color = EMP_TYPE_COLORS.get(emp.get('employee_type', 'admin'), "#475569")
-    
-    status = "🟢 نشط" if emp.get('is_active', True) else "🔴 غير نشط"
-    on_duty = "🚑 على رأس العمل" if emp.get('is_on_duty') else "⏸️ في الإجازة"
-    
-    st.markdown(f"""
-    <div style="background: white; border-radius: 16px; padding: 1.2rem; border: 1px solid #E2E8F0; margin-bottom: 1rem; direction: rtl; border-right: 4px solid {emp_color};">
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <div style="width: 48px; height: 48px; background: #F8FAFC; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 1px solid #E2E8F0;">👤</div>
-            <div style="flex: 1;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h4 style="margin: 0; font-size: 1rem; color: #1A1A2E; font-weight: 700;">{emp.get('full_name', '')}</h4>
-                    <span style="background: {emp_color}10; color: {emp_color}; padding: 0.2rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700;">{emp_type}</span>
-                </div>
-                <p style="margin: 0.3rem 0 0 0; color: #64748B; font-size: 0.8rem;">#{emp.get('emp_no', '')} · {status} · {on_duty}</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ===== دالة استيراد Excel =====
 def import_employees_from_excel(uploaded_file, es, cs):
     """استيراد الموظفين من ملف Excel"""
     try:
-        # قراءة الملف
         df = pd.read_excel(uploaded_file)
         
-        # التحقق من الأعمدة
+        # التحقق من الأعمدة المطلوبة
         required = ['الاسم', 'الكود', 'طبيعة العمل']
         missing = [col for col in required if col not in df.columns]
         if missing:
@@ -120,15 +394,13 @@ def import_employees_from_excel(uploaded_file, es, cs):
             'إداري': 'admin'
         }
         
-        # جلب أول مركز
+        # الحصول على مركز (سنستخدم المركز الرئيسي للموظفين الجدد)
         centers = cs.get_centers()
         default_center_id = str(centers[0]['id']) if centers else None
         
         if not default_center_id:
             st.error("❌ لا يوجد مراكز في النظام")
             return 0, len(df)
-        
-        st.write(f"🔍 center_id: {default_center_id}")  # للتشخيص
         
         success = 0
         failed = 0
@@ -138,24 +410,14 @@ def import_employees_from_excel(uploaded_file, es, cs):
         status_text = st.empty()
         
         for idx, row in df.iterrows():
-            status_text.text(f"جاري استيراد {idx+1}/{len(df)}: {row.get('الاسم', '')[:20]}...")
+            status_text.text(f"جاري استيراد {idx+1}/{len(df)}...")
             
             try:
-                # ✅ تخطي الموظف المكرر (وليد الحربي - 6182)
                 emp_no = str(row['الكود']).strip()
-                if emp_no == "6182":
-                    print(f"⏭️ تخطي الموظف المكرر: {row.get('الاسم', '')}")
-                    success += 1
-                    progress_bar.progress((idx + 1) / len(df))
-                    continue
-                
                 job_title = str(row['طبيعة العمل']).strip()
                 emp_type = type_mapping.get(job_title, 'admin')
                 
-                if emp_type == 'admin' and job_title not in type_mapping:
-                    st.warning(f"⚠️ سطر {idx+2}: '{job_title}' → admin (افتراضي)")
-                
-                employee = {
+                employee_data = {
                     'emp_no': emp_no,
                     'full_name': str(row['الاسم']).strip(),
                     'employee_type': emp_type,
@@ -163,23 +425,20 @@ def import_employees_from_excel(uploaded_file, es, cs):
                     'is_active': True
                 }
                 
-                # محاولة إضافة الموظف مباشرة (بدون بحث)
-                if es.create_employee(employee):
+                if es.create_employee(employee_data):
                     success += 1
                 else:
                     failed += 1
-                    errors.append(f"سطر {idx+2}: فشل إضافة {employee['full_name']}")
-                        
+                    errors.append(f"سطر {idx+2}: فشل إضافة {employee_data['full_name']}")
+                    
             except Exception as e:
                 failed += 1
                 errors.append(f"سطر {idx+2}: {str(e)}")
             
             progress_bar.progress((idx + 1) / len(df))
         
-        status_text.text("✅ اكتمل الاستيراد!")
-        
         if errors:
-            st.warning(f"⚠️ يوجد {len(errors)} خطأ - أول 5 أخطاء:")
+            st.warning(f"⚠️ يوجد {len(errors)} خطأ")
             for err in errors[:5]:
                 st.warning(err)
         
@@ -189,10 +448,14 @@ def import_employees_from_excel(uploaded_file, es, cs):
         st.error(f"❌ خطأ في معالجة الملف: {str(e)}")
         return 0, 0
 
+# ============================================================================
+# الصفحة الرئيسية
+# ============================================================================
+
 def show_employees():
     """صفحة إدارة الموظفين"""
     
-    # ✅ مسح الكاش إذا طلب
+    # مسح الكاش إذا طلب
     if st.session_state.get("force_reload_employees", False):
         st.cache_data.clear()
         st.cache_resource.clear()
@@ -213,13 +476,13 @@ def show_employees():
     centers = cs.get_centers() or []
     user_center_id = get_user_center()
     
-    # ✅ التبويبات الرئيسية
+    # التبويبات الرئيسية
     if has_permission("manage_all") or has_permission("manage_station"):
         tabs = st.tabs(["📋 قائمة الموظفين", "➕ إضافة موظف"])
     else:
         tabs = st.tabs(["📋 بياناتي", "📅 جدول مناوباتي"])
     
-    # ===== قسم استيراد Excel (مضغوط) =====
+    # ===== قسم استيراد Excel =====
     with st.expander("📥 استيراد موظفين من Excel", expanded=False):
         st.markdown("""
         <div style="background: #F0F9FF; padding: 1rem; border-radius: 12px; margin-bottom: 1rem;">
@@ -238,8 +501,7 @@ def show_employees():
             key="emp_upload_excel"
         )
         
-        if uploaded_file is not None:
-            # معاينة البيانات
+        if uploaded_file:
             try:
                 df_preview = pd.read_excel(uploaded_file)
                 st.dataframe(df_preview.head(5), use_container_width=True)
@@ -284,111 +546,74 @@ def show_employees():
                         st.markdown(f"""<div style="background: linear-gradient(135deg, #3B4A82 0%, #1A2B5C 100%); color: white; padding: 2rem; border-radius: 16px; text-align: center;"><div style="font-size: 3rem;">👤</div><h3>{employee.get('full_name', '')}</h3><p>#{employee.get('emp_no', '')}</p></div>""", unsafe_allow_html=True)
                     with col2:
                         st.markdown("### 📋 معلومات الاتصال")
-                        st.markdown(f"""- **📱 الجوال:** {employee.get('phone', '—')}\n- **📧 البريد:** {employee.get('email', '—')}\n- **📌 النوع:** {EMP_TYPE_LABELS.get(employee.get('employee_type'), '—')}""")
+                        st.markdown(f"""- **📱 الجوال:** {employee.get('phone', '—')}\n- **📧 البريد:** {employee.get('email', '—')}\n- **📌 النوع:** {get_employee_type_label(employee.get('employee_type', ''))}""")
             return
-        
-        # فلترة
-        if user_role == "field_leader" and user_center_id:
-            center_opts = {}
-            for c in centers:
-                if c["id"] == user_center_id:
-                    center_opts[c["name"]] = c["id"]
-                    break
-        else:
-            center_opts = {"جميع المراكز": None}
-            for c in centers:
-                center_opts[c["name"]] = c["id"]
-        
-        sel_center = st.selectbox("🏥 المركز", list(center_opts.keys()), key="emp_filter_center")
-        
-        type_opts_arabic = {
-            "جميع الأنواع": None,
-            "كبير مسعفين": "chief_paramedic",
-            "مساعد كبير مسعفين": "assistant_chief",
-            "قيادة ميدانية": "field_leader",
-            "تحكم عملياتي": "operations_control",
-            "تنسيق استجابة": "response_coordinator",
-            "أخصائي اسعاف": "paramedic",
-            "فني اسعاف": "emt",
-            "مساعد صحي": "health_assistant",
-            "دعم لوجستي": "logistic_support",
-            "إداري": "admin"
-        }
-        sel_type_arabic = st.selectbox("👤 النوع", list(type_opts_arabic.keys()), key="emp_filter_type_arabic")
-        sel_type_val = type_opts_arabic.get(sel_type_arabic)
-        
-        search = st.text_input("🔍 بحث بالاسم أو الرقم الوظيفي", placeholder="اكتب للبحث...", key="emp_search")
         
         # جلب البيانات
         with st.spinner("جاري التحميل..."):
-            if user_role == "field_leader" and user_center_id:
-                result = es.get_employees(center_id=user_center_id, search=search or None)
-            else:
-                result = es.get_employees(center_id=center_opts.get(sel_center), search=search or None)
+            result = es.get_employees(limit=500)
         
-        employees = result.get("items", []) if result else []
-        total = result.get("total", len(employees)) if result else 0
+        all_employees = result.get("items", []) if result else []
         
-        if sel_type_val:
-            employees = [e for e in employees if e.get("employee_type") == sel_type_val]
+        # إضافة حقل emp_code من البيانات (افتراضياً من emp_no أو أي حقل آخر)
+        for emp in all_employees:
+            if 'emp_code' not in emp:
+                emp['emp_code'] = emp.get('emp_no', '')
         
-        on_duty = sum(1 for e in employees if e.get("is_on_duty"))
-        active = sum(1 for e in employees if e.get("is_active", True))
+        # تقسيم الموظفين
+        hq_employees = [e for e in all_employees if is_hq_employee(e.get('emp_code', ''))]
+        center_employees = [e for e in all_employees if not is_hq_employee(e.get('emp_code', ''))]
+        
+        # إحصائيات سريعة
+        total = len(all_employees)
+        on_duty = sum(1 for e in all_employees if e.get("is_on_duty"))
+        active = sum(1 for e in all_employees if e.get("is_active", True))
         
         cols = st.columns(3)
         cols[0].metric("👥 إجمالي", total)
         cols[1].metric("🚑 على رأس العمل", on_duty)
         cols[2].metric("✅ نشطين", active)
         
-        if employees:
-            if st.session_state.get("is_mobile", False):
-                for emp in employees:
-                    employee_card(emp)
-                    if has_permission("manage_all") or has_permission("manage_station"):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("✏️ تعديل", key=f"edit_{emp['id']}", use_container_width=True):
-                                st.session_state.editing_employee = emp
-                                st.rerun()
-                        with col2:
-                            if has_permission("manage_all"):
-                                if st.button("🗑️ حذف", key=f"del_{emp['id']}", use_container_width=True):
-                                    if es.delete_employee(emp["id"]):
-                                        st.success(f"✅ تم حذف {emp['full_name']}")
-                                        st.rerun()
-                        st.markdown("---")
+        st.markdown("---")
+        
+        # عرض الموظفين
+        if hq_employees:
+            display_hq_dashboard(hq_employees)
+            st.markdown("---")
+        
+        if center_employees:
+            st.markdown("### 🏥 موظفو المراكز")
+            
+            # فلترة حسب المركز
+            center_options = ["الكل"] + [c['name'] for c in centers]
+            selected_center = st.selectbox("🏥 المركز", center_options)
+            
+            if selected_center == "الكل":
+                filtered = center_employees
             else:
-                df_data = []
-                for emp in employees:
-                    df_data.append({
-                        "الرقم الوظيفي": emp.get("emp_no", ""),
-                        "الاسم": emp.get("full_name", ""),
-                        "النوع": EMP_TYPE_LABELS.get(emp.get("employee_type",""), "-"),
-                        "على رأس العمل": "🚑" if emp.get("is_on_duty") else "—",
-                        "الحالة": "✅" if emp.get("is_active", True) else "❌",
-                        "id": emp.get("id", "")
-                    })
-                df = pd.DataFrame(df_data)
-                st.dataframe(df, use_container_width=True, hide_index=True, column_config={"id": None})
-                
-                if has_permission("manage_all") or has_permission("manage_station"):
-                    st.markdown("### ⚙️ إدارة الموظفين")
-                    for emp in employees[:5]:
-                        col1, col2, col3 = st.columns([3, 1, 1])
-                        with col1:
-                            st.write(f"**{emp['full_name']}** ({emp.get('emp_no', '')})")
-                        with col2:
-                            if st.button("✏️ تعديل", key=f"edit_{emp['id']}"):
-                                st.session_state.editing_employee = emp
-                                st.rerun()
-                        with col3:
-                            if has_permission("manage_all"):
-                                if st.button("🗑️ حذف", key=f"del_{emp['id']}"):
-                                    if es.delete_employee(emp["id"]):
-                                        st.success(f"✅ تم حذف {emp['full_name']}")
-                                        st.rerun()
-        else:
-            st.info("لا يوجد موظفون")
+                center_id = next((c['id'] for c in centers if c['name'] == selected_center), None)
+                filtered = [e for e in center_employees if str(e.get('center_id')) == str(center_id)]
+            
+            if filtered:
+                if st.session_state.get("is_mobile", False):
+                    for emp in filtered:
+                        employee_card(emp)
+                else:
+                    df_data = []
+                    for emp in filtered:
+                        decoded = decode_employee_code(emp.get('emp_code', ''))
+                        df_data.append({
+                            "الرقم الوظيفي": emp.get("emp_no", ""),
+                            "الاسم": emp.get("full_name", ""),
+                            "النوع": get_employee_type_label(emp.get("employee_type", "")),
+                            "على رأس العمل": "🚑" if emp.get("is_on_duty") else "—",
+                            "الحالة": "✅" if emp.get("is_active", True) else "❌",
+                            "id": emp.get("id", "")
+                        })
+                    df = pd.DataFrame(df_data)
+                    st.dataframe(df, use_container_width=True, hide_index=True, column_config={"id": None})
+            else:
+                st.info("لا يوجد موظفون")
     
     # ===== تبويب 2: إضافة موظف =====
     with tabs[1]:
@@ -409,14 +634,9 @@ def show_employees():
                 phone = st.text_input("📱 الجوال")
                 email = st.text_input("📧 البريد")
                 
-                if user_role == "field_leader" and user_center_id:
-                    center_name = next((c["name"] for c in centers if c["id"] == user_center_id), "")
-                    st.text_input("🏥 المركز", value=center_name, disabled=True)
-                    center_id = user_center_id
-                else:
-                    center_opts = {c["name"]: c["id"] for c in centers}
-                    sel_center = st.selectbox("🏥 المركز *", list(center_opts.keys()))
-                    center_id = center_opts.get(sel_center)
+                center_opts = {c["name"]: c["id"] for c in centers}
+                sel_center = st.selectbox("🏥 المركز *", list(center_opts.keys()))
+                center_id = center_opts.get(sel_center)
             
             certifications = st.multiselect("📜 الشهادات", ["ACLS","PHTLS","BLS","PALS","ITLS","ATLS","EMT-P"])
             notes = st.text_area("📝 ملاحظات")
@@ -428,18 +648,23 @@ def show_employees():
                     st.error("❌ الرجاء اختيار المركز")
                 else:
                     data = {
-                        "emp_no": emp_no, "full_name": full_name, "employee_type": employee_type,
-                        "center_id": str(center_id), "national_id": national_id or None,
-                        "phone": phone or None, "email": email or None,
+                        "emp_no": emp_no,
+                        "full_name": full_name,
+                        "employee_type": employee_type,
+                        "center_id": str(center_id),
+                        "national_id": national_id or None,
+                        "phone": phone or None,
+                        "email": email or None,
                         "hire_date": hire_date.isoformat() if hire_date else None,
-                        "certifications": certifications, "notes": notes or None
+                        "certifications": certifications,
+                        "notes": notes or None
                     }
                     if es.create_employee(data):
                         st.success(f"✅ تم إضافة {full_name}")
                         st.balloons()
                         st.rerun()
     
-    # ===== قسم التعديل (يظهر عند اختيار موظف) =====
+    # ===== قسم التعديل =====
     if "editing_employee" in st.session_state:
         st.markdown("---")
         emp = st.session_state.editing_employee
