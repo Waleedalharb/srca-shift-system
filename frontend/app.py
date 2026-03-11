@@ -14,6 +14,17 @@ from services.auth_service import AuthService
 from utils.helpers import load_css, setup_rtl, footer
 from utils.auth import init_session_state  # ✅ استيراد دالة تهيئة الجلسة
 
+# ===== إعداد الصفحة - يجب أن يكون أول أمر =====
+st.set_page_config(
+    page_title=config.APP_NAME,
+    page_icon="🚑",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ✅ تهيئة الجلسة مع localStorage (بعد set_page_config)
+init_session_state()
+
 # ===== مدير الجلسات لحل مشكلة تعدد المستخدمين =====
 class SessionManager:
     def __init__(self):
@@ -37,18 +48,7 @@ class SessionManager:
             return True
         return False
 
-# ✅ تهيئة الجلسة مع localStorage (هذا السطر مهم جداً)
-init_session_state()
-
-# إعداد الصفحة
-st.set_page_config(
-    page_title=config.APP_NAME,
-    page_icon="🚑",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# تنسيقات محسنة (سيتم استبدالها بملف CSS)
+# تنسيقات محسنة
 st.markdown("""
 <style>
     /* إخفاء عناصر Streamlit غير المرغوب فيها */
