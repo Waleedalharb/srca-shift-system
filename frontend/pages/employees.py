@@ -175,6 +175,11 @@ def employee_card(emp):
 def show_employees():
     """صفحة إدارة الموظفين - مع التصنيفات المحدثة"""
     
+    # ✅ مسح الكاش إذا طلب (هذا السطر مهم جداً)
+    if st.session_state.get("force_reload_employees", False):
+        st.cache_data.clear()
+        st.session_state.force_reload_employees = False
+    
     # معلومات المستخدم
     user_role = st.session_state.get("user_role", "emt")
     username = st.session_state.get("username", "")
@@ -559,6 +564,8 @@ def show_employees():
                         res = es.update_employee(emp["id"], data)
                         if res:
                             st.success("✅ تم تحديث البيانات بنجاح")
+                            # ✅ هذا السطر مهم جداً - يطلب إعادة تحميل البيانات
+                            st.session_state.force_reload_employees = True
                             del st.session_state.editing_employee
                             st.rerun()
                     
