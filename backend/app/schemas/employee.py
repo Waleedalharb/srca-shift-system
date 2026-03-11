@@ -23,8 +23,12 @@ class EmployeeUpdate(BaseModel):
     email: Optional[str] = None
     center_id: Optional[UUID] = None
     role_id: Optional[UUID] = None
+    employee_type: Optional[str] = None        # ✅ أضف هذا السطر
     is_on_duty: Optional[bool] = None
     is_available: Optional[bool] = None
+    is_active: Optional[bool] = None           # ✅ أضف هذا السطر
+    certifications: Optional[List[str]] = None  # ✅ أضف هذا السطر (اختياري)
+    notes: Optional[str] = None                  # ✅ أضف هذا السطر (اختياري)
 
 class Employee(EmployeeBase):
     id: UUID
@@ -33,11 +37,14 @@ class Employee(EmployeeBase):
     supervisor_id: Optional[UUID]
     is_on_duty: bool
     is_available: bool
+    is_active: bool                              # ✅ أضف هذا السطر
     total_hours: int
     missions_count: int
+    certifications: Optional[List[str]] = Field(default_factory=list)  # ✅ أضف
+    notes: Optional[str] = None                   # ✅ أضف
     
     class Config:
-        from_attributes = True  # تغيير من orm_mode إلى from_attributes
+        from_attributes = True
 
 class EmployeeList(BaseModel):
     total: int
