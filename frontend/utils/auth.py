@@ -23,11 +23,13 @@ def init_session_state():
     if "user_employee_id" not in st.session_state:
         st.session_state.user_employee_id = None
     
-    # ثم نستعيد التوكن من localStorage (مع تأخير بسيط)
-    components.html("""
-    <script>
-    // استرجاع التوكن من localStorage
-    setTimeout(function() {
+    # استرجاع التوكن من localStorage إذا كان موجود
+    token = st.session_state.get("token")
+    if not token:
+        # نحاول نجيب التوكن من localStorage
+        components.html("""
+        <script>
+        // استرجاع التوكن من localStorage
         const token = localStorage.getItem('srca_token');
         const username = localStorage.getItem('srca_username');
         
@@ -41,12 +43,16 @@ def init_session_state():
                 }
             }, '*');
         }
-    }, 100); // تأخير 100 ملي ثانية
-    </script>
-    """, height=0)
+        </script>
+        """, height=0)
 
 def login_page():
     """صفحة تسجيل الدخول"""
+    # إذا كان مسجل دخول بالفعل، نوجهه للصفحة الرئيسية
+    if st.session_state.get("authenticated", False):
+        st.switch_page("app.py")
+        return
+    
     st.markdown("""
     <style>
     .stApp {
@@ -92,8 +98,14 @@ def login_page():
                     <script>
                     localStorage.setItem('srca_token', '{auth_service.token}');
                     localStorage.setItem('srca_username', '{username}');
-                    // تأكيد الحفظ
-                    console.log('✅ تم حفظ التوكن');
+                    window.parent.postMessage({{
+                        type: 'streamlit:setSessionState',
+                        data: {{
+                            token: '{auth_service.token}',
+                            username: '{username}',
+                            authenticated: true
+                        }}
+                    }}, '*');
                     </script>
                     """, height=0)
                     
@@ -110,7 +122,6 @@ def logout():
     <script>
     localStorage.removeItem('srca_token');
     localStorage.removeItem('srca_username');
-    console.log('✅ تم حذف التوكن');
     </script>
     """, height=0)
     
