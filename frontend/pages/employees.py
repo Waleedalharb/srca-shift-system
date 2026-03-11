@@ -522,4 +522,4 @@ def show_employees():
                         del st.session_state.editing_employee
                         st.rerun()
                 else:
-                    st.error("❌ فقط كبير المسعفين يمكنه الحذف")
+                    st.error("❌ فقط كبير المسعفين يمكنه الحذف") 
