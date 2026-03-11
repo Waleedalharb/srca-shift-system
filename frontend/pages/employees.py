@@ -92,6 +92,107 @@ def employee_card(emp):
     </div>
     """, unsafe_allow_html=True)
 
+# ===== دالة استيراد Excel =====
+def import_employees_from_excel(uploaded_file, es, cs):
+    """استيراد الموظفين من ملف Excel"""
+    try:
+        # قراءة الملف
+        df = pd.read_excel(uploaded_file)
+        
+        # التحقق من الأعمدة
+        required = ['الاسم', 'الكود', 'طبيعة العمل']
+        missing = [col for col in required if col not in df.columns]
+        if missing:
+            st.error(f"❌ الأعمدة المفقودة: {missing}")
+            return 0, len(df)
+        
+        # تحويل المسميات
+        type_mapping = {
+            'كبير مسعفين': 'chief_paramedic',
+            'مساعد كبير مسعفين': 'assistant_chief',
+            'قيادة ميدانية': 'field_leader',
+            'تحكم عملياتي': 'operations_control',
+            'تنسيق استجابة': 'response_coordinator',
+            'أخصائي اسعاف': 'paramedic',
+            'فني اسعاف': 'emt',
+            'مساعد صحي': 'health_assistant',
+            'دعم لوجستي': 'logistic_support',
+            'إداري': 'admin'
+        }
+        
+        # جلب أول مركز
+        centers = cs.get_centers()
+        default_center_id = str(centers[0]['id']) if centers else None
+        
+        if not default_center_id:
+            st.error("❌ لا يوجد مراكز في النظام")
+            return 0, len(df)
+        
+        success = 0
+        failed = 0
+        errors = []
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for idx, row in df.iterrows():
+            status_text.text(f"جاري استيراد {idx+1}/{len(df)}: {row.get('الاسم', '')[:20]}...")
+            
+            try:
+                job_title = str(row['طبيعة العمل']).strip()
+                emp_type = type_mapping.get(job_title, 'admin')
+                
+                if emp_type == 'admin' and job_title not in type_mapping:
+                    st.warning(f"⚠️ سطر {idx+2}: '{job_title}' → admin (افتراضي)")
+                
+                employee = {
+                    'emp_no': str(row['الكود']).strip(),
+                    'full_name': str(row['الاسم']).strip(),
+                    'employee_type': emp_type,
+                    'center_id': default_center_id,
+                    'is_active': True
+                }
+                
+                # بحث عن الموظف القديم
+                existing = es.get_employees(search=employee['emp_no'])
+                if existing and existing.get('items'):
+                    # تحديث الموجود
+                    emp_id = existing['items'][0]['id']
+                    if es.update_employee(emp_id, employee):
+                        success += 1
+                    else:
+                        failed += 1
+                        errors.append(f"سطر {idx+2}: فشل تحديث {employee['full_name']}")
+                else:
+                    # إضافة جديد
+                    if es.create_employee(employee):
+                        success += 1
+                    else:
+                        failed += 1
+                        errors.append(f"سطر {idx+2}: فشل إضافة {employee['full_name']}")
+                        
+            except Exception as e:
+                failed += 1
+                errors.append(f"سطر {idx+2}: {str(e)}")
+            
+            progress_bar.progress((idx + 1) / len(df))
+        
+        status_text.text("✅ اكتمل الاستيراد!")
+        
+        if errors and len(errors) <= 5:
+            for err in errors:
+                st.warning(err)
+        elif errors:
+            st.warning(f"⚠️ يوجد {len(errors)} خطأ - أول 5 أخطاء:")
+            for err in errors[:5]:
+                st.warning(err)
+        
+        return success, failed
+        
+    except Exception as e:
+        st.error(f"❌ خطأ في معالجة الملف: {str(e)}")
+        return 0, 0
+
 def show_employees():
     """صفحة إدارة الموظفين"""
     
@@ -116,11 +217,66 @@ def show_employees():
     centers = cs.get_centers() or []
     user_center_id = get_user_center()
     
+    # ✅ التبويبات الرئيسية
     if has_permission("manage_all") or has_permission("manage_station"):
-        tabs = st.tabs(["📋 قائمة الموظفين", "➕ إضافة موظف", "📊 إحصائيات"])
+        tabs = st.tabs(["📋 قائمة الموظفين", "➕ إضافة موظف"])
     else:
         tabs = st.tabs(["📋 بياناتي", "📅 جدول مناوباتي"])
     
+    # ===== قسم استيراد Excel (مضغوط) =====
+    with st.expander("📥 استيراد موظفين من Excel", expanded=False):
+        st.markdown("""
+        <div style="background: #F0F9FF; padding: 1rem; border-radius: 12px; margin-bottom: 1rem;">
+            <h5 style="margin: 0 0 0.5rem 0;">📌 تعليمات:</h5>
+            <ul style="margin: 0; padding-right: 1.5rem; font-size: 0.9rem;">
+                <li>الملف يجب أن يكون بصيغة Excel (.xlsx)</li>
+                <li>الأعمدة المطلوبة: <b>الاسم، الكود، طبيعة العمل</b></li>
+                <li>الموظفون الجدد يُضافون، والموجودون يُحدثون</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        uploaded_file = st.file_uploader(
+            "📤 اختر ملف Excel",
+            type=['xlsx', 'xls'],
+            key="emp_upload_excel"
+        )
+        
+        if uploaded_file is not None:
+            # معاينة البيانات
+            try:
+                df_preview = pd.read_excel(uploaded_file)
+                st.dataframe(df_preview.head(5), use_container_width=True)
+                st.caption(f"إجمالي {len(df_preview)} موظف في الملف")
+                
+                if st.button("🚀 بدء الاستيراد", use_container_width=True, type="primary"):
+                    success, failed = import_employees_from_excel(uploaded_file, es, cs)
+                    
+                    if success > 0:
+                        st.success(f"✅ تم استيراد {success} موظف بنجاح!")
+                        st.balloons()
+                    if failed > 0:
+                        st.warning(f"⚠️ فشل استيراد {failed} موظف")
+                    
+                    # عرض إحصائيات
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("✅ نجاح", success)
+                    with col2:
+                        st.metric("❌ فشل", failed)
+                    with col3:
+                        st.metric("📦 إجمالي", len(df_preview))
+                    
+                    # زر تحديث
+                    if success > 0:
+                        if st.button("🔄 تحديث القائمة", use_container_width=True):
+                            st.session_state.force_reload_employees = True
+                            st.rerun()
+                            
+            except Exception as e:
+                st.error(f"❌ خطأ في قراءة الملف: {str(e)}")
+    
+    # ===== تبويب 1: قائمة الموظفين =====
     with tabs[0]:
         if user_role in ["paramedic", "emt", "health_assistant"]:
             emp_id = get_user_employee_id()
@@ -238,6 +394,7 @@ def show_employees():
         else:
             st.info("لا يوجد موظفون")
     
+    # ===== تبويب 2: إضافة موظف =====
     with tabs[1]:
         if user_role in ["paramedic", "emt", "health_assistant"]:
             st.subheader("📅 جدول مناوباتي")
@@ -286,87 +443,84 @@ def show_employees():
                         st.balloons()
                         st.rerun()
     
-    if len(tabs) > 2:
-        with tabs[2]:
-            if "editing_employee" not in st.session_state:
-                st.info("👈 اختر موظفاً من القائمة ثم اضغط تعديل")
-            else:
-                emp = st.session_state.editing_employee
-                st.subheader(f"✏️ تعديل: {emp.get('full_name','')}")
+    # ===== قسم التعديل (يظهر عند اختيار موظف) =====
+    if "editing_employee" in st.session_state:
+        st.markdown("---")
+        emp = st.session_state.editing_employee
+        st.subheader(f"✏️ تعديل: {emp.get('full_name','')}")
+        
+        with st.form("edit_employee_form"):
+            c1, c2 = st.columns(2)
+            with c1:
+                emp_no = st.text_input("📋 الرقم الوظيفي", value=emp.get("emp_no",""), disabled=True)
+                full_name = st.text_input("👤 الاسم الكامل *", value=emp.get("full_name",""))
+                national_id = st.text_input("🆔 رقم الهوية", value=emp.get("national_id",""))
+                hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.strptime(emp.get("hire_date","2020-01-01"), "%Y-%m-%d").date() if emp.get("hire_date") else datetime.now())
+            with c2:
+                phone = st.text_input("📱 الجوال", value=emp.get("phone",""))
+                email = st.text_input("📧 البريد", value=emp.get("email",""))
                 
-                with st.form("edit_employee_form"):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        emp_no = st.text_input("📋 الرقم الوظيفي", value=emp.get("emp_no",""), disabled=True)
-                        full_name = st.text_input("👤 الاسم الكامل *", value=emp.get("full_name",""))
-                        national_id = st.text_input("🆔 رقم الهوية", value=emp.get("national_id",""))
-                        hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.strptime(emp.get("hire_date","2020-01-01"), "%Y-%m-%d").date() if emp.get("hire_date") else datetime.now())
-                    with c2:
-                        phone = st.text_input("📱 الجوال", value=emp.get("phone",""))
-                        email = st.text_input("📧 البريد", value=emp.get("email",""))
-                        
-                        type_list = list(EMP_TYPE_LABELS.keys())
-                        current_type = emp.get("employee_type", "admin")
-                        type_index = type_list.index(current_type) if current_type in type_list else 0
-                        employee_type = st.selectbox("📌 الفئة", type_list, index=type_index, format_func=lambda x: EMP_TYPE_LABELS.get(x, x))
-                        
-                        center_opts = {c["name"]: c["id"] for c in centers}
-                        current_center = next((c["name"] for c in centers if c["id"] == emp.get("center_id")), "")
-                        sel_center = st.selectbox("🏥 المركز", list(center_opts.keys()), index=list(center_opts.keys()).index(current_center) if current_center in center_opts else 0)
-                    
-                    certifications = st.multiselect("📜 الشهادات", ["ACLS","PHTLS","BLS","PALS","ITLS","ATLS","EMT-P"], default=emp.get("certifications", []))
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        is_active = st.checkbox("✅ نشط", value=emp.get("is_active", True))
-                    with col2:
-                        is_on_duty = st.checkbox("🚑 على رأس العمل", value=emp.get("is_on_duty", False))
-                    with col3:
-                        is_available = st.checkbox("🟢 متاح", value=emp.get("is_available", True))
-                    
-                    notes = st.text_area("📝 ملاحظات", value=emp.get("notes", ""))
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        save = st.form_submit_button("💾 حفظ", use_container_width=True, type="primary")
-                    with col2:
-                        cancel = st.form_submit_button("❌ إلغاء", use_container_width=True)
-                    with col3:
-                        delete = st.form_submit_button("🗑️ حذف", use_container_width=True)
-                    
-                    if save:
-                        data = {
-                            "full_name": full_name,
-                            "employee_type": employee_type,
-                            "center_id": str(center_opts[sel_center]),
-                            "phone": phone or None,
-                            "email": email or None,
-                            "national_id": national_id or None,
-                            "hire_date": hire_date.isoformat() if hire_date else None,
-                            "certifications": certifications,
-                            "is_active": is_active,
-                            "is_on_duty": is_on_duty,
-                            "is_available": is_available,
-                            "notes": notes or None
-                        }
-                        if es.update_employee(emp["id"], data):
-                            st.success("✅ تم التحديث")
-                            # ✅ مسح الكاش وطلب إعادة تحميل
-                            st.cache_data.clear()
-                            st.session_state.force_reload_employees = True
-                            del st.session_state.editing_employee
-                            st.rerun()
-                    
-                    if cancel:
+                type_list = list(EMP_TYPE_LABELS.keys())
+                current_type = emp.get("employee_type", "admin")
+                type_index = type_list.index(current_type) if current_type in type_list else 0
+                employee_type = st.selectbox("📌 الفئة", type_list, index=type_index, format_func=lambda x: EMP_TYPE_LABELS.get(x, x))
+                
+                center_opts = {c["name"]: c["id"] for c in centers}
+                current_center = next((c["name"] for c in centers if c["id"] == emp.get("center_id")), "")
+                sel_center = st.selectbox("🏥 المركز", list(center_opts.keys()), index=list(center_opts.keys()).index(current_center) if current_center in center_opts else 0)
+            
+            certifications = st.multiselect("📜 الشهادات", ["ACLS","PHTLS","BLS","PALS","ITLS","ATLS","EMT-P"], default=emp.get("certifications", []))
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                is_active = st.checkbox("✅ نشط", value=emp.get("is_active", True))
+            with col2:
+                is_on_duty = st.checkbox("🚑 على رأس العمل", value=emp.get("is_on_duty", False))
+            with col3:
+                is_available = st.checkbox("🟢 متاح", value=emp.get("is_available", True))
+            
+            notes = st.text_area("📝 ملاحظات", value=emp.get("notes", ""))
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                save = st.form_submit_button("💾 حفظ", use_container_width=True, type="primary")
+            with col2:
+                cancel = st.form_submit_button("❌ إلغاء", use_container_width=True)
+            with col3:
+                delete = st.form_submit_button("🗑️ حذف", use_container_width=True)
+            
+            if save:
+                data = {
+                    "full_name": full_name,
+                    "employee_type": employee_type,
+                    "center_id": str(center_opts[sel_center]),
+                    "phone": phone or None,
+                    "email": email or None,
+                    "national_id": national_id or None,
+                    "hire_date": hire_date.isoformat() if hire_date else None,
+                    "certifications": certifications,
+                    "is_active": is_active,
+                    "is_on_duty": is_on_duty,
+                    "is_available": is_available,
+                    "notes": notes or None
+                }
+                if es.update_employee(emp["id"], data):
+                    st.success("✅ تم التحديث")
+                    st.cache_data.clear()
+                    st.session_state.force_reload_employees = True
+                    del st.session_state.editing_employee
+                    st.rerun()
+            
+            if cancel:
+                del st.session_state.editing_employee
+                st.rerun()
+            
+            if delete:
+                if st.session_state.get("user_role") == "chief_paramedic":
+                    if es.delete_employee(emp["id"]):
+                        st.success(f"✅ تم حذف {emp['full_name']}")
+                        st.session_state.force_reload_employees = True
                         del st.session_state.editing_employee
                         st.rerun()
-                    
-                    if delete:
-                        if st.session_state.get("user_role") == "chief_paramedic":
-                            if es.delete_employee(emp["id"]):
-                                st.success(f"✅ تم حذف {emp['full_name']}")
-                                st.session_state.force_reload_employees = True
-                                del st.session_state.editing_employee
-                                st.rerun()
-                        else:
-                            st.error("❌ فقط كبير المسعفين يمكنه الحذف")
+                else:
+                    st.error("❌ فقط كبير المسعفين يمكنه الحذف")
