@@ -6,6 +6,7 @@ from uuid import UUID
 
 class EmployeeBase(BaseModel):
     emp_no: str = Field(..., description="الرقم الوظيفي")
+    emp_code: Optional[str] = Field(None, description="رمز الموظف (A1, B7, O12, ...)")  # ✅ جديد
     full_name: str = Field(..., description="الاسم الكامل")
     national_id: Optional[str] = Field(None, description="رقم الهوية")
     phone: Optional[str] = Field(None, description="رقم الجوال")
@@ -23,10 +24,13 @@ class EmployeeUpdate(BaseModel):
     email: Optional[str] = None
     center_id: Optional[UUID] = None
     role_id: Optional[UUID] = None
-    employee_type: Optional[str] = None    # ✅ أضفنا هذا السطر فقط للتجربة
+    employee_type: Optional[str] = None
+    emp_code: Optional[str] = None  # ✅ جديد
     is_on_duty: Optional[bool] = None
     is_available: Optional[bool] = None
-    # ❌ ما أضفنا is_active حالياً
+    is_active: Optional[bool] = None  # ✅ أضفناه للتعديل
+    certifications: Optional[List[str]] = None  # ✅ اختياري
+    notes: Optional[str] = None  # ✅ اختياري
 
 class Employee(EmployeeBase):
     id: UUID
@@ -35,11 +39,14 @@ class Employee(EmployeeBase):
     supervisor_id: Optional[UUID]
     is_on_duty: bool
     is_available: bool
+    is_active: bool  # ✅ أضفناه
     total_hours: int
     missions_count: int
+    certifications: Optional[List[str]] = Field(default_factory=list)  # ✅ جديد
+    notes: Optional[str] = None  # ✅ جديد
     
     class Config:
-        from_attributes = True  # تغيير من orm_mode إلى from_attributes
+        from_attributes = True
 
 class EmployeeList(BaseModel):
     total: int
