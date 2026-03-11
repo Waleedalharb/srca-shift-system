@@ -128,6 +128,8 @@ def import_employees_from_excel(uploaded_file, es, cs):
             st.error("❌ لا يوجد مراكز في النظام")
             return 0, len(df)
         
+        st.write(f"🔍 center_id: {default_center_id}")  # للتشخيص
+        
         success = 0
         failed = 0
         errors = []
@@ -179,10 +181,7 @@ def import_employees_from_excel(uploaded_file, es, cs):
         
         status_text.text("✅ اكتمل الاستيراد!")
         
-        if errors and len(errors) <= 5:
-            for err in errors:
-                st.warning(err)
-        elif errors:
+        if errors:
             st.warning(f"⚠️ يوجد {len(errors)} خطأ - أول 5 أخطاء:")
             for err in errors[:5]:
                 st.warning(err)
