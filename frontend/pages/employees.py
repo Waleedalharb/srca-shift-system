@@ -141,6 +141,14 @@ def import_employees_from_excel(uploaded_file, es, cs):
             status_text.text(f"جاري استيراد {idx+1}/{len(df)}: {row.get('الاسم', '')[:20]}...")
             
             try:
+                # ✅ تخطي الموظف المكرر (وليد الحربي - 6182)
+                emp_no = str(row['الكود']).strip()
+                if emp_no == "6182":
+                    print(f"⏭️ تخطي الموظف المكرر: {row.get('الاسم', '')}")
+                    success += 1
+                    progress_bar.progress((idx + 1) / len(df))
+                    continue
+                
                 job_title = str(row['طبيعة العمل']).strip()
                 emp_type = type_mapping.get(job_title, 'admin')
                 
@@ -148,30 +156,19 @@ def import_employees_from_excel(uploaded_file, es, cs):
                     st.warning(f"⚠️ سطر {idx+2}: '{job_title}' → admin (افتراضي)")
                 
                 employee = {
-                    'emp_no': str(row['الكود']).strip(),
+                    'emp_no': emp_no,
                     'full_name': str(row['الاسم']).strip(),
                     'employee_type': emp_type,
                     'center_id': default_center_id,
                     'is_active': True
                 }
                 
-                # بحث عن الموظف القديم
-                existing = es.get_employees(search=employee['emp_no'])
-                if existing and existing.get('items'):
-                    # تحديث الموجود
-                    emp_id = existing['items'][0]['id']
-                    if es.update_employee(emp_id, employee):
-                        success += 1
-                    else:
-                        failed += 1
-                        errors.append(f"سطر {idx+2}: فشل تحديث {employee['full_name']}")
+                # محاولة إضافة الموظف مباشرة (بدون بحث)
+                if es.create_employee(employee):
+                    success += 1
                 else:
-                    # إضافة جديد
-                    if es.create_employee(employee):
-                        success += 1
-                    else:
-                        failed += 1
-                        errors.append(f"سطر {idx+2}: فشل إضافة {employee['full_name']}")
+                    failed += 1
+                    errors.append(f"سطر {idx+2}: فشل إضافة {employee['full_name']}")
                         
             except Exception as e:
                 failed += 1
@@ -522,4 +519,4 @@ def show_employees():
                         del st.session_state.editing_employee
                         st.rerun()
                 else:
-                    st.error("❌ فقط كبير المسعفين يمكنه الحذف") 
+                    st.error("❌ فقط كبير المسعفين يمكنه الحذف")
