@@ -73,10 +73,10 @@ class EmployeeService:
             )
             if response.status_code == 201:
                 return response.json()
-            st.error(f"❌ خطأ في الإضافة: {response.status_code}")
+            st.error(f"خطأ: {response.status_code}")
             return None
         except Exception as e:
-            st.error(f"❌ خطأ: {str(e)}")
+            st.error(f"خطأ: {str(e)}")
             return None
     
     def update_employee(self, employee_id, data):
@@ -89,16 +89,11 @@ class EmployeeService:
                 timeout=10
             )
             if response.status_code == 200:
-                st.success("✅ تم التحديث بنجاح")
                 return response.json()
-            else:
-                st.error(f"❌ فشل التحديث: {response.status_code} - {response.text}")
-                return None
-        except requests.exceptions.ConnectionError:
-            st.error("🔌 فشل الاتصال بالخادم. تأكد من اتصالك بالإنترنت")
+            st.error(f"خطأ: {response.status_code} - {response.text}")
             return None
         except Exception as e:
-            st.error(f"❌ خطأ: {str(e)}")
+            st.error(f"خطأ: {str(e)}")
             return None
     
     def delete_employee(self, employee_id):
@@ -109,15 +104,7 @@ class EmployeeService:
                 headers=self.auth.get_headers(),
                 timeout=10
             )
-            if response.status_code == 204:
-                st.success("✅ تم الحذف بنجاح")
-                return True
-            else:
-                st.error(f"❌ فشل الحذف: {response.status_code}")
-                return False
-        except requests.exceptions.ConnectionError:
-            st.error("🔌 فشل الاتصال بالخادم")
-            return False
+            return response.status_code == 204
         except Exception as e:
-            st.error(f"❌ خطأ: {str(e)}")
+            st.error(f"خطأ: {str(e)}")
             return False
