@@ -23,8 +23,10 @@ class EmployeeUpdate(BaseModel):
     email: Optional[str] = None
     center_id: Optional[UUID] = None
     role_id: Optional[UUID] = None
+    employee_type: Optional[str] = None    # ✅ أضفنا هذا السطر فقط للتجربة
     is_on_duty: Optional[bool] = None
     is_available: Optional[bool] = None
+    # ❌ ما أضفنا is_active حالياً
 
 class Employee(EmployeeBase):
     id: UUID
