@@ -143,6 +143,23 @@ def get_employees_stats(
         "top_centers": top_centers
     }
 
+@router.get("/{employee_id}", response_model=EmployeeSchema)
+def get_employee(
+    employee_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+) -> Employee:
+    """جلب بيانات موظف محدد"""
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="الموظف غير موجود"
+        )
+    
+    return employee
+
 @router.post("/", response_model=EmployeeSchema, status_code=status.HTTP_201_CREATED)
 @require_permission(Permission.MANAGE_EMPLOYEES)
 def create_employee(
@@ -187,3 +204,49 @@ def create_employee(
     db.refresh(employee)
     
     return employee
+
+# ✅ دالة تحديث الموظف - هذه هي الدالة المفقودة
+@router.put("/{employee_id}", response_model=EmployeeSchema)
+def update_employee(
+    employee_id: UUID,
+    employee_in: EmployeeUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+) -> Employee:
+    """تحديث بيانات موظف"""
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="الموظف غير موجود"
+        )
+    
+    # تحديث البيانات
+    update_data = employee_in.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(employee, field, value)
+    
+    db.commit()
+    db.refresh(employee)
+    
+    return employee
+
+@router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
+@require_permission(Permission.DELETE_EMPLOYEE)
+def delete_employee(
+    employee_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+) -> None:
+    """حذف موظف - فقط كبير المسعفين يمكنه الحذف"""
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="الموظف غير موجود"
+        )
+    
+    db.delete(employee)
+    db.commit()
