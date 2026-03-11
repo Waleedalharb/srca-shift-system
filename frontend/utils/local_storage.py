@@ -6,10 +6,13 @@ import uuid
 
 class LocalStorage:
     def __init__(self):
-        self.base_path = "/opt/reports"
-        # تأكد من وجود المجلد
+        # ✅ المسار الصحيح (يطابق Mount Path في Render)
+        self.base_path = "/opt/render/project/src/data"
+        
+        # تأكد من وجود المجلدات
         os.makedirs(self.base_path, exist_ok=True)
         os.makedirs(f"{self.base_path}/attendance", exist_ok=True)
+        os.makedirs(f"{self.base_path}/uploads", exist_ok=True)  # للملفات المرفوعة
     
     def save_attendance_report(self, attendance_data, center_name, report_date):
         """حفظ تقرير التكميل محلياً"""
