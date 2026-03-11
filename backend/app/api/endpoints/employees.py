@@ -1,4 +1,3 @@
-# backend/app/api/endpoints/employees.py
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -11,7 +10,6 @@ from app.models.user import User
 from app.schemas.employee import (
     EmployeeCreate, EmployeeUpdate, Employee as EmployeeSchema, EmployeeList
 )
-from app.core.security import require_permission, Permission
 
 router = APIRouter()
 
@@ -112,11 +110,6 @@ def get_employees_stats(
         "admins": query.filter(Employee.employee_type == "admin").count()
     }
     
-    # إضافة أنواع العمليات إذا كانت موجودة
-    if hasattr(Employee, 'employee_type'):
-        by_type["operations"] = query.filter(Employee.employee_type == "operations").count()
-        by_type["coordinator"] = query.filter(Employee.employee_type == "coordinator").count()
-    
     # الحضور الآن
     on_duty = query.filter(Employee.is_on_duty == True).count()
     
@@ -161,13 +154,12 @@ def get_employee(
     return employee
 
 @router.post("/", response_model=EmployeeSchema, status_code=status.HTTP_201_CREATED)
-@require_permission(Permission.MANAGE_EMPLOYEES)
 def create_employee(
     employee_in: EmployeeCreate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Employee:
-    """إنشاء موظف جديد - يحتاج صلاحية إدارة الموظفين"""
+    """إنشاء موظف جديد"""
     
     # التحقق من عدم تكرار الرقم الوظيفي
     existing = db.query(Employee).filter(Employee.emp_no == employee_in.emp_no).first()
@@ -205,7 +197,7 @@ def create_employee(
     
     return employee
 
-# ✅ دالة تحديث الموظف - هذه هي الدالة المفقودة
+# ✅ دالة تحديث الموظف
 @router.put("/{employee_id}", response_model=EmployeeSchema)
 def update_employee(
     employee_id: UUID,
@@ -222,6 +214,14 @@ def update_employee(
             detail="الموظف غير موجود"
         )
     
+    # التحقق من الصلاحية
+    if current_user.role.value == "field_leader":
+        if current_user.employee and employee.center_id != current_user.employee.center_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="لا يمكنك تعديل موظف من مركز آخر"
+            )
+    
     # تحديث البيانات
     update_data = employee_in.dict(exclude_unset=True)
     for field, value in update_data.items():
@@ -233,13 +233,19 @@ def update_employee(
     return employee
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
-@require_permission(Permission.DELETE_EMPLOYEE)
 def delete_employee(
     employee_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> None:
     """حذف موظف - فقط كبير المسعفين يمكنه الحذف"""
+    # التحقق من الصلاحية يدوياً
+    if current_user.role.value != "chief_paramedic":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="فقط كبير المسعفين يمكنه حذف الموظفين"
+        )
+    
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     
     if not employee:
