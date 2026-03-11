@@ -4,6 +4,7 @@ import pandas as pd
 from components.cards import center_card, kpi_row
 from components.charts import create_bar_chart, create_gauge, display_chart
 from utils.helpers import page_header, section_title
+from utils.constants import CENTER_CODES, HQ_CENTER
 
 st.cache_data.clear()
 
@@ -16,14 +17,13 @@ def _get_service():
         st.session_state.center_service = cs
     return cs
 
-
 def show_centers():
-    """صفحة إدارة المراكز الإسعافية"""
+    """صفحة إدارة المراكز الإسعافية والتمركزات"""
 
-    page_header("إدارة المراكز الإسعافية", "عرض وإضافة وتعديل المراكز التابعة", "🏥")
+    page_header("إدارة المراكز والتمركزات", "عرض وإضافة وتعديل المراكز والتمركزات التابعة", "🏥")
 
     cs = _get_service()
-    tabs = st.tabs(["📋 قائمة المراكز", "➕ إضافة مركز", "✏️ تعديل مركز", "📊 مقارنة التغطية"])
+    tabs = st.tabs(["📋 قائمة المراكز", "➕ إضافة مركز/تمركز", "✏️ تعديل", "📊 التغطية"])
 
     # ══════════════════════════════════════════════════════
     # تبويب 1 — القائمة
@@ -43,94 +43,163 @@ def show_centers():
                 background:white;border-radius:14px;border:1px solid #E2E8F0;
                 color:#718096;font-family:Cairo,sans-serif;">
                 <div style="font-size:2.5rem;margin-bottom:0.75rem;">🏥</div>
-                <p style="font-size:0.95rem;margin:0;">لا توجد مراكز مسجلة</p>
+                <p style="font-size:0.95rem;margin:0;">لا توجد مراكز أو تمركزات مسجلة</p>
+                <p style="font-size:0.8rem;color:#9CA3AF;margin-top:0.5rem;">أضف المركز الرئيسي أولاً</p>
             </div>""", unsafe_allow_html=True)
             return
 
-        active   = sum(1 for c in centers if c.get("is_active"))
-        inactive = len(centers) - active
+        # تصنيف المراكز
+        hq_centers = [c for c in centers if c.get('is_hq')]
+        regular_centers = [c for c in centers if not c.get('is_hq') and not c.get('is_virtual')]
+        deployments = [c for c in centers if c.get('is_virtual')]
 
-        kpi_row([
-            ("🏥", len(centers), "إجمالي المراكز",    "red"),
-            ("✅", active,       "مراكز نشطة",        "green"),
-            ("❌", inactive,     "مراكز متوقفة",      "navy"),
-        ])
+        # إحصائيات سريعة
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("🏢 المركز الرئيسي", len(hq_centers))
+        with col2:
+            st.metric("🏥 مراكز ثابتة", len(regular_centers))
+        with col3:
+            st.metric("🚚 تمركزات", len(deployments))
+        with col4:
+            active = sum(1 for c in centers if c.get("is_active"))
+            st.metric("✅ نشط", active)
+        
         st.markdown("<div style='margin:1rem 0;'></div>", unsafe_allow_html=True)
 
-        # عرض البطاقات
-        for i in range(0, len(centers), 2):
-            cols = st.columns(2)
-            for j, col in enumerate(cols):
-                if i + j < len(centers):
-                    center = centers[i + j]
-                    cov    = cs.get_center_coverage(center["id"])
-                    with col:
-                        center_card(center, cov)
-                        bc1, bc2 = st.columns(2)
-                        with bc1:
-                            if st.button("✏️ تعديل", key=f"cedit_{center['id']}",
-                                         use_container_width=True):
-                                st.session_state.editing_center = center
-                                st.rerun()
-                        with bc2:
-                            lbl = "🔴 إيقاف" if center.get("is_active") else "🟢 تفعيل"
-                            if st.button(lbl, key=f"ctoggle_{center['id']}",
-                                         use_container_width=True):
-                                cs.update_center(center["id"],
-                                    {"is_active": not center.get("is_active")})
-                                st.rerun()
-                        st.markdown("<div style='margin-bottom:0.5rem;'></div>",
-                                    unsafe_allow_html=True)
+        # عرض المركز الرئيسي أولاً
+        if hq_centers:
+            st.markdown("### 🏢 المركز الرئيسي للقطاع")
+            for center in hq_centers:
+                cov = cs.get_center_coverage(center["id"])
+                center_card(center, cov, is_hq=True)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✏️ تعديل", key=f"cedit_{center['id']}", use_container_width=True):
+                        st.session_state.editing_center = center
+                        st.rerun()
+                with col2:
+                    lbl = "🔴 إيقاف" if center.get("is_active") else "🟢 تفعيل"
+                    if st.button(lbl, key=f"ctoggle_{center['id']}", use_container_width=True):
+                        cs.update_center(center["id"], {"is_active": not center.get("is_active")})
+                        st.rerun()
+                st.markdown("---")
+
+        # عرض المراكز الثابتة
+        if regular_centers:
+            st.markdown("### 🏥 المراكز الثابتة")
+            for i in range(0, len(regular_centers), 2):
+                cols = st.columns(2)
+                for j, col in enumerate(cols):
+                    if i + j < len(regular_centers):
+                        center = regular_centers[i + j]
+                        cov = cs.get_center_coverage(center["id"])
+                        with col:
+                            center_card(center, cov)
+                            bc1, bc2 = st.columns(2)
+                            with bc1:
+                                if st.button("✏️ تعديل", key=f"cedit_{center['id']}", use_container_width=True):
+                                    st.session_state.editing_center = center
+                                    st.rerun()
+                            with bc2:
+                                lbl = "🔴 إيقاف" if center.get("is_active") else "🟢 تفعيل"
+                                if st.button(lbl, key=f"ctoggle_{center['id']}", use_container_width=True):
+                                    cs.update_center(center["id"], {"is_active": not center.get("is_active")})
+                                    st.rerun()
+                            st.markdown("<div style='margin-bottom:0.5rem;'></div>", unsafe_allow_html=True)
+
+        # عرض التمركزات
+        if deployments:
+            st.markdown("### 🚚 التمركزات (قوى دعم متنقلة)")
+            for center in deployments:
+                cov = cs.get_center_coverage(center["id"])
+                st.markdown(f"""
+                <div style="background: #F0F9FF; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; border-right: 4px solid #45CFEF;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="font-size: 2rem;">🚚</div>
+                        <div>
+                            <h4 style="margin: 0;">{center['name']}</h4>
+                            <p style="margin: 0; color: #666;">كود: {center.get('code', '—')}</p>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✏️ تعديل", key=f"cedit_{center['id']}", use_container_width=True):
+                        st.session_state.editing_center = center
+                        st.rerun()
+                with col2:
+                    lbl = "🔴 إيقاف" if center.get("is_active") else "🟢 تفعيل"
+                    if st.button(lbl, key=f"ctoggle_{center['id']}", use_container_width=True):
+                        cs.update_center(center["id"], {"is_active": not center.get("is_active")})
+                        st.rerun()
+                st.markdown("---")
 
     # ══════════════════════════════════════════════════════
-    # تبويب 2 — إضافة مركز
+    # تبويب 2 — إضافة مركز/تمركز
     # ══════════════════════════════════════════════════════
     with tabs[1]:
         st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
-        st.markdown("""
+
+        center_type = st.radio(
+            "نوع الموقع",
+            ["🏢 مركز رئيسي", "🏥 مركز ثابت", "🚚 تمركز"],
+            horizontal=True
+        )
+
+        st.markdown(f"""
         <div style="background:white;border-radius:14px;padding:1.5rem;
             box-shadow:0 4px 20px rgba(13,27,42,0.08);border:1px solid #E2E8F0;
             border-top:3px solid #CE2E26;">
             <h3 style="font-family:Cairo,sans-serif;font-weight:700;
                 color:#1A1A2E;font-size:1rem;margin:0 0 1.25rem;">
-                ➕ بيانات المركز الجديد
+                ➕ إضافة {center_type}
             </h3>
         """, unsafe_allow_html=True)
 
         with st.form("add_center_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
-                code          = st.text_input("🔤 كود المركز *",      placeholder="مثال: HAER")
-                name          = st.text_input("🏥 اسم المركز *",      placeholder="مثال: مركز الحائر")
-                city          = st.text_input("🏙️ المدينة",           value="جازان")
-                coverage_area = st.number_input("📏 مساحة التغطية (كم²)", min_value=0, value=50)
+                code = st.text_input("🔤 كود المركز *", placeholder="مثال: HQ, C001, DEP1")
+                name = st.text_input("🏥 الاسم *", placeholder="مثال: المركز الرئيسي, مركز الحائر")
+                city = st.text_input("🏙️ المدينة", value="الرياض")
+                
             with c2:
-                latitude  = st.text_input("🌍 خط العرض",  placeholder="24.5667")
-                longitude = st.text_input("🌐 خط الطول",  placeholder="46.7333")
-                manager   = st.text_input("👤 مدير المركز", placeholder="الاسم الكامل")
-                phone     = st.text_input("📱 هاتف المركز", placeholder="01xxxxxxxx")
+                if center_type != "🚚 تمركز":
+                    coverage_area = st.number_input("📏 مساحة التغطية (كم²)", min_value=0, value=50)
+                    latitude = st.text_input("🌍 خط العرض", placeholder="24.5667")
+                    longitude = st.text_input("🌐 خط الطول", placeholder="46.7333")
+                else:
+                    st.info("📍 التمركزات متنقلة - لا تحتاج إحداثيات ثابتة")
+                    coverage_area = 0
+                    latitude = longitude = None
 
             address = st.text_area("📍 العنوان التفصيلي", placeholder="الحي، الشارع، الرقم...")
 
-            submitted = st.form_submit_button("✅ إضافة المركز", use_container_width=True,
-                                              type="primary")
+            submitted = st.form_submit_button("✅ إضافة", use_container_width=True, type="primary")
             if submitted:
                 if not code or not name:
                     st.error("❌ الكود والاسم مطلوبان")
                 else:
                     data = dict(
-                        code=code, name=name, city=city,
+                        code=code,
+                        name=name,
+                        city=city,
                         latitude=latitude or None,
                         longitude=longitude or None,
                         coverage_area=coverage_area or None,
                         address=address or None,
-                        manager=manager or None,
-                        phone=phone or None,
                         is_active=True,
+                        is_hq=(center_type == "🏢 مركز رئيسي"),
+                        is_virtual=(center_type == "🚚 تمركز"),
+                        center_type="قيادة" if center_type == "🏢 مركز رئيسي" else ("تمركز" if center_type == "🚚 تمركز" else "مركز ثابت")
                     )
                     res = cs.create_center(data)
                     if res:
-                        st.success(f"✅ تم إضافة مركز **{name}** بنجاح!")
+                        st.success(f"✅ تم إضافة {name} بنجاح!")
                         st.balloons()
                         st.rerun()
 
@@ -148,33 +217,35 @@ def show_centers():
                 border-radius:14px;border:1px solid #E2E8F0;
                 color:#718096;font-family:Cairo,sans-serif;">
                 <div style="font-size:2.5rem;margin-bottom:0.75rem;">✏️</div>
-                <p>اختر مركزاً من التبويب الأول ثم اضغط «تعديل»</p>
+                <p>اختر مركزاً أو تمركزاً من التبويب الأول ثم اضغط «تعديل»</p>
             </div>""", unsafe_allow_html=True)
         else:
             center = st.session_state.editing_center
+            icon = "🏢" if center.get('is_hq') else ("🚚" if center.get('is_virtual') else "🏥")
+            
             st.markdown(f"""
             <div style="background:white;border-radius:14px;padding:1.5rem;
                 box-shadow:0 4px 20px rgba(13,27,42,0.08);border:1px solid #E2E8F0;
                 border-top:3px solid #3B4A82;margin-bottom:1rem;">
                 <h3 style="font-family:Cairo,sans-serif;font-weight:700;
                     color:#1A1A2E;font-size:1rem;margin:0 0 1.25rem;">
-                    ✏️ تعديل: {center.get('name','')}
+                    ✏️ تعديل: {icon} {center.get('name','')}
                 </h3>
             """, unsafe_allow_html=True)
 
             with st.form("edit_center_form"):
                 c1, c2 = st.columns(2)
                 with c1:
-                    name = st.text_input("🏥 الاسم",    value=center.get("name",""))
-                    city = st.text_input("🏙️ المدينة", value=center.get("city","جازان"))
-                    cov  = st.number_input("📏 مساحة التغطية (كم²)",
-                                           value=center.get("coverage_area", 50))
+                    name = st.text_input("🏥 الاسم", value=center.get("name",""))
+                    city = st.text_input("🏙️ المدينة", value=center.get("city","الرياض"))
+                    cov = st.number_input("📏 مساحة التغطية (كم²)",
+                                          value=center.get("coverage_area", 50))
                 with c2:
-                    lat  = st.text_input("🌍 خط العرض", value=str(center.get("latitude","")))
-                    lng  = st.text_input("🌐 خط الطول", value=str(center.get("longitude","")))
-                    addr = st.text_area("📍 العنوان",   value=center.get("address",""))
+                    lat = st.text_input("🌍 خط العرض", value=str(center.get("latitude","")))
+                    lng = st.text_input("🌐 خط الطول", value=str(center.get("longitude","")))
+                    addr = st.text_area("📍 العنوان", value=center.get("address",""))
 
-                is_active = st.checkbox("✅ المركز نشط", value=center.get("is_active", True))
+                is_active = st.checkbox("✅ نشط", value=center.get("is_active", True))
 
                 bc1, bc2 = st.columns(2)
                 with bc1:
@@ -183,12 +254,15 @@ def show_centers():
                     cancel = st.form_submit_button("❌ إلغاء", use_container_width=True)
 
                 if save:
-                    data = dict(name=name, city=city,
-                                coverage_area=cov or None,
-                                latitude=lat or None,
-                                longitude=lng or None,
-                                address=addr or None,
-                                is_active=is_active)
+                    data = dict(
+                        name=name,
+                        city=city,
+                        coverage_area=cov or None,
+                        latitude=lat or None,
+                        longitude=lng or None,
+                        address=addr or None,
+                        is_active=is_active
+                    )
                     res = cs.update_center(center["id"], data)
                     if res:
                         st.success("✅ تم التحديث بنجاح")
@@ -201,7 +275,7 @@ def show_centers():
             st.markdown("</div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════
-    # تبويب 4 — مقارنة التغطية
+    # تبويب 4 — التغطية
     # ══════════════════════════════════════════════════════
     with tabs[3]:
         st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
@@ -215,31 +289,35 @@ def show_centers():
 
         cov_data = []
         for center in centers_all:
+            if center.get('is_virtual'):
+                continue  # التمركزات ما لها تغطية ثابتة
             cov = cs.get_center_coverage(center["id"])
             cov_data.append({
-                "المركز":   center["name"],
-                "الكود":    center["code"],
-                "التغطية":  cov.get("coverage_percentage", 0) if cov else 0,
-                "الحالة":   cov.get("status", "—") if cov else "—",
+                "المركز": center["name"],
+                "الكود": center["code"],
+                "النوع": "رئيسي" if center.get('is_hq') else "ثابت",
+                "التغطية": cov.get("coverage_percentage", 0) if cov else 0,
+                "الحالة": cov.get("status", "—") if cov else "—",
             })
 
-        df_cov = pd.DataFrame(cov_data).sort_values("التغطية", ascending=False)
+        if cov_data:
+            df_cov = pd.DataFrame(cov_data).sort_values("التغطية", ascending=False)
 
-        # رسم بياني
-        st.markdown("""<div style="background:white;border-radius:14px;
-            padding:1.25rem 1.5rem;border:1px solid #E2E8F0;
-            box-shadow:0 4px 16px rgba(13,27,42,0.07);margin-bottom:1rem;">""",
-            unsafe_allow_html=True)
-        section_title("نسبة التغطية لكل مركز", "📊")
-        display_chart(create_bar_chart(df_cov, "المركز", "التغطية",
-                                       "", "#42924B", horizontal=True))
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("""<div style="background:white;border-radius:14px;
+                padding:1.25rem 1.5rem;border:1px solid #E2E8F0;
+                box-shadow:0 4px 16px rgba(13,27,42,0.07);margin-bottom:1rem;">""",
+                unsafe_allow_html=True)
+            section_title("نسبة التغطية لكل مركز", "📊")
+            display_chart(create_bar_chart(df_cov, "المركز", "التغطية",
+                                           "", "#42924B", horizontal=True))
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # جدول مفصل
-        st.markdown("""<div style="background:white;border-radius:14px;
-            padding:1.25rem 1.5rem;border:1px solid #E2E8F0;
-            box-shadow:0 4px 16px rgba(13,27,42,0.07);">""",
-            unsafe_allow_html=True)
-        section_title("جدول مقارنة التغطية", "📋")
-        st.dataframe(df_cov, use_container_width=True, hide_index=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("""<div style="background:white;border-radius:14px;
+                padding:1.25rem 1.5rem;border:1px solid #E2E8F0;
+                box-shadow:0 4px 16px rgba(13,27,42,0.07);">""",
+                unsafe_allow_html=True)
+            section_title("جدول التغطية", "📋")
+            st.dataframe(df_cov, use_container_width=True, hide_index=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.info("لا توجد مراكز ثابتة لعرض التغطية")
