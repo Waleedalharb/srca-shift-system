@@ -25,6 +25,7 @@ class Employee(Base):
     supervisor_id = Column(UUID, ForeignKey("employees.id"), nullable=True)
     
     # الحالة الحالية
+    is_active = Column(Boolean, default=True)  # ✅ أضف هذا السطر (مهم جداً)
     is_on_duty = Column(Boolean, default=False)
     is_available = Column(Boolean, default=True)
     current_shift_id = Column(UUID, ForeignKey("shifts.id"), nullable=True)
@@ -46,4 +47,6 @@ class Employee(Base):
     leaves = relationship("Leave", back_populates="employee", foreign_keys="[Leave.employee_id]")
     
     def __repr__(self):
-        return f"<Employee {self.emp_no}: {self.full_name}>"
+        # ✅ أضف is_active في التمثيل النصي (اختياري)
+        active_status = "نشط" if self.is_active else "غير نشط"
+        return f"<Employee {self.emp_no}: {self.full_name} ({active_status})>"
