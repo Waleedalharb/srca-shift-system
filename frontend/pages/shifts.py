@@ -37,6 +37,137 @@ def show_official_schedule():
     </div>
     """, unsafe_allow_html=True)
 
+# ===== دالة عرض تقرير الطباعة =====
+def show_printable_report(employee_data, shifts_data, year, month, center_name, employee_name):
+    """
+    عرض تقرير المناوبات بشكل مناسب للطباعة
+    """
+    days_in_month = calendar.monthrange(year, month)[1]
+    
+    st.markdown("---")
+    st.markdown(f"## 🖨️ تقرير المناوبات الشهري")
+    st.markdown("لطباعة هذا التقرير، استخدم خاصية الطباعة في المتصفح (Ctrl+P)")
+    
+    # تنسيق خاص للطباعة (يخفي العناصر غير المرغوب فيها)
+    st.markdown("""
+    <style>
+    @media print {
+        .stAppHeader, .stSidebar, .stDeployButton, footer, header {
+            display: none !important;
+        }
+        .main > div {
+            padding: 0 !important;
+        }
+        button {
+            display: none !important;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # معلومات التقرير
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"**👤 اسم الموظف:** {employee_name}")
+        st.markdown(f"**🆔 الرقم الوظيفي:** {employee_data.get('emp_no', '')}")
+    with col2:
+        st.markdown(f"**🏥 الفرع:** هيئة الهلال الأحمر - منطقة الرياض")
+        st.markdown(f"**📍 المركز:** {center_name}")
+    with col3:
+        st.markdown(f"**📅 الشهر:** {calendar.month_name[month]} {year}")
+        st.markdown(f"**🕒 تاريخ التقرير:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    
+    st.markdown("---")
+    
+    # بناء جدول الأيام (أسابيع)
+    weeks_data = []
+    week = []
+    for day in range(1, days_in_month + 1):
+        week.append(day)
+        if len(week) == 7 or day == days_in_month:
+            while len(week) < 7:
+                week.append("")  # تعبئة الفراغات للأيام الناقصة
+            weeks_data.append(week)
+            week = []
+    
+    # أيام الأسبوع (بالعربية)
+    weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+    
+    # تحويل بيانات المناوبات
+    emp_shifts = {}
+    for shift in shifts_data:
+        shift_date = shift.get("date", "").split("T")[0]
+        try:
+            day = int(shift_date.split("-")[2])
+            for assignment in shift.get("assignments", []):
+                if assignment.get("employee_id") == employee_data.get("id"):
+                    emp_shifts[day] = shift.get("shift_type", "off")
+        except:
+            continue
+    
+    # عرض الجدول على شكل مربعات
+    for week_idx, week_days in enumerate(weeks_data):
+        # عرض أيام الأسبوع
+        cols_header = st.columns(7)
+        for i, col in enumerate(cols_header):
+            with col:
+                st.markdown(f"<div style='text-align:center; font-weight:bold; color:#2c3e50;'>{weekdays_ar[i]}</div>", unsafe_allow_html=True)
+        
+        cols = st.columns(7)
+        for i, (col, day_num) in enumerate(zip(cols, week_days)):
+            with col:
+                if day_num:
+                    shift_type = emp_shifts.get(day_num, "off")
+                    shift_info = SHIFT_TYPES.get(shift_type, SHIFT_TYPES["off"])
+                    
+                    # تحديد لون الخلفية
+                    day_bg = "#f9f9f9"
+                    if weekdays_ar[i] in ["الجمعة", "السبت"]:
+                        day_bg = "#fff3e0"  # لون خفيف لعطلة نهاية الأسبوع
+                    
+                    st.markdown(f"""
+                    <div style="
+                        border: 1px solid #ddd;
+                        border-radius: 8px;
+                        padding: 8px;
+                        background: {day_bg};
+                        margin-bottom: 5px;
+                        text-align: center;
+                        min-height: 100px;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                    ">
+                        <div style="font-weight: bold; color: #2c3e50; font-size: 1.1rem;">{day_num}</div>
+                        <div style="font-size: 1.5rem;">{shift_info['icon']}</div>
+                        <div style="font-size: 0.75rem; color: {shift_info['color']};">{shift_info['name']}</div>
+                        <div style="font-size: 0.7rem; color: #27ae60; margin-top: 3px;">✅ حاضر</div>
+                        <div style="font-size: 0.65rem; color: #666;">{shift_info['start']}-{shift_info['end']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    # أيام فارغة (بداية أو نهاية الشهر)
+                    st.markdown(f"""
+                    <div style="
+                        border: 1px solid #eee;
+                        border-radius: 8px;
+                        padding: 8px;
+                        background: #f5f5f5;
+                        margin-bottom: 5px;
+                        min-height: 100px;
+                        opacity: 0.5;
+                    ">
+                        <div style="color: #999; text-align: center;">—</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        # فاصل بين الأسابيع
+        st.markdown("<hr style='margin: 10px 0; border: 1px dashed #ccc;'>", unsafe_allow_html=True)
+    
+    # زر العودة
+    if st.button("🔙 العودة للتعديل", use_container_width=True):
+        st.rerun()
+
 # ===== أنواع المناوبات كاملة =====
 SHIFT_TYPES = {
     "morning_6":  {"name": "صباحية 6 س", "icon": "🌅", "color": "#FFB74D", "text": "#7A5800", "hours": 6, "start": "08:00", "end": "14:00"},
@@ -208,6 +339,13 @@ def show_shifts():
         selected_emp_name = st.selectbox("👤 اختر الموظف", emp_names)
         selected_emp = employees[emp_names.index(selected_emp_name)]
         emp_id = str(selected_emp["id"])
+        
+        # زر عرض التقرير
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🖨️ عرض تقرير قابل للطباعة", use_container_width=True):
+                show_printable_report(selected_emp, shifts, year, month, selected_center, selected_emp['full_name'])
+                st.stop()
         
         st.markdown("---")
         st.markdown(f"**تعديل مناوبات:** {selected_emp['full_name']}")
