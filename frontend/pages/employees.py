@@ -677,7 +677,79 @@ def show_employees():
                         st.balloons()
                         st.rerun()
     
-    # ===== قسم التعديل =====
+    # ===== قسم التعديل الجماعي =====
+    if has_permission("manage_all"):
+        with st.expander("✏️ تعديل جماعي للموظفين", expanded=False):
+            st.markdown("""
+            <div style="background: #F0F9FF; padding: 1rem; border-radius: 12px; margin-bottom: 1rem;">
+                <h5 style="margin: 0 0 0.5rem 0;">📌 تعديل موظف:</h5>
+                <p>أدخل الرقم الوظيفي وعدل البيانات</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                search_emp_no = st.text_input("🔍 الرقم الوظيفي", key="quick_edit_search")
+            
+            if search_emp_no:
+                # البحث عن الموظف
+                search_result = es.get_employees(search=search_emp_no)
+                if search_result and search_result.get('items'):
+                    emp = search_result['items'][0]
+                    
+                    st.markdown("---")
+                    st.subheader(f"✏️ تعديل: {emp['full_name']}")
+                    
+                    with st.form("quick_edit_form"):
+                        qc1, qc2 = st.columns(2)
+                        with qc1:
+                            new_name = st.text_input("الاسم", value=emp.get('full_name', ''))
+                            new_type = st.selectbox(
+                                "النوع", 
+                                list(EMP_TYPE_LABELS.keys()),
+                                index=list(EMP_TYPE_LABELS.keys()).index(emp.get('employee_type', 'admin')) if emp.get('employee_type') in EMP_TYPE_LABELS else 0,
+                                format_func=lambda x: EMP_TYPE_LABELS.get(x, x)
+                            )
+                            new_code = st.text_input("الرمز", value=emp.get('emp_code', ''))
+                        
+                        with qc2:
+                            center_list = [c['name'] for c in centers]
+                            if "المركز الرئيسي" not in center_list:
+                                center_list.append("المركز الرئيسي")
+                            
+                            current_center = next((c['name'] for c in centers if c['id'] == emp.get('center_id')), "المركز الرئيسي")
+                            new_center = st.selectbox(
+                                "المركز",
+                                center_list,
+                                index=center_list.index(current_center) if current_center in center_list else 0
+                            )
+                            is_active = st.checkbox("نشط", value=emp.get('is_active', True))
+                        
+                        if st.form_submit_button("💾 حفظ", use_container_width=True, type="primary"):
+                            # تحديد ID المركز
+                            if new_center == "المركز الرئيسي":
+                                center_id = next((c['id'] for c in centers if c.get('is_hq')), None)
+                            else:
+                                center_id = next((c['id'] for c in centers if c['name'] == new_center), None)
+                            
+                            if center_id:
+                                data = {
+                                    "full_name": new_name,
+                                    "employee_type": new_type,
+                                    "emp_code": new_code,
+                                    "center_id": str(center_id),
+                                    "is_active": is_active
+                                }
+                                if es.update_employee(emp['id'], data):
+                                    st.success("✅ تم التحديث")
+                                    st.session_state.force_reload_employees = True
+                                    st.rerun()
+                            else:
+                                st.error("❌ المركز غير موجود")
+                else:
+                    st.warning("⚠️ لا يوجد موظف بهذا الرقم")
+    
+    # ===== قسم التعديل القديم (للتوافق) =====
     if "editing_employee" in st.session_state:
         st.markdown("---")
         emp = st.session_state.editing_employee
