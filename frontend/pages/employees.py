@@ -4,15 +4,21 @@ import pandas as pd
 from datetime import datetime
 from utils.helpers import page_header, section_title
 from utils.constants import (
-    SHIFT_TYPES, CENTER_CODES, HQ_CENTER, SPECIAL_UNITS,
+    SHIFT_TYPES, TEAM_CODES, CENTER_CODES, HQ_CENTER, SPECIAL_UNITS,
     EMP_TYPE_LABELS, EMP_TYPE_COLORS,
     get_center_name, is_virtual_center, get_shift_info, get_special_unit_info
 )
 from typing import Dict, List, Any, Optional
 
 # ============================================================================
-# دوال فك الترميز (Decoding Functions)
+# دوال فك الترميز (Decoding Functions) - محدثة للنظام الجديد
 # ============================================================================
+
+def get_shift_display_name(shift_code: str) -> str:
+    """الحصول على اسم المناوبة من رمزها (للنظام الجديد)"""
+    if shift_code in SHIFT_TYPES:
+        return SHIFT_TYPES[shift_code]["name"]
+    return shift_code
 
 def is_hq_employee(emp_code: str) -> bool:
     """التحقق إذا كان الموظف تابعاً للمركز الرئيسي"""
@@ -34,14 +40,29 @@ def is_hq_employee(emp_code: str) -> bool:
     return False
 
 def decode_employee_code(code: str) -> Dict[str, Any]:
-    """فك شفرة الموظف حسب نظام الفرق"""
+    """فك شفرة الموظف حسب نظام الفرق (محدث)"""
     if not code:
         return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
+    
+    # التحقق إذا كان رمز مناوبة (D8, N12, V, ...)
+    if code in SHIFT_TYPES:
+        shift_info = SHIFT_TYPES[code]
+        return {
+            'role': shift_info['name'],
+            'type': shift_info['type'],
+            'category': shift_info['category'],
+            'icon': code,  # نعرض الرمز نفسه
+            'color': shift_info['color'],
+            'text_color': shift_info['text_color'],
+            'hours': shift_info['hours'],
+            'is_shift': True,
+            'original': code
+        }
     
     # 1. القيادات (A0, B0, C0, D0)
     if code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD':
         team = code[0]
-        team_info = SHIFT_TYPES.get(team, {})
+        team_info = TEAM_CODES.get(team, {})
         return {
             'role': 'قائد فريق',
             'team': team,
@@ -60,7 +81,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
     if code and code[0] in 'ABCD' and code[1:].isdigit():
         team = code[0]
         center_num = int(code[1:])
-        team_info = SHIFT_TYPES.get(team, {})
+        team_info = TEAM_CODES.get(team, {})
         center_info = CENTER_CODES.get(center_num, {
             'name': f'مركز {center_num}',
             'type': 'مركز',
@@ -185,6 +206,8 @@ def employee_card(emp: Dict[str, Any]):
         display_type = f"{decoded['team_name']} - قائد"
     elif decoded.get('role') == 'عضو فريق':
         display_type = f"{decoded['team_name']}"
+    elif decoded.get('is_shift'):
+        display_type = decoded.get('type', '')
     else:
         display_type = decoded.get('type', EMP_TYPE_LABELS.get(emp.get('employee_type', ''), ''))
     
@@ -238,10 +261,13 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
     rapid_response = []  # التدخل السريع (RR)
     support = []      # الدعم (Y, YY, ...)
     special = []      # وحدات خاصة (ST, TT)
+    shift_employees = []  # موظفين برموز مناوبات
     
     for emp in hq_employees:
         code = emp.get('emp_code', '')
-        if code.endswith('0') and code[0] in 'ABCD':
+        if code in SHIFT_TYPES:
+            shift_employees.append(emp)
+        elif code.endswith('0') and code[0] in 'ABCD':
             leadership.append(emp)
         elif code.startswith('XW'):
             operations.append(emp)
@@ -280,6 +306,8 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
         tab_names.append("📋 الدعم")
     if special:
         tab_names.append("🚛 وحدات خاصة")
+    if shift_employees:
+        tab_names.append("📊 مناوبات")
     
     if tab_names:
         tabs = st.tabs(tab_names)
@@ -312,6 +340,12 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
         if special:
             with tabs[tab_idx]:
                 for emp in special:
+                    employee_card(emp)
+            tab_idx += 1
+        
+        if shift_employees:
+            with tabs[tab_idx]:
+                for emp in shift_employees:
                     employee_card(emp)
 
 # ============================================================================
@@ -612,7 +646,7 @@ def show_employees():
                         df_data.append({
                             "الرقم الوظيفي": emp.get("emp_no", ""),
                             "الاسم": emp.get("full_name", ""),
-                            "الفريق": decoded.get('team_name', ''),
+                            "الفريق": decoded.get('team_name', '') or decoded.get('type', ''),
                             "الدور": decoded.get('role', ''),
                             "على رأس العمل": "🚑" if emp.get("is_on_duty") else "—",
                             "الحالة": "✅" if emp.get("is_active", True) else "❌",
@@ -635,7 +669,7 @@ def show_employees():
             with c1:
                 emp_no = st.text_input("📋 الرقم الوظيفي *")
                 full_name = st.text_input("👤 الاسم الكامل *")
-                emp_code = st.text_input("🔤 رمز الموظف", placeholder="مثال: A1, B7, C0")
+                emp_code = st.text_input("🔤 رمز الموظف", placeholder="مثال: D8, N12, V")
                 employee_type = st.selectbox("📌 الفئة", list(EMP_TYPE_LABELS.keys()), format_func=lambda x: EMP_TYPE_LABELS.get(x, x))
                 hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.now())
             with c2:
@@ -710,7 +744,7 @@ def show_employees():
                                 index=list(EMP_TYPE_LABELS.keys()).index(emp.get('employee_type', 'admin')) if emp.get('employee_type') in EMP_TYPE_LABELS else 0,
                                 format_func=lambda x: EMP_TYPE_LABELS.get(x, x)
                             )
-                            new_code = st.text_input("الرمز", value=emp.get('emp_code', ''))
+                            new_code = st.text_input("الرمز", value=emp.get('emp_code', ''), placeholder="مثال: D8, N12, V")
                         
                         with qc2:
                             center_list = [c['name'] for c in centers]
@@ -760,7 +794,7 @@ def show_employees():
             with c1:
                 emp_no = st.text_input("📋 الرقم الوظيفي", value=emp.get("emp_no",""), disabled=True)
                 full_name = st.text_input("👤 الاسم الكامل *", value=emp.get("full_name",""))
-                emp_code = st.text_input("🔤 رمز الموظف", value=emp.get("emp_code",""))
+                emp_code = st.text_input("🔤 رمز الموظف", value=emp.get("emp_code",""), placeholder="مثال: D8, N12, V")
                 national_id = st.text_input("🆔 رقم الهوية", value=emp.get("national_id",""))
                 hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.strptime(emp.get("hire_date","2020-01-01"), "%Y-%m-%d").date() if emp.get("hire_date") else datetime.now())
             with c2:

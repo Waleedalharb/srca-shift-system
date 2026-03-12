@@ -1,5 +1,6 @@
 # frontend/components/cards.py
 import streamlit as st
+from utils.constants import SHIFT_TYPES, get_shift_info
 
 def metric_card(value, label, icon="📊", color="red"):
     """بطاقة إحصائية"""
@@ -10,6 +11,7 @@ def metric_card(value, label, icon="📊", color="red"):
         "navy": {"bg": "linear-gradient(135deg, #3B4A82 0%, #1A2B5C 100%)"},
         "gold": {"bg": "linear-gradient(135deg, #F1B944 0%, #C49A0E 100%)"},
         "gray": {"bg": "linear-gradient(135deg, #475569 0%, #1E293B 100%)"},
+        "purple": {"bg": "linear-gradient(135deg, #513A87 0%, #2D1B4A 100%)"},
     }
     
     selected = colors.get(color, colors["red"])
@@ -65,16 +67,38 @@ def center_card(center, coverage=None):
     """, unsafe_allow_html=True)
 
 def employee_card(employee):
-    """بطاقة موظف"""
+    """بطاقة موظف - محدثة للنظام الجديد"""
     
+    emp_code = employee.get('emp_code', '')
+    
+    # محاولة الحصول على معلومات الرمز
+    shift_info = None
+    if emp_code in SHIFT_TYPES:
+        shift_info = SHIFT_TYPES[emp_code]
+    
+    # تحديد نوع الموظف
     type_map = {
-        "paramedic": "أخصائي",
-        "emt": "مسعف",
+        "paramedic": "أخصائي اسعاف",
+        "emt": "فني اسعاف",
         "admin": "إداري",
         "operations": "تحكم عملياتي",
-        "coordinator": "تنسيق استجابة"
+        "coordinator": "تنسيق استجابة",
+        "chief_paramedic": "كبير مسعفين",
+        "assistant_chief": "مساعد كبير مسعفين",
+        "field_leader": "قيادة ميدانية",
+        "operations_control": "تحكم عملياتي",
+        "response_coordinator": "تنسيق استجابة",
+        "health_assistant": "مساعد صحي",
+        "logistic_support": "دعم لوجستي"
     }
     emp_type = type_map.get(employee.get('employee_type'), 'إداري')
+    
+    # إضافة معلومات الرمز إذا وجد
+    code_info = ""
+    if shift_info:
+        code_info = f" · {emp_code} ({shift_info['name']})"
+    elif emp_code:
+        code_info = f" · {emp_code}"
     
     status = "🟢 نشط" if employee.get('is_active', True) else "🔴 غير نشط"
     on_duty = "🚑 على رأس العمل" if employee.get('is_on_duty') else "⏸️ في الإجازة"
@@ -86,10 +110,34 @@ def employee_card(employee):
             <div style="flex: 1;">
                 <h4 style="margin: 0; font-size: 1rem; color: #1A1A2E;">{employee.get('full_name', '')}</h4>
                 <p style="margin: 0.3rem 0 0 0; color: #64748B; font-size: 0.8rem;">
-                    #{employee.get('emp_no', '')} · {emp_type} · {status} · {on_duty}
+                    #{employee.get('emp_no', '')} · {emp_type}{code_info} · {status} · {on_duty}
                 </p>
             </div>
         </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def shift_card(shift_code: str, day_num: int = None):
+    """بطاقة مناوبة - جديدة"""
+    if shift_code not in SHIFT_TYPES:
+        return None
+    
+    info = SHIFT_TYPES[shift_code]
+    
+    day_display = f"<div style='font-weight: bold; font-size: 1.2rem; margin-bottom: 5px;'>{day_num}</div>" if day_num else ""
+    
+    st.markdown(f"""
+    <div style="
+        background: {info['color']}20;
+        border: 1px solid {info['color']};
+        border-radius: 8px;
+        padding: 8px;
+        text-align: center;
+        margin: 2px;
+    ">
+        {day_display}
+        <div style="font-weight: bold; font-size: 1.1rem;">{shift_code}</div>
+        <div style="font-size: 0.7rem; color: #666;">{info['name']}</div>
     </div>
     """, unsafe_allow_html=True)
 
