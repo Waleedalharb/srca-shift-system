@@ -38,10 +38,75 @@ def show_official_schedule():
     </div>
     """, unsafe_allow_html=True)
 
-# ===== دالة عرض تقرير الطباعة =====
+# ===== دالة حساب ساعات الموظف حسب فئته =====
+def calculate_employee_hours(employee_data, emp_shifts, days_in_month, center_name):
+    """
+    حساب ساعات الموظف حسب فئته ونظام العمل
+    """
+    emp_code = employee_data.get('emp_code', '')
+    
+    # ===== المركز الرئيسي للقطاع =====
+    if center_name == "المركز الرئيسي للقطاع":
+        
+        # 1. قيادات (A0, B0, C0, D0) - نظام ورديات 12 ساعة
+        if emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD':
+            working_days = 0
+            for day in range(1, days_in_month + 1):
+                shift_type = emp_shifts.get(day)
+                if shift_type and shift_type != 'V':  # أي يوم عمل
+                    working_days += 1
+            return working_days * 12  # كل وردية 12 ساعة
+        
+        # 2. عمليات (XW1, XW2...) - ورديات 12 ساعة
+        elif emp_code.startswith('XW'):
+            total = 0
+            for day in range(1, days_in_month + 1):
+                shift_type = emp_shifts.get(day)
+                if shift_type and shift_type != 'V':
+                    total += 12  # كل وردية عمليات 12 ساعة
+            return total
+        
+        # 3. دعم (Y, YY, Z) - إداري 8 ساعات
+        elif emp_code in ['Y', 'YY', 'Z']:
+            working_days = 0
+            for day in range(1, days_in_month + 1):
+                shift_type = emp_shifts.get(day)
+                if shift_type and shift_type != 'V':
+                    working_days += 1
+            return working_days * 8  # دوام رسمي 8 ساعات
+        
+        # 4. تدخل سريع (RR) - حسب المناوبة
+        elif emp_code.startswith('RR'):
+            total = 0
+            for day in range(1, days_in_month + 1):
+                shift_type = emp_shifts.get(day)
+                if shift_type and shift_type in SHIFT_TYPES:
+                    total += SHIFT_TYPES[shift_type]["hours"]
+            return total
+        
+        # 5. أي تصنيف آخر في المركز الرئيسي
+        else:
+            total = 0
+            for day in range(1, days_in_month + 1):
+                shift_type = emp_shifts.get(day)
+                if shift_type and shift_type in SHIFT_TYPES:
+                    total += SHIFT_TYPES[shift_type]["hours"]
+            return total
+    
+    # ===== باقي المراكز =====
+    # موظف عادي - حسب ساعات المناوبة
+    else:
+        total = 0
+        for day in range(1, days_in_month + 1):
+            shift_type = emp_shifts.get(day)
+            if shift_type and shift_type in SHIFT_TYPES:
+                total += SHIFT_TYPES[shift_type]["hours"]
+        return total
+
+# ===== دالة عرض تقرير الطباعة (نسخة محسنة نهائية) =====
 def show_printable_report(employee_data, shifts_data, year, month, center_name, employee_name):
     """
-    عرض تقرير المناوبات بشكل مناسب للطباعة
+    عرض تقرير المناوبات بشكل مناسب للطباعة - نسخة محسنة
     """
     days_in_month = calendar.monthrange(year, month)[1]
     
@@ -58,63 +123,129 @@ def show_printable_report(employee_data, shifts_data, year, month, center_name, 
             padding: 0 !important;
             max-width: 100% !important;
         }
-        table {
-            page-break-inside: avoid;
-            border-collapse: collapse;
-            width: 100%;
-            font-family: 'Cairo', sans-serif;
+        body {
+            background: white;
+            font-family: 'Arial', sans-serif;
         }
-        th {
-            background-color: #1e3c72 !important;
-            color: white !important;
-            padding: 8px;
-            font-size: 12px;
+        .report-container {
+            direction: rtl;
+            padding: 20px;
         }
-        td {
-            border: 1px solid #ddd;
-            padding: 6px;
+        .report-header {
             text-align: center;
-            font-size: 11px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #1e3c72;
+            padding-bottom: 10px;
         }
-        tr {
-            page-break-inside: avoid;
+        .report-header h1 {
+            color: #1e3c72;
+            font-size: 24px;
+            margin: 5px 0;
         }
-    }
-    .print-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 10px 0;
-        font-family: 'Cairo', sans-serif;
-        direction: rtl;
-    }
-    .print-table th {
-        background: #1e3c72;
-        color: white;
-        padding: 8px;
-        text-align: center;
-        font-size: 14px;
-    }
-    .print-table td {
-        border: 1px solid #ddd;
-        padding: 8px;
-        text-align: center;
-        vertical-align: middle;
-        height: 70px;
-    }
-    .shift-code {
-        font-weight: bold;
-        font-size: 18px;
-    }
-    .weekend-day {
-        background: #fff3e0;
-    }
-    .empty-day {
-        background: #f5f5f5;
-    }
-    .V {
-        background: #f8d7da;
-        color: #721c24;
-    }
+        .report-header h2 {
+            color: #2a5298;
+            font-size: 20px;
+            margin: 5px 0;
+        }
+        .report-header h3 {
+            color: #666;
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .info-table td {
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            font-size: 14px;
+        }
+        .info-table td:first-child {
+            font-weight: bold;
+            background: #e9ecef;
+            width: 150px;
+        }
+        .shifts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            direction: rtl;
+        }
+        .shifts-table th {
+            background: #1e3c72;
+            color: white;
+            padding: 10px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .shifts-table td {
+            border: 1px solid #dee2e6;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+            height: 70px;
+        }
+        .day-number {
+            font-weight: bold;
+            font-size: 14px;
+            color: #1e3c72;
+            margin-bottom: 5px;
+        }
+        .shift-code {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .weekend-day {
+            background: #fff3e0;
+        }
+        .empty-day {
+            background: #f5f5f5;
+        }
+        .V {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .total-hours-box {
+            background: #e8f5e9;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            color: #2e7d32;
+            border-right: 4px solid #2e7d32;
+        }
+        .footer {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+        }
+        .print-button {
+            display: none !important;
+        }
+        @media screen {
+            .print-button {
+                display: block !important;
+                text-align: center;
+                margin: 20px;
+            }
+            .print-button button {
+                background: #CE2E26;
+                color: white;
+                padding: 10px 30px;
+                border: none;
+                border-radius: 5px;
+                font-size: 16px;
+                cursor: pointer;
+            }
+        }
     </style>
     """, unsafe_allow_html=True)
     
@@ -132,76 +263,118 @@ def show_printable_report(employee_data, shifts_data, year, month, center_name, 
         except:
             continue
     
-    # حساب إجمالي الساعات
-    total_hours = 0
-    for day in range(1, days_in_month + 1):
-        shift_type = emp_shifts.get(day)
-        if shift_type and shift_type in SHIFT_TYPES:
-            total_hours += SHIFT_TYPES[shift_type]["hours"]
+    # حساب إجمالي الساعات باستخدام الدالة الذكية
+    total_hours = calculate_employee_hours(employee_data, emp_shifts, days_in_month, center_name)
     
-    # معلومات التقرير
-    st.markdown(f"""
-    <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #ddd;">
-        <h2 style="text-align: center; color: #1e3c72;">المملكة العربية السعودية</h2>
-        <h3 style="text-align: center; color: #2a5298;">هيئة الهلال الأحمر السعودي</h3>
-        <h4 style="text-align: center; color: #666;">الإدارة التنفيذية للشؤون الإسعافية</h4>
+    # بناء جدول الأيام كامل (كل أيام الشهر في جدول واحد)
+    html_content = f"""
+    <div class="report-container">
+        <div class="report-header">
+            <h1>المملكة العربية السعودية</h1>
+            <h2>هيئة الهلال الأحمر السعودي</h2>
+            <h3>الإدارة التنفيذية للشؤون الإسعافية</h3>
+        </div>
         
-        <table style="width: 100%; margin-top: 20px;">
+        <table class="info-table">
             <tr>
-                <td><strong>اسم الموظف:</strong> {employee_name}</td>
-                <td><strong>الرقم الوظيفي:</strong> {employee_data.get('emp_no', '')}</td>
+                <td>اسم الموظف</td>
+                <td>{employee_name}</td>
+                <td>الرقم الوظيفي</td>
+                <td>{employee_data.get('emp_no', '')}</td>
             </tr>
             <tr>
-                <td><strong>المركز:</strong> {center_name}</td>
-                <td><strong>الشهر:</strong> {calendar.month_name[month]} {year}</td>
+                <td>المركز</td>
+                <td>{center_name}</td>
+                <td>الشهر</td>
+                <td>{calendar.month_name[month]} {year}</td>
             </tr>
             <tr>
-                <td><strong>تاريخ التقرير:</strong> {datetime.now().strftime('%Y-%m-%d')}</td>
-                <td><strong>إجمالي الساعات:</strong> {total_hours} ساعة</td>
+                <td>تاريخ التقرير</td>
+                <td>{datetime.now().strftime('%Y-%m-%d')}</td>
+                <td>إجمالي الساعات</td>
+                <td><strong>{total_hours} ساعة</strong></td>
             </tr>
         </table>
-    </div>
-    """, unsafe_allow_html=True)
+        
+        <div class="total-hours-box">
+            إجمالي ساعات العمل للشهر: {total_hours} ساعة
+        </div>
+    """
     
-    # بناء جدول الأيام (أسابيع)
-    weeks_data = []
-    week = []
-    for day in range(1, days_in_month + 1):
-        week.append(day)
-        if len(week) == 7 or day == days_in_month:
-            while len(week) < 7:
-                week.append("")
-            weeks_data.append(week)
-            week = []
-    
-    # أيام الأسبوع
+    # أيام الأسبوع بالعربية
     weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
-    # عرض كل أسبوع في جدول
-    for week_days in weeks_data:
-        html = '<table class="print-table"><tr>'
-        
-        # رؤوس الأيام
-        for day_name in weekdays_ar:
-            html += f'<th>{day_name}</th>'
-        html += '</tr><tr>'
-        
-        # محتوى الأيام
-        for i, day_num in enumerate(week_days):
+    # حساب أول يوم في الشهر (0 = الاثنين، 6 = الأحد في Python)
+    first_day = calendar.weekday(year, month, 1)  # 0 = الاثنين
+    
+    # إنشاء شبكة 6 أسابيع × 7 أيام
+    calendar_days = []
+    week = []
+    
+    # تعبئة الأيام الفارغة قبل أول يوم
+    for i in range(first_day):
+        week.append("")
+    
+    # تعبئة أيام الشهر
+    for day in range(1, days_in_month + 1):
+        week.append(day)
+        if len(week) == 7:
+            calendar_days.append(week)
+            week = []
+    
+    # تعبئة الأيام الفارغة بعد آخر يوم
+    if week:
+        while len(week) < 7:
+            week.append("")
+        calendar_days.append(week)
+    
+    # بناء جدول واحد لكل أيام الشهر
+    html_content += '<table class="shifts-table">'
+    
+    # صف رؤوس الأيام
+    html_content += '<tr>'
+    for day_name in weekdays_ar:
+        html_content += f'<th>{day_name}</th>'
+    html_content += '</tr>'
+    
+    # عرض كل أسبوع في صف
+    for week in calendar_days:
+        html_content += '<tr>'
+        for i, day_num in enumerate(week):
             weekend_class = 'weekend-day' if weekdays_ar[i] in ['الجمعة', 'السبت'] else ''
             
             if day_num:
                 shift_type = emp_shifts.get(day_num)
                 if shift_type:
                     v_class = 'V' if shift_type == 'V' else ''
-                    html += f'<td class="{weekend_class} {v_class}"><span class="shift-code">{shift_type}</span></td>'
+                    html_content += f'<td class="{weekend_class} {v_class}"><div class="day-number">{day_num}</div><div class="shift-code">{shift_type}</div></td>'
                 else:
-                    html += f'<td class="{weekend_class} empty-day"></td>'
+                    html_content += f'<td class="{weekend_class} empty-day"><div class="day-number">{day_num}</div><div>-</div></td>'
             else:
-                html += f'<td class="empty-day"></td>'
-        
-        html += '</tr></table>'
-        st.markdown(html, unsafe_allow_html=True)
+                html_content += f'<td class="empty-day"></td>'
+        html_content += '</tr>'
+    
+    html_content += '</table>'
+    
+    # تذييل التقرير
+    html_content += f"""
+        <div class="footer">
+            <div>توقيع المشرف: ________________</div>
+            <div>الختم: ________________</div>
+            <div>تاريخ الطباعة: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+        </div>
+    </div>
+    """
+    
+    # عرض التقرير في Streamlit
+    st.markdown(html_content, unsafe_allow_html=True)
+    
+    # زر الطباعة (يظهر فقط على الشاشة)
+    st.markdown("""
+    <div class="print-button">
+        <button onclick="window.print()">🖨️ طباعة التقرير</button>
+    </div>
+    """, unsafe_allow_html=True)
     
     # زر العودة
     if st.button("🔙 العودة للتعديل", use_container_width=True):

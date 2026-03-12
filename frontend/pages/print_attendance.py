@@ -3,9 +3,10 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import streamlit.components.v1 as components
+import calendar
 
 def show_print_attendance(attendance_data, center_name, report_date):
-    """صفحة طباعة تقرير التكميل - تصميم مثل القديم"""
+    """صفحة طباعة تقرير التكميل"""
     
     st.set_page_config(layout="wide")
     
@@ -26,8 +27,30 @@ def show_print_attendance(attendance_data, center_name, report_date):
     </style>
     """, unsafe_allow_html=True)
     
-    # تحويل التاريخ الهجري (تقريبي)
-    hijri_date = "1447/09/18"
+    # تحويل التاريخ الميلادي إلى هجري (تقريبي)
+    def gregorian_to_hijri(date_str):
+        """تحويل التاريخ الميلادي إلى هجري (تقريبي)"""
+        try:
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            # تقريب بسيط: السنة الهجرية = السنة الميلادية - 622 + (شهر/12)
+            year_hijri = date_obj.year - 622 + (date_obj.month / 33)
+            month_hijri = date_obj.month
+            day_hijri = date_obj.day
+            return f"{int(year_hijri):04d}/{month_hijri:02d}/{day_hijri:02d}"
+        except:
+            return "1447/09/18"  # fallback
+    
+    # اسم اليوم بالعربية
+    def get_arabic_weekday(date_str):
+        try:
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            weekdays = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+            return weekdays[date_obj.weekday()]
+        except:
+            return "الخميس"
+    
+    hijri_date = gregorian_to_hijri(report_date)
+    weekday_ar = get_arabic_weekday(report_date)
     
     # تجهيز البيانات للجدول
     html_content = f"""
@@ -123,7 +146,7 @@ def show_print_attendance(attendance_data, center_name, report_date):
         <div class="report-info">
             <div class="info-item"><strong>التاريخ الهجري:</strong> {hijri_date}</div>
             <div class="info-item"><strong>التاريخ الميلادي:</strong> {report_date}</div>
-            <div class="info-item"><strong>اليوم:</strong> {datetime.strptime(report_date, '%Y-%m-%d').strftime('%A')}</div>
+            <div class="info-item"><strong>اليوم:</strong> {weekday_ar}</div>
         </div>
         
         <table>
@@ -147,18 +170,12 @@ def show_print_attendance(attendance_data, center_name, report_date):
     
     for idx, emp in enumerate(attendance_data, 1):
         # تحديد لون الحالة
-        if emp['status'] == "حاضر":
-            status_class = "present"
-            status_text = "حاضر"
-        elif emp['status'] == "غائب":
-            status_class = "absent"
-            status_text = "غائب"
-        elif emp['status'] == "متأخر":
-            status_class = "late"
-            status_text = "متأخر"
-        else:
-            status_class = ""
-            status_text = emp['status']
+        status_map = {
+            "حاضر": ("present", "حاضر"),
+            "غائب": ("absent", "غائب"),
+            "متأخر": ("late", "متأخر")
+        }
+        status_class, status_text = status_map.get(emp['status'], ("", emp['status']))
         
         html_content += f"""
                 <tr>
