@@ -7,6 +7,36 @@ from utils.helpers import page_header, section_title
 from components.cards import kpi_row
 from components.charts import create_line_chart, display_chart
 
+# ===== دوام رسمي =====
+def show_official_schedule():
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        padding: 1.2rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        color: white;
+        direction: rtl;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-right: 4px solid #FFD700;
+    ">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <span style="font-size: 1.8rem;">⏰</span>
+            <h4 style="margin: 0; font-size: 1.3rem;">الدوام الرسمي</h4>
+        </div>
+        <p style="margin: 0; font-size: 1.1rem; font-weight: 500;">
+            🗓️ من الأحد إلى الخميس | 8 ساعات يومياً
+        </p>
+        <p style="margin: 0.3rem 0 0 0; font-size: 1rem; opacity: 0.9;">
+            🚫 عطلة نهاية الأسبوع: الجمعة والسبت
+        </p>
+        <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; opacity: 0.8; background: rgba(255,255,255,0.1); padding: 0.3rem; border-radius: 20px;">
+            ⏱️ إجمالي ساعات العمل الأسبوعية: 40 ساعة
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
 # ===== أنواع المناوبات كاملة =====
 SHIFT_TYPES = {
     "morning_6":  {"name": "صباحية 6 س", "icon": "🌅", "color": "#FFB74D", "text": "#7A5800", "hours": 6, "start": "08:00", "end": "14:00"},
@@ -57,6 +87,9 @@ def show_shifts():
     """صفحة إدارة المناوبات - مع عرض وتعديل المناوبات المضافة"""
     
     page_header("📅 إدارة المناوبات", "عرض، إضافة، تعديل المناوبات", "⏰")
+    
+    # ===== عرض الدوام الرسمي =====
+    show_official_schedule()
     
     # زر تحديث يدوي
     col1, col2 = st.columns([10, 1])
@@ -122,14 +155,26 @@ def show_shifts():
     if view_mode == "📋 الجدول":
         st.subheader(f"📋 جدول مناوبات {selected_center} - {month}/{year}")
         
-        # إنشاء الجدول
+        # إنشاء الجدول مع إجمالي الساعات
         table_data = []
+        total_hours_all = 0
+        
         for emp in employees:
             emp_id = str(emp["id"])
             emp_shifts = shifts_map.get(emp_id, {})
+            
+            # حساب إجمالي ساعات الموظف
+            total_hours = 0
+            for day in range(1, days_in_month + 1):
+                shift_type = emp_shifts.get(day, "off")
+                total_hours += SHIFT_TYPES[shift_type]["hours"]
+            
+            total_hours_all += total_hours
+            
             row = {
                 "الموظف": emp['full_name'],
                 "الرقم": emp.get('emp_no', ''),
+                "إجمالي الساعات": f"{total_hours} س",
                 "id": emp_id
             }
             
@@ -141,8 +186,11 @@ def show_shifts():
         
         if table_data:
             df = pd.DataFrame(table_data)
-            display_cols = ["الموظف", "الرقم"] + [str(d) for d in range(1, days_in_month + 1)]
+            display_cols = ["الموظف", "الرقم", "إجمالي الساعات"] + [str(d) for d in range(1, days_in_month + 1)]
             st.dataframe(df[display_cols], use_container_width=True, hide_index=True)
+            
+            # عرض إجمالي ساعات الفريق
+            st.info(f"⏱️ **إجمالي ساعات العمل للفريق:** {total_hours_all} ساعة في {selected_center}")
             
             # مفتاح الألوان
             st.markdown("### 🔑 دليل الرموز")
