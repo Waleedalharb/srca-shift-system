@@ -14,6 +14,8 @@ def _get_services():
     
     es = st.session_state.get("employee_service")
     cs = st.session_state.get("center_service")
+    ss = st.session_state.get("shift_service")
+    ins = st.session_state.get("incident_service")
     
     if not es:
         from services.employee_service import EmployeeService
@@ -25,21 +27,32 @@ def _get_services():
         cs = CenterService(auth)
         st.session_state.center_service = cs
     
-    return es, cs
+    if not ss:
+        from services.shift_service import ShiftService
+        ss = ShiftService(auth)
+        st.session_state.shift_service = ss
+    
+    if not ins:
+        from services.incident_service import IncidentService
+        ins = IncidentService(auth)
+        st.session_state.incident_service = ins
+    
+    return es, cs, ss, ins
 
 def show_reports():
     """صفحة التقارير والإحصائيات"""
     
-    page_header("التقارير والإحصائيات", "تقارير شاملة للمراكز والموظفين", "📊")
+    page_header("التقارير والإحصائيات", "تقارير شاملة للمراكز والموظفين والبلاغات", "📊")
     
-    es, cs = _get_services()
+    es, cs, ss, ins = _get_services()
     
-    # تبويبات التقارير
+    # تبويبات التقارير (6 تبويبات)
     tabs = st.tabs([
         "📈 لوحة الأداء", 
         "👥 تقارير الموظفين", 
         "🏥 تقارير المراكز",
         "📅 تقارير المناوبات",
+        "🚨 تقارير البلاغات",  # 👈 تبويب جديد
         "📊 إحصائيات متقدمة"
     ])
     
@@ -339,8 +352,174 @@ def show_reports():
             mime="text/csv"
         )
     
-    # ==================== تبويب إحصائيات متقدمة ====================
+    # ==================== تبويب تقارير البلاغات (جديد) ====================
     with tabs[4]:
+        st.subheader("🚨 تقارير البلاغات")
+        
+        # اختيار الفترة
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            report_start = st.date_input("من تاريخ", value=datetime.now().replace(day=1))
+        with col2:
+            report_end = st.date_input("إلى تاريخ", value=datetime.now())
+        with col3:
+            if st.button("🔄 عرض التقرير", use_container_width=True):
+                st.rerun()
+        
+        # جلب إحصائيات البلاغات
+        with st.spinner("جاري تحميل تقرير البلاغات..."):
+            team_stats = ins.get_incidents_stats_by_team(
+                report_start.strftime("%Y-%m-%d"),
+                report_end.strftime("%Y-%m-%d")
+            )
+            center_stats = ins.get_incidents_stats_by_center(
+                report_start.strftime("%Y-%m-%d"),
+                report_end.strftime("%Y-%m-%d")
+            )
+            avg_response = ins.get_avg_response_time(
+                report_start.strftime("%Y-%m-%d"),
+                report_end.strftime("%Y-%m-%d")
+            )
+        
+        # ملخص التقرير
+        total_incidents = sum([t.get("count", 0) for t in team_stats]) if team_stats else 0
+        
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #1e3c72, #2a5298); padding: 1.5rem; border-radius: 16px; color: white; margin-bottom: 1.5rem;">
+            <h3 style="margin: 0;">📊 تقرير البلاغات</h3>
+            <p style="margin: 0.5rem 0 0 0; opacity: 0.9;">{report_start.strftime('%Y/%m/%d')} - {report_end.strftime('%Y/%m/%d')}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("🚨 إجمالي البلاغات", total_incidents)
+        with col2:
+            st.metric("⏱️ متوسط الاستجابة", f"{avg_response.get('avg_minutes', 0):.1f} دقيقة")
+        with col3:
+            st.metric("🏥 عدد المراكز", len(center_stats))
+        
+        st.markdown("---")
+        
+        # عرض إحصائيات الفرق
+        if team_stats:
+            st.markdown("### 👥 إحصائيات الفرق")
+            df_team_report = pd.DataFrame(team_stats)
+            df_team_report.columns = ["الفريق", "عدد البلاغات"]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # رسم بياني
+                fig = px.bar(
+                    df_team_report,
+                    x="الفريق",
+                    y="عدد البلاغات",
+                    color="عدد البلاغات",
+                    color_continuous_scale="Reds",
+                    text="عدد البلاغات"
+                )
+                fig.update_traces(textposition='outside')
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # جدول
+                st.dataframe(df_team_report, use_container_width=True, hide_index=True)
+            
+            # إحصائيات حسب المركز
+            if center_stats:
+                st.markdown("### 🏥 إحصائيات المراكز")
+                df_center_report = pd.DataFrame(center_stats)
+                df_center_report.columns = ["المركز", "عدد البلاغات"]
+                
+                fig = px.pie(
+                    df_center_report,
+                    values="عدد البلاغات",
+                    names="المركز",
+                    title="توزيع البلاغات حسب المركز"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # زر طباعة التقرير
+        if st.button("🖨️ طباعة التقرير", use_container_width=True):
+            html_content = f"""
+            <html dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>تقرير البلاغات</title>
+                <style>
+                    body {{ font-family: 'Arial', sans-serif; margin: 20px; direction: rtl; }}
+                    .header {{ text-align: center; border-bottom: 2px solid #CE2E26; padding-bottom: 10px; margin-bottom: 20px; }}
+                    .header h1 {{ color: #CE2E26; margin: 5px; }}
+                    .header h2 {{ color: #1A2B5C; margin: 5px; }}
+                    .stats {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; }}
+                    .stat-box {{ background: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; }}
+                    .stat-box strong {{ display: block; font-size: 14px; color: #666; margin-bottom: 5px; }}
+                    .stat-box .value {{ font-size: 24px; font-weight: bold; color: #1A2B5C; }}
+                    table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+                    th {{ background: #1e3c72; color: white; padding: 10px; text-align: center; }}
+                    td {{ border: 1px solid #ddd; padding: 8px; text-align: center; }}
+                    .footer {{ margin-top: 30px; display: flex; justify-content: space-between; font-size: 12px; color: #666; }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>هيئة الهلال الأحمر السعودي</h1>
+                    <h2>تقرير البلاغات - قطاع الجنوب</h2>
+                    <h3>{report_start.strftime('%Y/%m/%d')} - {report_end.strftime('%Y/%m/%d')}</h3>
+                </div>
+                
+                <div class="stats">
+                    <div class="stat-box">
+                        <strong>إجمالي البلاغات</strong>
+                        <div class="value">{total_incidents}</div>
+                    </div>
+                    <div class="stat-box">
+                        <strong>متوسط الاستجابة</strong>
+                        <div class="value">{avg_response.get('avg_minutes', 0):.1f} دقيقة</div>
+                    </div>
+                    <div class="stat-box">
+                        <strong>عدد المراكز</strong>
+                        <div class="value">{len(center_stats)}</div>
+                    </div>
+                </div>
+                
+                <h3>إحصائيات الفرق</h3>
+                <table>
+                    <tr><th>الفريق</th><th>عدد البلاغات</th></tr>
+            """
+            
+            for team in team_stats:
+                html_content += f"<tr><td>{team[0]}</td><td>{team[1]}</td></tr>"
+            
+            html_content += f"""
+                </table>
+                
+                <div class="footer">
+                    <div>توقيع المشرف: ________________</div>
+                    <div>تاريخ الطباعة: {datetime.now().strftime('%Y/%m/%d %H:%M')}</div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            st.markdown(html_content, unsafe_allow_html=True)
+            st.markdown("""
+            <div style="text-align: center; margin: 20px;">
+                <button onclick="window.print()" style="
+                    background: #CE2E26;
+                    color: white;
+                    padding: 10px 30px;
+                    border: none;
+                    border-radius: 5px;
+                    font-size: 16px;
+                    cursor: pointer;
+                ">🖨️ طباعة</button>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # ==================== تبويب إحصائيات متقدمة ====================
+    with tabs[5]:
         st.subheader("📊 إحصائيات متقدمة")
         
         with st.spinner("جاري تحميل البيانات..."):
