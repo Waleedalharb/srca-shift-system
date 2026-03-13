@@ -407,6 +407,12 @@ def _get_services():
 def show_shifts():
     """صفحة إدارة المناوبات"""
     
+    # ===== متغير للتحكم بإعادة التحميل (الحل الجذري) =====
+    if 'reload_shifts' in st.session_state and st.session_state.reload_shifts:
+        st.session_state.shift_service = None
+        st.session_state.reload_shifts = False
+        st.cache_data.clear()
+    
     page_header("📅 إدارة المناوبات", "عرض، إضافة، تعديل، توليد تلقائي للمناوبات", "⏰")
     
     # ===== عرض الدوام الرسمي =====
@@ -602,7 +608,8 @@ def show_shifts():
                         date_str = f"{year}-{month:02d}-{day:02d}"
                         if ss.update_employee_shift(emp_id, date_str, "off"):
                             st.success(f"✅ تم حذف مناوبة يوم {day}")
-                            st.cache_data.clear()
+                            # الحل الجذري
+                            st.session_state.reload_shifts = True
                             st.rerun()
                 
                 if st.button("💾 حفظ التغيير", key="save_single", use_container_width=True, type="primary"):
@@ -610,7 +617,8 @@ def show_shifts():
                         date_str = f"{year}-{month:02d}-{day:02d}"
                         if ss.update_employee_shift(emp_id, date_str, new_shift):
                             st.success(f"✅ تم تحديث يوم {day} إلى {new_shift}")
-                            st.cache_data.clear()
+                            # الحل الجذري
+                            st.session_state.reload_shifts = True
                             st.rerun()
             
             else:  # نطاق أيام
@@ -637,7 +645,8 @@ def show_shifts():
                             success_count += 1
                     
                     st.success(f"✅ تم تحديث {success_count} يوم")
-                    st.cache_data.clear()
+                    # الحل الجذري
+                    st.session_state.reload_shifts = True
                     st.rerun()
         
         # ===== تبويب 2: فريق كامل =====
@@ -690,7 +699,8 @@ def show_shifts():
                             total += 1
                     
                     st.success(f"✅ تم تحديث {success_count} مناوبة من أصل {total}")
-                    st.cache_data.clear()
+                    # الحل الجذري
+                    st.session_state.reload_shifts = True
                     st.rerun()
             else:
                 st.info("لا توجد فرق واضحة في هذا المركز")
@@ -734,7 +744,8 @@ def show_shifts():
                             success_count += 1
                 
                 st.success(f"✅ تم تطبيق نمط {selected_pattern} على {success_count} يوم")
-                st.cache_data.clear()
+                # الحل الجذري
+                st.session_state.reload_shifts = True
                 st.rerun()
     
     # ===== وضع التكميل التلقائي =====
@@ -870,7 +881,8 @@ def show_shifts():
                             
                             if success_count > 0:
                                 st.success(f"✅ تم إضافة {success_count} تكميلية للفريق {team_letter}")
-                                st.cache_data.clear()
+                                # الحل الجذري
+                                st.session_state.reload_shifts = True
                                 st.rerun()
                 else:
                     st.success(f"✅ الفريق {team_letter} مكتمل التغطية!")
@@ -915,7 +927,8 @@ def show_shifts():
                 progress_bar.progress((day_idx + 1) / total_days)
             
             st.success(f"✅ تم إضافة {total_tkmilia} تكميلية للمركز")
-            st.cache_data.clear()
+            # الحل الجذري
+            st.session_state.reload_shifts = True
             st.rerun()
     
     # ===== وضع الإضافة =====
@@ -947,8 +960,8 @@ def show_shifts():
                             success_count += 1
                     
                     st.success(f"✅ تم إضافة المناوبة لـ {success_count} موظف")
-                    st.cache_data.clear()
-                    st.session_state.shift_service = None
+                    # الحل الجذري
+                    st.session_state.reload_shifts = True
                     st.rerun()
     
     # ===== وضع التوليد التلقائي =====
