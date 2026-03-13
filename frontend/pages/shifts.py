@@ -401,7 +401,8 @@ def show_printable_report(employee_data, shifts_data, year, month, center_name, 
     
     if st.button("🔙 العودة للتعديل", use_container_width=True):
         st.rerun()
-        def _get_services():
+
+def _get_services():
     """تهيئة الخدمات"""
     auth = st.session_state.auth_service
     cs = st.session_state.get("center_service")
