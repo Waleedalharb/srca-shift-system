@@ -350,12 +350,13 @@ with st.sidebar:
     
     st.divider()
     
-    # قائمة الصفحات
+    # قائمة الصفحات (محدثة مع إضافة البلاغات)
     pages = {
         "🏠 لوحة المعلومات": "dashboard",
         "👥 الموظفين": "employees",
         "🏥 المراكز": "centers",
         "📅 المناوبات": "shifts",
+        "🚨 البلاغات": "incidents",  # 👈 صفحة البلاغات الجديدة
         "📱 التكميل": "attendance",
         "🔮 التنبؤ": "prediction",
         "📊 التقارير": "reports",
@@ -384,11 +385,11 @@ with st.sidebar:
         st.session_state.authenticated = False
         st.session_state.session_id = None
         st.session_state.token = None
-        for key in ["employee_service", "center_service", "shift_service", "current_page", "user_role"]:
+        for key in ["employee_service", "center_service", "shift_service", "incident_service", "current_page", "user_role"]:
             st.session_state.pop(key, None)
         st.rerun()
 
-# توجيه الصفحات
+# توجيه الصفحات (محدث مع إضافة البلاغات)
 page = st.session_state.get("current_page", "dashboard")
 
 if page == "dashboard":
@@ -403,6 +404,9 @@ elif page == "centers":
 elif page == "shifts":
     from pages.shifts import show_shifts
     show_shifts()
+elif page == "incidents":  # 👈 صفحة البلاغات الجديدة
+    from pages.incidents import show_incidents
+    show_incidents()
 elif page == "attendance":
     from pages.attendance import show_attendance
     show_attendance()
