@@ -160,7 +160,7 @@ def show_incidents():
     with tabs[1]:
         st.subheader("➕ تسجيل بلاغ جديد")
         
-        # جلب المناوبات النشطة
+        # جلب المراكز
         centers = cs.get_centers()
         
         with st.form("incident_form"):
@@ -169,13 +169,17 @@ def show_incidents():
             with col1:
                 incident_number = st.text_input("📋 رقم البلاغ", placeholder="INC-2025-001")
                 location = st.text_input("📍 الموقع", placeholder="الموقع التفصيلي")
+                
+                # ===== تحديث تصنيف الأولويات حسب الطلب =====
                 priority = st.selectbox(
                     "⚡ الأولوية",
-                    ["high", "medium", "low"],
+                    ["E", "D", "B", "C", "A"],
                     format_func=lambda x: {
-                        "high": "عالية 🔴",
-                        "medium": "متوسطة 🟡",
-                        "low": "منخفضة 🟢"
+                        "E": "E - خطيرة (توقف قلب وتنفس) 🔴",
+                        "D": "D - خطيرة 🟠",
+                        "B": "B - متوسطة 🟡",
+                        "C": "C - عادية إلى متوسطة 🟢",
+                        "A": "A - عادية ⚪"
                     }.get(x, x)
                 )
                 
@@ -188,7 +192,7 @@ def show_incidents():
                     st.warning("لا توجد مراكز متاحة")
             
             with col2:
-                # ===== تعديل: استبدال st.datetime_input =====
+                # وقت البلاغ
                 st.markdown("#### ⏰ وقت البلاغ")
                 col_date1, col_time1 = st.columns(2)
                 with col_date1:
@@ -197,6 +201,7 @@ def show_incidents():
                     call_time = st.time_input("⏱️ الوقت", value=datetime.now().time())
                 call_datetime = datetime.combine(call_date, call_time)
                 
+                # وقت التوجيه (اختياري)
                 st.markdown("#### 🚑 وقت التوجيه (اختياري)")
                 col_date2, col_time2 = st.columns(2)
                 with col_date2:
@@ -205,6 +210,7 @@ def show_incidents():
                     dispatch_time = st.time_input("⏱️ الوقت", value=None, key="dispatch_time")
                 dispatch_datetime = datetime.combine(dispatch_date, dispatch_time) if dispatch_date and dispatch_time else None
                 
+                # وقت الوصول (اختياري)
                 st.markdown("#### ✅ وقت الوصول (اختياري)")
                 col_date3, col_time3 = st.columns(2)
                 with col_date3:
@@ -213,15 +219,26 @@ def show_incidents():
                     arrival_time = st.time_input("⏱️ الوقت", value=None, key="arrival_time")
                 arrival_datetime = datetime.combine(arrival_date, arrival_time) if arrival_date and arrival_time else None
                 
-                # اختيار الفريق
+                # اختيار الفريق - ✅ إصلاح المشكلة
                 if center_id:
-                    employees = es.get_employees(center_id=center_id)
-                    emp_names = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in employees]
-                    selected_emp = st.selectbox("👥 الفريق المسؤول", [""] + emp_names)
-                    if selected_emp:
-                        assigned_crew = employees[emp_names.index(selected_emp)-1]["id"] if selected_emp != "" else None
+                    employees_data = es.get_employees(center_id=center_id)
+                    # التأكد من أن employees_data هي قائمة
+                    if isinstance(employees_data, list):
+                        employees = employees_data
+                    else:
+                        employees = employees_data.get("items", []) if isinstance(employees_data, dict) else []
+                    
+                    if employees:
+                        emp_names = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in employees]
+                        selected_emp = st.selectbox("👥 الفريق المسؤول", [""] + emp_names)
+                        if selected_emp and selected_emp != "":
+                            emp_index = emp_names.index(selected_emp)
+                            assigned_crew = employees[emp_index]["id"]
+                        else:
+                            assigned_crew = None
                     else:
                         assigned_crew = None
+                        st.info("لا يوجد موظفون في هذا المركز")
                 else:
                     assigned_crew = None
             
@@ -237,7 +254,7 @@ def show_incidents():
                         "location": location,
                         "priority": priority,
                         "call_time": call_datetime.isoformat(),
-                        "shift_id": None,  # يمكن ربطه بالمناوبة لاحقاً
+                        "shift_id": None,
                     }
                     
                     if dispatch_datetime:
@@ -315,18 +332,19 @@ def show_incidents():
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-                # حساب الكفاءة (افتراضي - يمكن تعديله حسب المعايير)
-                df_stats["الكفاءة"] = df_stats["عدد البلاغات"] / df_stats["عدد البلاغات"].max() * 100
-                
-                fig = px.line(
-                    df_stats,
-                    x="الفريق",
-                    y="الكفاءة",
-                    markers=True,
-                    title="مؤشر كفاءة الفرق"
-                )
-                fig.update_traces(line=dict(color="#CE2E26", width=3))
-                st.plotly_chart(fig, use_container_width=True)
+                # حساب الكفاءة
+                if df_stats["عدد البلاغات"].max() > 0:
+                    df_stats["الكفاءة"] = df_stats["عدد البلاغات"] / df_stats["عدد البلاغات"].max() * 100
+                    
+                    fig = px.line(
+                        df_stats,
+                        x="الفريق",
+                        y="الكفاءة",
+                        markers=True,
+                        title="مؤشر كفاءة الفرق"
+                    )
+                    fig.update_traces(line=dict(color="#CE2E26", width=3))
+                    st.plotly_chart(fig, use_container_width=True)
             
             # تصدير
             csv_stats = df_stats.to_csv(index=False, encoding='utf-8-sig')
@@ -352,11 +370,13 @@ def show_incidents():
             # تحويل البيانات للعرض
             incidents_table = []
             for inc in incidents:
-                # تحويل الأولوية
+                # تحويل الأولوية - ✅ تحديث حسب النظام الجديد
                 priority_icon = {
-                    "high": "🔴 عالية",
-                    "medium": "🟡 متوسطة",
-                    "low": "🟢 منخفضة"
+                    "E": "🔴 E - خطيرة (توقف قلب)",
+                    "D": "🟠 D - خطيرة",
+                    "B": "🟡 B - متوسطة",
+                    "C": "🟢 C - عادية إلى متوسطة",
+                    "A": "⚪ A - عادية"
                 }.get(inc.get("priority"), inc.get("priority"))
                 
                 # حساب وقت الاستجابة
