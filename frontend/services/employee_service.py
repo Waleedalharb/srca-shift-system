@@ -69,6 +69,39 @@ class EmployeeService:
             print(f"خطأ في التأكد من وجود المركز: {e}")
             return False
     
+    def debug_import(self, df):
+        """دالة تجريبية لفحص البيانات قبل الاستيراد"""
+        print("\n" + "="*60)
+        print("🔍 فحص بيانات الاستيراد")
+        print(f"عدد الصفوف: {len(df)}")
+        print(f"الأعمدة الموجودة: {list(df.columns)}")
+        print("-"*60)
+        
+        for idx, row in df.iterrows():
+            if idx >= 5:  # أول 5 صفوف فقط
+                break
+                
+            emp_code = str(row.get('رمز', '')).strip() if 'رمز' in df.columns else 'غير موجود'
+            job_title = str(row.get('طبيعة العمل', '')).strip() if 'طبيعة العمل' in df.columns else ''
+            
+            print(f"\nسطر {idx+1}:")
+            print(f"  - الكود: {row.get('الكود', '')}")
+            print(f"  - الاسم: {row.get('الاسم', '')}")
+            print(f"  - الرمز: '{emp_code}'")
+            print(f"  - نوع العمل: {job_title}")
+            
+            # تحقق من صحة الرمز
+            if emp_code and emp_code != 'nan' and emp_code != 'غير موجود':
+                if len(emp_code) > 1 and emp_code[1:].isdigit():
+                    print(f"  ✅ رمز صحيح: {emp_code} -> مركز {emp_code[1:]}")
+                else:
+                    print(f"  ⚠️ رمز غير متوقع: {emp_code}")
+            else:
+                print(f"  ❌ لا يوجد رمز")
+        
+        print("\n" + "="*60)
+        return True
+    
     def get_stats(self):
         """إحصائيات الموظفين"""
         try:
@@ -134,6 +167,11 @@ class EmployeeService:
                 # التأكد من وجود المركز قبل إضافة الموظف
                 self._ensure_center_exists(center_num)
             
+            # طباعة البيانات للتأكد
+            print(f"\n📤 إرسال بيانات موظف:")
+            print(f"   - الرمز: {emp_code}")
+            print(f"   - البيانات: {data}")
+            
             response = requests.post(
                 self.base_url,
                 headers=self.auth.get_headers(),
@@ -142,8 +180,10 @@ class EmployeeService:
             )
             
             if response.status_code == 201:
+                print(f"   ✅ تم الإضافة بنجاح")
                 return response.json()
             else:
+                print(f"   ❌ خطأ {response.status_code}: {response.text}")
                 st.error(f"❌ خطأ في إضافة الموظف: {response.status_code}")
                 try:
                     error_detail = response.json()
@@ -191,26 +231,56 @@ class EmployeeService:
         failed = 0
         errors = []
         
+        # تشغيل فحص البيانات أولاً
+        self.debug_import(df)
+        
         for idx, row in df.iterrows():
             try:
                 emp_no = str(row['الكود']).strip()
                 full_name = str(row['الاسم']).strip()
                 emp_code = str(row.get('رمز', '')).strip() if 'رمز' in row else ''
                 
+                # تنظيف emp_code من الأرقام العائمة
+                if emp_code and emp_code != 'nan':
+                    # إذا كان الرمز رقم عائم (مثل 0.0)
+                    if '.' in emp_code:
+                        emp_code = emp_code.split('.')[0]
+                else:
+                    emp_code = ''
+                
                 # استخراج رقم المركز من الكود
                 if emp_code and len(emp_code) > 1 and emp_code[1:].isdigit():
                     center_num = emp_code[1:]
                     self._ensure_center_exists(center_num)
                 
+                # تحديد نوع الموظف من طبيعة العمل
+                job_title = str(row.get('طبيعة العمل', '')).strip()
+                emp_type = 'paramedic'  # افتراضي
+                
+                # تحويل المسميات الوظيفية
+                type_mapping = {
+                    'كبير مسعفين': 'chief_paramedic',
+                    'مساعد كبير مسعفين': 'assistant_chief',
+                    'قيادة ميدانية': 'field_leader',
+                    'تحكم عملياتي': 'operations_control',
+                    'تنسيق استجابة': 'response_coordinator',
+                    'أخصائي اسعاف': 'paramedic',
+                    'فني اسعاف': 'emt',
+                    'مساعد صحي': 'health_assistant',
+                    'دعم لوجستي': 'logistic_support',
+                    'إداري': 'admin'
+                }
+                emp_type = type_mapping.get(job_title, 'paramedic')
+                
                 employee_data = {
                     'emp_no': emp_no,
                     'full_name': full_name,
-                    'employee_type': 'paramedic',
+                    'employee_type': emp_type,
                     'center_id': default_center_id,
                     'is_active': True
                 }
                 
-                if emp_code and emp_code != 'nan':
+                if emp_code:
                     employee_data['emp_code'] = emp_code
                 
                 if self.create_employee(employee_data):
