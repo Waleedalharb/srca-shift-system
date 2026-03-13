@@ -8,6 +8,83 @@ from components.cards import kpi_row
 from components.charts import create_line_chart, display_chart
 from utils.constants import SHIFT_TYPES, get_all_shift_codes, get_shift_info
 
+# ===== دالة استيراد المناوبات من Excel (جديدة) =====
+def import_shifts_from_excel(uploaded_file, ss, employees, year, month):
+    """استيراد المناوبات من ملف Excel"""
+    try:
+        df = pd.read_excel(uploaded_file)
+        
+        # التحقق من الأعمدة المطلوبة
+        required = ['الرقم الوظيفي', 'اليوم', 'المناوبة']
+        missing = [col for col in required if col not in df.columns]
+        if missing:
+            st.error(f"❌ الأعمدة المفقودة: {missing}")
+            return 0, len(df)
+        
+        # إنشاء قاموس للموظفين (الرقم الوظيفي -> id)
+        emp_dict = {emp.get('emp_no'): emp['id'] for emp in employees if emp.get('emp_no')}
+        
+        success = 0
+        failed = 0
+        errors = []
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for idx, row in df.iterrows():
+            status_text.text(f"جاري استيراد {idx+1}/{len(df)}...")
+            
+            try:
+                emp_no = str(row['الرقم الوظيفي']).strip()
+                day = int(row['اليوم'])
+                shift_code = str(row['المناوبة']).strip()
+                
+                # التحقق من صحة اليوم
+                if day < 1 or day > calendar.monthrange(year, month)[1]:
+                    failed += 1
+                    errors.append(f"سطر {idx+2}: اليوم {day} غير صحيح للشهر")
+                    continue
+                
+                # التحقق من صحة رمز المناوبة
+                if shift_code not in SHIFT_TYPES and shift_code != "":
+                    failed += 1
+                    errors.append(f"سطر {idx+2}: رمز المناوبة {shift_code} غير معروف")
+                    continue
+                
+                # البحث عن الموظف
+                if emp_no not in emp_dict:
+                    failed += 1
+                    errors.append(f"سطر {idx+2}: الرقم الوظيفي {emp_no} غير موجود")
+                    continue
+                
+                emp_id = emp_dict[emp_no]
+                date_str = f"{year}-{month:02d}-{day:02d}"
+                
+                # حفظ المناوبة (إذا كان shift_code فارغ نرسل "off")
+                save_shift = shift_code if shift_code else "off"
+                if ss.update_employee_shift(str(emp_id), date_str, save_shift):
+                    success += 1
+                else:
+                    failed += 1
+                    errors.append(f"سطر {idx+2}: فشل حفظ مناوبة لـ {emp_no}")
+                    
+            except Exception as e:
+                failed += 1
+                errors.append(f"سطر {idx+2}: {str(e)}")
+            
+            progress_bar.progress((idx + 1) / len(df))
+        
+        if errors:
+            st.warning(f"⚠️ يوجد {len(errors)} خطأ")
+            for err in errors[:10]:
+                st.warning(err)
+        
+        return success, failed
+        
+    except Exception as e:
+        st.error(f"❌ خطأ في معالجة الملف: {str(e)}")
+        return 0, 0
+
 # ===== دوام رسمي =====
 def show_official_schedule():
     st.markdown("""
@@ -448,7 +525,7 @@ def show_shifts():
         month = st.number_input("📆 الشهر", 1, 12, datetime.now().month)
     
     with col4:
-        view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق"], horizontal=True)
+        view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق", "📥 استيراد Excel"], horizontal=True)
     
     # جلب الموظفين
     employees = es.get_employees(center_id=center_id).get("items", [])
@@ -564,26 +641,19 @@ def show_shifts():
     elif view_mode == "✏️ تعديل":
         st.subheader("✏️ تعديل المناوبات")
         
-        # ===== حل مشكلة عدم التحديث (الجديد) =====
+        # ===== حل مشكلة عدم التحديث =====
         if 'last_emp_selected' not in st.session_state:
             st.session_state.last_emp_selected = None
         
         emp_names = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in employees]
-        
-        # نستخدم key ثابت للـ selectbox
         selected_emp_name = st.selectbox("👤 اختر الموظف", emp_names, key="emp_selector")
         
-        # إذا تغير الموظف، نعيد تعيين المفاتيح
         if selected_emp_name != st.session_state.last_emp_selected:
             st.session_state.last_emp_selected = selected_emp_name
-            
-            # حذف المفاتيح القديمة عشان تتجدد القيم
             keys_to_clear = ['single_day', 'single_shift', 'range_from', 'range_to', 'range_shift']
             for key in keys_to_clear:
                 if key in st.session_state:
                     del st.session_state[key]
-            
-            # نعيد تشغيل الصفحة عشان تظهر القيم الجديدة
             st.rerun()
         
         selected_emp = employees[emp_names.index(selected_emp_name)]
@@ -628,7 +698,6 @@ def show_shifts():
                         date_str = f"{year}-{month:02d}-{day:02d}"
                         if ss.update_employee_shift(emp_id, date_str, "off"):
                             st.success(f"✅ تم حذف مناوبة يوم {day}")
-                            # الحل الجذري
                             st.session_state.reload_shifts = True
                             st.rerun()
                 
@@ -637,7 +706,6 @@ def show_shifts():
                         date_str = f"{year}-{month:02d}-{day:02d}"
                         if ss.update_employee_shift(emp_id, date_str, new_shift):
                             st.success(f"✅ تم تحديث يوم {day} إلى {new_shift}")
-                            # الحل الجذري
                             st.session_state.reload_shifts = True
                             st.rerun()
             
@@ -665,7 +733,6 @@ def show_shifts():
                             success_count += 1
                     
                     st.success(f"✅ تم تحديث {success_count} يوم")
-                    # الحل الجذري
                     st.session_state.reload_shifts = True
                     st.rerun()
         
@@ -719,7 +786,6 @@ def show_shifts():
                             total += 1
                     
                     st.success(f"✅ تم تحديث {success_count} مناوبة من أصل {total}")
-                    # الحل الجذري
                     st.session_state.reload_shifts = True
                     st.rerun()
             else:
@@ -764,7 +830,6 @@ def show_shifts():
                             success_count += 1
                 
                 st.success(f"✅ تم تطبيق نمط {selected_pattern} على {success_count} يوم")
-                # الحل الجذري
                 st.session_state.reload_shifts = True
                 st.rerun()
     
@@ -901,7 +966,6 @@ def show_shifts():
                             
                             if success_count > 0:
                                 st.success(f"✅ تم إضافة {success_count} تكميلية للفريق {team_letter}")
-                                # الحل الجذري
                                 st.session_state.reload_shifts = True
                                 st.rerun()
                 else:
@@ -921,12 +985,10 @@ def show_shifts():
             for day_idx, day in enumerate(all_days):
                 # نشوف عدد الموظفين المناوبين في هذا اليوم
                 day_workers = 0
-                day_workers_list = []
                 for emp in employees:
                     emp_id = str(emp["id"])
                     if shifts_map.get(emp_id, {}).get(day):
                         day_workers += 1
-                        day_workers_list.append(emp)
                 
                 # إذا كان العدد قليل (أقل من 50%) نقترح تكميل
                 if day_workers < len(employees) * 0.5:
@@ -947,7 +1009,6 @@ def show_shifts():
                 progress_bar.progress((day_idx + 1) / total_days)
             
             st.success(f"✅ تم إضافة {total_tkmilia} تكميلية للمركز")
-            # الحل الجذري
             st.session_state.reload_shifts = True
             st.rerun()
     
@@ -980,7 +1041,6 @@ def show_shifts():
                             success_count += 1
                     
                     st.success(f"✅ تم إضافة المناوبة لـ {success_count} موظف")
-                    # الحل الجذري
                     st.session_state.reload_shifts = True
                     st.rerun()
     
@@ -1128,3 +1188,58 @@ def show_shifts():
                 if st.button("🔄 تحديث وعرض الجدول", use_container_width=True):
                     st.cache_data.clear()
                     st.rerun()
+    
+    # ===== وضع استيراد Excel =====
+    elif view_mode == "📥 استيراد Excel":
+        st.subheader("📥 استيراد مناوبات من Excel")
+        st.markdown("""
+        <div style="background: #F0F9FF; padding: 1rem; border-radius: 12px; margin-bottom: 1rem;">
+            <h5 style="margin: 0 0 0.5rem 0;">📌 تعليمات:</h5>
+            <ul style="margin: 0; padding-right: 1.5rem; font-size: 0.9rem;">
+                <li>الملف يجب أن يكون بصيغة Excel (.xlsx)</li>
+                <li>الأعمدة المطلوبة: <b>الرقم الوظيفي، اليوم، المناوبة</b></li>
+                <li>اليوم: رقم اليوم من 1 إلى 31</li>
+                <li>المناوبة: رمز المناوبة (D8, N12, V, CP8, ...)</li>
+                <li>اترك الخلية فارغة إذا كان اليوم بدون مناوبة</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        uploaded_file = st.file_uploader(
+            "📤 اختر ملف Excel",
+            type=['xlsx', 'xls'],
+            key="shifts_upload_excel"
+        )
+        
+        if uploaded_file:
+            try:
+                df_preview = pd.read_excel(uploaded_file)
+                st.dataframe(df_preview.head(5), use_container_width=True)
+                st.caption(f"إجمالي {len(df_preview)} مناوبة في الملف")
+                
+                if st.button("🚀 بدء الاستيراد", use_container_width=True, type="primary"):
+                    success, failed = import_shifts_from_excel(uploaded_file, ss, employees, year, month)
+                    
+                    if success > 0:
+                        st.success(f"✅ تم استيراد {success} مناوبة بنجاح!")
+                        st.balloons()
+                    if failed > 0:
+                        st.warning(f"⚠️ فشل استيراد {failed} مناوبة")
+                    
+                    # عرض إحصائيات
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("✅ نجاح", success)
+                    with col2:
+                        st.metric("❌ فشل", failed)
+                    with col3:
+                        st.metric("📦 إجمالي", len(df_preview))
+                    
+                    # زر تحديث
+                    if success > 0:
+                        if st.button("🔄 تحديث الجدول", use_container_width=True):
+                            st.session_state.reload_shifts = True
+                            st.rerun()
+                            
+            except Exception as e:
+                st.error(f"❌ خطأ في قراءة الملف: {str(e)}")

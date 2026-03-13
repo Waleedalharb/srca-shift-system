@@ -11,7 +11,7 @@ from utils.constants import (
 from typing import Dict, List, Any, Optional
 
 # ============================================================================
-# دوال فك الترميز (Decoding Functions) - محدثة للنظام الجديد
+# دوال فك الترميز (Decoding Functions)
 # ============================================================================
 
 def get_shift_display_name(shift_code: str) -> str:
@@ -40,7 +40,7 @@ def is_hq_employee(emp_code: str) -> bool:
     return False
 
 def decode_employee_code(code: str) -> Dict[str, Any]:
-    """فك شفرة الموظف حسب نظام الفرق (محدث)"""
+    """فك شفرة الموظف حسب نظام الفرق"""
     if not code:
         return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
     
@@ -51,7 +51,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'role': shift_info['name'],
             'type': shift_info['type'],
             'category': shift_info['category'],
-            'icon': code,  # نعرض الرمز نفسه
+            'icon': code,
             'color': shift_info['color'],
             'text_color': shift_info['text_color'],
             'hours': shift_info['hours'],
@@ -782,6 +782,50 @@ def show_employees():
                                 st.error("❌ المركز غير موجود")
                 else:
                     st.warning("⚠️ لا يوجد موظف بهذا الرقم")
+    
+    # ===== منطقة الخطر (للإدارة العليا فقط) =====
+    if has_permission("manage_all") and st.session_state.get("user_role") == "chief_paramedic":
+        st.markdown("---")
+        st.markdown("""
+        <div style="background: #FFEBEE; border: 1.5px solid #FFCDD2; border-radius: 14px; padding: 1.25rem; direction: rtl; margin: 1.5rem 0;">
+            <h4 style="color: #C62828; margin: 0 0 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                ⚠️ منطقة الخطر
+            </h4>
+        """, unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns(3)
+        with col2:
+            if st.button("🗑️ مسح جميع الموظفين", use_container_width=True, type="primary"):
+                st.session_state.confirm_delete_all = True
+        
+        if st.session_state.get("confirm_delete_all", False):
+            st.warning("⚠️ هل أنت متأكد؟ هذا الإجراء لا يمكن التراجع عنه!")
+            col1, col2, col3, col4 = st.columns(4)
+            with col2:
+                if st.button("✅ نعم، متأكد", use_container_width=True):
+                    try:
+                        # جلب جميع الموظفين وحذفهم
+                        result = es.get_employees(limit=1000)
+                        employees_to_delete = result.get("items", [])
+                        deleted_count = 0
+                        
+                        for emp in employees_to_delete:
+                            if es.delete_employee(emp["id"]):
+                                deleted_count += 1
+                        
+                        st.success(f"✅ تم حذف {deleted_count} موظف بنجاح")
+                        st.session_state.force_reload_employees = True
+                        st.session_state.confirm_delete_all = False
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ حدث خطأ: {str(e)}")
+            
+            with col3:
+                if st.button("❌ إلغاء", use_container_width=True):
+                    st.session_state.confirm_delete_all = False
+                    st.rerun()
+        
+        st.markdown("</div>", unsafe_allow_html=True)
     
     # ===== قسم التعديل القديم (للتوافق) =====
     if "editing_employee" in st.session_state:
