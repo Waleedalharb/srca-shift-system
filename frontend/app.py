@@ -13,6 +13,7 @@ from config import config
 from services.auth_service import AuthService
 from utils.helpers import load_css, setup_rtl, footer
 from utils.auth import init_session_state  # ✅ استيراد دالة تهيئة الجلسة
+from pages.settings import init_settings, apply_theme  # ✅ استيراد دوال الإعدادات
 
 # ===== إعداد الصفحة - يجب أن يكون أول أمر =====
 st.set_page_config(
@@ -24,6 +25,16 @@ st.set_page_config(
 
 # ✅ تهيئة الجلسة مع localStorage (بعد set_page_config)
 init_session_state()
+
+# ✅ تهيئة الإعدادات وتطبيق الثيم
+init_settings()
+apply_theme()
+
+# ✅ متغير للتحكم بإعادة تحميل الإعدادات
+if 'reload_settings' in st.session_state and st.session_state.reload_settings:
+    init_settings()
+    apply_theme()
+    st.session_state.reload_settings = False
 
 # ===== مدير الجلسات لحل مشكلة تعدد المستخدمين =====
 class SessionManager:
@@ -48,7 +59,7 @@ class SessionManager:
             return True
         return False
 
-# تنسيقات محسنة
+# تنسيقات محسنة مع دعم Dark Mode
 st.markdown("""
 <style>
     /* إخفاء عناصر Streamlit غير المرغوب فيها */
@@ -69,6 +80,13 @@ st.markdown("""
         border-left: 1px solid #E2E8F0;
         padding: 1rem 0.5rem;
         box-shadow: -4px 0 12px rgba(0,0,0,0.02);
+        transition: all 0.3s ease;
+    }
+    
+    /* دعم Dark Mode للشريط الجانبي */
+    [data-theme="dark"] section[data-testid="stSidebar"] {
+        background: #252526 !important;
+        border-left: 1px solid #404040 !important;
     }
     
     /* الشعار في الشريط الجانبي */
@@ -90,6 +108,11 @@ st.markdown("""
         font-weight: 700;
         font-size: 0.9rem;
         margin: 0.5rem 0 0 0;
+    }
+    
+    /* دعم Dark Mode للشعار */
+    [data-theme="dark"] .sidebar-title {
+        color: #FFFFFF !important;
     }
     
     /* شعار قطاع الجنوب */
@@ -114,6 +137,7 @@ st.markdown("""
         margin: 1rem 0;
         text-align: center;
         border: 1px solid #E2E8F0;
+        transition: all 0.3s ease;
     }
     .user-name {
         font-weight: 700;
@@ -127,6 +151,15 @@ st.markdown("""
         align-items: center;
         justify-content: center;
         gap: 0.25rem;
+    }
+    
+    /* دعم Dark Mode لمعلومات المستخدم */
+    [data-theme="dark"] .user-info {
+        background: #2D2D2D !important;
+        border-color: #404040 !important;
+    }
+    [data-theme="dark"] .user-name {
+        color: #FFFFFF !important;
     }
     
     /* قائمة التنقل */
@@ -151,6 +184,15 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(206,46,38,0.2);
     }
     
+    /* دعم Dark Mode للقائمة */
+    [data-theme="dark"] .stRadio label {
+        color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .stRadio label:hover {
+        background: #404040 !important;
+        color: #FFFFFF !important;
+    }
+    
     /* زر الخروج */
     .stButton > button {
         background: #F1F5F9;
@@ -166,12 +208,28 @@ st.markdown("""
         border-color: #CE2E26;
     }
     
+    /* دعم Dark Mode للأزرار */
+    [data-theme="dark"] .stButton > button {
+        background: #2D2D2D !important;
+        color: #FFFFFF !important;
+        border-color: #404040 !important;
+    }
+    [data-theme="dark"] .stButton > button:hover {
+        background: #404040 !important;
+        color: #0d6efd !important;
+    }
+    
     /* فواصل */
     hr {
         margin: 1rem 0;
         border: none;
         height: 1px;
         background: linear-gradient(90deg, transparent, #E2E8F0, transparent);
+    }
+    
+    /* دعم Dark Mode للفواصل */
+    [data-theme="dark"] hr {
+        background: linear-gradient(90deg, transparent, #404040, transparent) !important;
     }
     
     /* تحسين للآيباد والأجهزة اللوحية */

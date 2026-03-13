@@ -1,8 +1,15 @@
 # frontend/utils/api.py
 import requests
 import streamlit as st
+import os
 
-API_URL = "http://localhost:8000/api"
+# تحديد الرابط حسب البيئة
+if os.path.exists('/opt/render/project/src'):
+    # نحن في Render - الرابط الصحيح لتطبيقك
+    API_URL = "https://srca-shift-system.onrender.com/api"
+else:
+    # نحن في الجهاز المحلي
+    API_URL = "http://localhost:8000/api"
 
 class SRCA_API:
     def __init__(self):
@@ -12,6 +19,7 @@ class SRCA_API:
     def login(self, username: str, password: str) -> bool:
         """تسجيل الدخول والحصول على التوكن"""
         try:
+            print(f"🔐 محاولة تسجيل الدخول إلى: {self.base_url}/auth/login")
             response = requests.post(
                 f"{self.base_url}/auth/login",
                 data={
@@ -21,15 +29,21 @@ class SRCA_API:
                     "scope": "",
                     "client_id": "",
                     "client_secret": ""
-                }
+                },
+                timeout=10
             )
             
             if response.status_code == 200:
                 self.token = response.json()["access_token"]
                 return True
+            else:
+                st.error(f"❌ خطأ في تسجيل الدخول: {response.status_code}")
+                return False
+        except requests.exceptions.ConnectionError:
+            st.error(f"❌ لا يمكن الاتصال بالخادم: {self.base_url}")
             return False
         except Exception as e:
-            st.error(f"خطأ في الاتصال: {e}")
+            st.error(f"❌ خطأ في الاتصال: {str(e)}")
             return False
     
     def _get_headers(self):
@@ -39,7 +53,8 @@ class SRCA_API:
             st.stop()
         return {
             "Authorization": f"Bearer {self.token}",
-            "Accept": "application/json"
+            "Accept": "application/json",
+            "Content-Type": "application/json"
         }
     
     def get_employees_stats(self):
@@ -47,12 +62,14 @@ class SRCA_API:
         try:
             response = requests.get(
                 f"{self.base_url}/employees/stats/overview",
-                headers=self._get_headers()
+                headers=self._get_headers(),
+                timeout=10
             )
             if response.status_code == 200:
                 return response.json()
             return None
-        except:
+        except Exception as e:
+            print(f"خطأ في get_employees_stats: {e}")
             return None
     
     def get_centers(self):
@@ -60,13 +77,15 @@ class SRCA_API:
         try:
             response = requests.get(
                 f"{self.base_url}/centers/",
-                headers=self._get_headers()
+                headers=self._get_headers(),
+                timeout=10
             )
             if response.status_code == 200:
                 data = response.json()
                 return data.get("items", [])
             return []
-        except:
+        except Exception as e:
+            print(f"خطأ في get_centers: {e}")
             return []
     
     def get_employees(self, center_id=None):
@@ -76,12 +95,13 @@ class SRCA_API:
             if center_id:
                 url += f"?center_id={center_id}"
             
-            response = requests.get(url, headers=self._get_headers())
+            response = requests.get(url, headers=self._get_headers(), timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 return data.get("items", [])
             return []
-        except:
+        except Exception as e:
+            print(f"خطأ في get_employees: {e}")
             return []
     
     def get_dashboard(self):
@@ -89,10 +109,31 @@ class SRCA_API:
         try:
             response = requests.get(
                 f"{self.base_url}/reports/dashboard",
-                headers=self._get_headers()
+                headers=self._get_headers(),
+                timeout=10
             )
             if response.status_code == 200:
                 return response.json()
             return None
-        except:
+        except Exception as e:
+            print(f"خطأ في get_dashboard: {e}")
             return None
+    
+    def update_shift(self, employee_id, date, shift_type):
+        """تحديث مناوبة"""
+        try:
+            data = {
+                "employee_id": employee_id,
+                "date": date,
+                "shift_type": shift_type
+            }
+            response = requests.put(
+                f"{self.base_url}/shifts/update",
+                headers=self._get_headers(),
+                json=data,
+                timeout=10
+            )
+            return response.status_code == 200
+        except Exception as e:
+            print(f"خطأ في update_shift: {e}")
+            return False
