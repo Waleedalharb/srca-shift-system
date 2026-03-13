@@ -367,49 +367,49 @@ TEAM_CODES = {
         'name': 'الفريق الأول',
         'icon': '👥',
         'color': '#FFB74D',
-        'description': 'الفريق الأساسي - يغطي الفترة الصباحية'
+        'description': 'الفريق الأساسي'
     },
     'B': {
         'name': 'الفريق الثاني',
         'icon': '👥',
         'color': '#4A6FA5',
-        'description': 'الفريق الأساسي - يغطي الفترة المسائية'
+        'description': 'الفريق الأساسي'
     },
     'C': {
         'name': 'الفريق الثالث',
         'icon': '👥',
         'color': '#2D4A6E',
-        'description': 'الفريق الأساسي - يغطي الفترة الليلية'
+        'description': 'الفريق الأساسي'
     },
     'D': {
         'name': 'الفريق الرابع',
         'icon': '👥',
         'color': '#FFB74D',
-        'description': 'الفريق الأساسي - يغطي الفترات المتغيرة'
+        'description': 'الفريق الأساسي'
     },
     'O': {
         'name': 'فريق التداخلية',
         'icon': '🔄',
         'color': '#45CFEF',
-        'description': 'Overlap - فريق دعم وتغطية الفترات الحرجة'
+        'description': 'فريق دعم'
     },
     'RR': {
         'name': 'فريق التدخل السريع',
         'icon': '⚡',
         'color': '#CE2E26',
-        'description': 'Rapid Response - فرق استجابة سريعة'
+        'description': 'Rapid Response'
     },
     'XW': {
         'name': 'فريق العمليات',
         'icon': '🖥️',
         'color': '#513A87',
-        'description': 'غرفة التحكم والعمليات'
+        'description': 'غرفة التحكم'
     },
     'C00': {
         'name': 'العمليات الموحدة',
         'icon': '💻',
         'color': '#3B4A82',
-        'description': 'نظام العمليات المستقبلي'
+        'description': 'نظام العمليات'
     }
 }
 
@@ -429,7 +429,7 @@ CENTER_CODES = {
     9: {'name': 'عكاظ', 'type': 'مركز ثابت', 'city': 'الرياض', 'is_virtual': False},
     10: {'name': 'ديراب', 'type': 'مركز ثابت', 'city': 'الرياض', 'is_virtual': False},
     
-    # ✅ تمركز واحد فقط (بدلاً من اثنين)
+    # التمركز
     12: {'name': 'التمركز', 'type': 'تمركز', 'city': 'متنقل', 'is_virtual': True},
 }
 
@@ -504,10 +504,9 @@ def is_virtual_center(center_num: int) -> bool:
     return False
 
 def get_shift_info(shift_code: str) -> dict:
-    """الحصول على معلومات المناوبة من رمزها (النظام الجديد)"""
+    """الحصول على معلومات المناوبة من رمزها"""
     if shift_code in SHIFT_TYPES:
         return SHIFT_TYPES[shift_code]
-    # للتوافق مع القديم
     if shift_code in TEAM_CODES:
         return TEAM_CODES[shift_code]
     return {

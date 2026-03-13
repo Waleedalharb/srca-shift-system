@@ -11,7 +11,7 @@ from utils.constants import (
 from typing import Dict, List, Any, Optional
 
 # ============================================================================
-# دوال فك الترميز (Decoding Functions)
+# دوال فك الترميز (Decoding Functions) - محدثة
 # ============================================================================
 
 def get_shift_display_name(shift_code: str) -> str:
@@ -40,7 +40,7 @@ def is_hq_employee(emp_code: str) -> bool:
     return False
 
 def decode_employee_code(code: str) -> Dict[str, Any]:
-    """فك شفرة الموظف حسب نظام الفرق"""
+    """فك شفرة الموظف حسب نظام الفرق - محدث لدعم ترميز ديراب"""
     if not code:
         return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
     
@@ -59,7 +59,44 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 1. القيادات (A0, B0, C0, D0)
+    # ===== دعم الترميز القديم لمركز ديراب =====
+    # تحويل الرموز القديمة إلى الصيغة الجديدة
+    if code.lower() in ['aa', 'aa10']:
+        return decode_employee_code('A10')
+    if code.lower() in ['bb', 'bb10']:
+        return decode_employee_code('B10')
+    if code.lower() in ['cc', 'cc10']:
+        return decode_employee_code('C10')
+    if code.lower() in ['dd', 'dd10']:
+        return decode_employee_code('D10')
+    
+    # 1. الترميز الجديد لمركز ديراب (A10, B10, C10, D10)
+    if code in ['A10', 'B10', 'C10', 'D10']:
+        team = code[0]
+        center_num = 10  # ديراب
+        team_info = TEAM_CODES.get(team, {})
+        center_info = CENTER_CODES.get(center_num, {
+            'name': f'مركز {center_num}',
+            'type': 'مركز',
+            'is_virtual': False
+        })
+        
+        return {
+            'role': 'عضو فريق',
+            'team': team,
+            'team_name': team_info.get('name', f'الفريق {team}'),
+            'type': 'مناوبة',
+            'category': 'shift',
+            'icon': '👤',
+            'color': team_info.get('color', '#64748B'),
+            'center_num': center_num,
+            'center_name': center_info['name'],
+            'center_type': center_info.get('type', 'مركز'),
+            'is_virtual': center_info.get('is_virtual', False),
+            'original': code
+        }
+    
+    # 2. القيادات (A0, B0, C0, D0)
     if code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD':
         team = code[0]
         team_info = TEAM_CODES.get(team, {})
@@ -77,7 +114,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 2. أعضاء الفرق (A1, B7, C3, ...)
+    # 3. أعضاء الفرق (A1, B7, C3, ...) - باقي المراكز
     if code and code[0] in 'ABCD' and code[1:].isdigit():
         team = code[0]
         center_num = int(code[1:])
@@ -103,7 +140,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 3. فريق التداخلية (O12, O14)
+    # 4. فريق التداخلية (O12)
     if code.startswith('O') and code[1:].isdigit():
         center_num = int(code[1:])
         center_info = CENTER_CODES.get(center_num, {
@@ -124,7 +161,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 4. فريق التدخل السريع (RR)
+    # 5. فريق التدخل السريع (RR)
     if code.startswith('RR'):
         return {
             'role': 'فريق تدخل سريع',
@@ -138,7 +175,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 5. العمليات (XW)
+    # 6. العمليات (XW)
     if code.startswith('XW'):
         return {
             'role': 'فريق عمليات',
@@ -152,7 +189,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 6. الوحدات الخاصة (ST, TT, Y, YY, ...)
+    # 7. الوحدات الخاصة (ST, TT, Y, YY, ...)
     if code in SPECIAL_UNITS:
         unit = SPECIAL_UNITS[code]
         return {
@@ -167,7 +204,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 7. إذا ما تطابق مع أي شيء
+    # 8. إذا ما تطابق مع أي شيء
     return {
         'type': 'غير معروف',
         'category': 'unknown',
@@ -462,6 +499,16 @@ def import_employees_from_excel(uploaded_file, es, cs):
                 # إضافة الرمز إذا كان موجوداً
                 if has_emp_code and 'رمز' in row:
                     emp_code = str(row['رمز']).strip()
+                    # توحيد ترميز ديراب
+                    if emp_code.lower() in ['aa', 'aa10']:
+                        emp_code = 'A10'
+                    elif emp_code.lower() in ['bb', 'bb10']:
+                        emp_code = 'B10'
+                    elif emp_code.lower() in ['cc', 'cc10']:
+                        emp_code = 'C10'
+                    elif emp_code.lower() in ['dd', 'dd10']:
+                        emp_code = 'D10'
+                    
                     if emp_code and emp_code != 'nan':
                         employee_data['emp_code'] = emp_code
                 
@@ -669,7 +716,7 @@ def show_employees():
             with c1:
                 emp_no = st.text_input("📋 الرقم الوظيفي *")
                 full_name = st.text_input("👤 الاسم الكامل *")
-                emp_code = st.text_input("🔤 رمز الموظف", placeholder="مثال: D8, N12, V")
+                emp_code = st.text_input("🔤 رمز الموظف", placeholder="مثال: A10, B5, C0")
                 employee_type = st.selectbox("📌 الفئة", list(EMP_TYPE_LABELS.keys()), format_func=lambda x: EMP_TYPE_LABELS.get(x, x))
                 hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.now())
             with c2:
@@ -744,7 +791,7 @@ def show_employees():
                                 index=list(EMP_TYPE_LABELS.keys()).index(emp.get('employee_type', 'admin')) if emp.get('employee_type') in EMP_TYPE_LABELS else 0,
                                 format_func=lambda x: EMP_TYPE_LABELS.get(x, x)
                             )
-                            new_code = st.text_input("الرمز", value=emp.get('emp_code', ''), placeholder="مثال: D8, N12, V")
+                            new_code = st.text_input("الرمز", value=emp.get('emp_code', ''), placeholder="مثال: A10, B5, C0")
                         
                         with qc2:
                             center_list = [c['name'] for c in centers]
@@ -838,7 +885,7 @@ def show_employees():
             with c1:
                 emp_no = st.text_input("📋 الرقم الوظيفي", value=emp.get("emp_no",""), disabled=True)
                 full_name = st.text_input("👤 الاسم الكامل *", value=emp.get("full_name",""))
-                emp_code = st.text_input("🔤 رمز الموظف", value=emp.get("emp_code",""), placeholder="مثال: D8, N12, V")
+                emp_code = st.text_input("🔤 رمز الموظف", value=emp.get("emp_code",""), placeholder="مثال: A10, B5, C0")
                 national_id = st.text_input("🆔 رقم الهوية", value=emp.get("national_id",""))
                 hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.strptime(emp.get("hire_date","2020-01-01"), "%Y-%m-%d").date() if emp.get("hire_date") else datetime.now())
             with c2:

@@ -8,7 +8,7 @@ from components.cards import kpi_row
 from components.charts import create_line_chart, display_chart
 from utils.constants import SHIFT_TYPES, get_all_shift_codes, get_shift_info
 
-# ===== دالة استيراد المناوبات من Excel (جديدة) =====
+# ===== دالة استيراد المناوبات من Excel =====
 def import_shifts_from_excel(uploaded_file, ss, employees, year, month):
     """استيراد المناوبات من ملف Excel"""
     try:
@@ -85,7 +85,7 @@ def import_shifts_from_excel(uploaded_file, ss, employees, year, month):
         st.error(f"❌ خطأ في معالجة الملف: {str(e)}")
         return 0, 0
 
-# ===== دوام رسمي =====
+# ===== دوام رسمي (للمدير والإداريين فقط) =====
 def show_official_schedule():
     st.markdown("""
     <div style="
@@ -115,75 +115,39 @@ def show_official_schedule():
     </div>
     """, unsafe_allow_html=True)
 
-# ===== دالة حساب ساعات الموظف حسب فئته =====
+# ===== دالة حساب ساعات الموظف - محدثة =====
 def calculate_employee_hours(employee_data, emp_shifts, days_in_month, center_name):
     """
-    حساب ساعات الموظف حسب فئته ونظام العمل
+    حساب ساعات الموظف - جميع الموظفين (ما عدا المدير والإداريين) = 12 ساعة
     """
     emp_code = employee_data.get('emp_code', '')
     
-    # ===== المركز الرئيسي للقطاع =====
-    if center_name == "المركز الرئيسي للقطاع":
-        
-        # 1. قيادات (A0, B0, C0, D0) - نظام ورديات 12 ساعة
-        if emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD':
-            working_days = 0
-            for day in range(1, days_in_month + 1):
-                shift_type = emp_shifts.get(day)
-                if shift_type and shift_type != 'V':  # أي يوم عمل
-                    working_days += 1
-            return working_days * 12  # كل وردية 12 ساعة
-        
-        # 2. عمليات (XW1, XW2...) - ورديات 12 ساعة
-        elif emp_code.startswith('XW'):
-            total = 0
-            for day in range(1, days_in_month + 1):
-                shift_type = emp_shifts.get(day)
-                if shift_type and shift_type != 'V':
-                    total += 12  # كل وردية عمليات 12 ساعة
-            return total
-        
-        # 3. دعم (Y, YY, Z) - إداري 8 ساعات
-        elif emp_code in ['Y', 'YY', 'Z']:
-            working_days = 0
-            for day in range(1, days_in_month + 1):
-                shift_type = emp_shifts.get(day)
-                if shift_type and shift_type != 'V':
-                    working_days += 1
-            return working_days * 8  # دوام رسمي 8 ساعات
-        
-        # 4. تدخل سريع (RR) - حسب المناوبة
-        elif emp_code.startswith('RR'):
-            total = 0
-            for day in range(1, days_in_month + 1):
-                shift_type = emp_shifts.get(day)
-                if shift_type and shift_type in SHIFT_TYPES:
-                    total += SHIFT_TYPES[shift_type]["hours"]
-            return total
-        
-        # 5. أي تصنيف آخر في المركز الرئيسي
-        else:
-            total = 0
-            for day in range(1, days_in_month + 1):
-                shift_type = emp_shifts.get(day)
-                if shift_type and shift_type in SHIFT_TYPES:
-                    total += SHIFT_TYPES[shift_type]["hours"]
-            return total
-    
-    # ===== باقي المراكز =====
-    # موظف عادي - حسب ساعات المناوبة
-    else:
-        total = 0
+    # ===== المدير والإداريين فقط (بدون ترميز) =====
+    if not emp_code or emp_code in ['مدير', 'اداري']:
+        working_days = 0
         for day in range(1, days_in_month + 1):
             shift_type = emp_shifts.get(day)
-            if shift_type and shift_type in SHIFT_TYPES:
+            if shift_type and shift_type != 'V':
+                working_days += 1
+        return working_days * 8  # 8 ساعات دوام رسمي
+    
+    # ===== باقي الموظفين (الكل 12 ساعة) =====
+    total = 0
+    for day in range(1, days_in_month + 1):
+        shift_type = emp_shifts.get(day)
+        if shift_type and shift_type in SHIFT_TYPES:
+            # جميع المناوبات 12 ساعة (صباحي/ليلي)
+            if shift_type in ['D12', 'N12', 'O12']:
+                total += 12
+            # للمناوبات التكميلية حسب ساعاتها
+            else:
                 total += SHIFT_TYPES[shift_type]["hours"]
-        return total
+    return total
 
-# ===== دالة عرض تقرير الطباعة (نسخة محسنة نهائية) =====
+# ===== دالة عرض تقرير الطباعة =====
 def show_printable_report(employee_data, shifts_data, year, month, center_name, employee_name):
     """
-    عرض تقرير المناوبات بشكل مناسب للطباعة - نسخة محسنة
+    عرض تقرير المناوبات بشكل مناسب للطباعة
     """
     days_in_month = calendar.monthrange(year, month)[1]
     
@@ -340,10 +304,10 @@ def show_printable_report(employee_data, shifts_data, year, month, center_name, 
         except:
             continue
     
-    # حساب إجمالي الساعات باستخدام الدالة الذكية
+    # حساب إجمالي الساعات
     total_hours = calculate_employee_hours(employee_data, emp_shifts, days_in_month, center_name)
     
-    # بناء جدول الأيام كامل (كل أيام الشهر في جدول واحد)
+    # بناء جدول الأيام
     html_content = f"""
     <div class="report-container">
         <div class="report-header">
@@ -378,48 +342,35 @@ def show_printable_report(employee_data, shifts_data, year, month, center_name, 
         </div>
     """
     
-    # أيام الأسبوع بالعربية
+    # أيام الأسبوع
     weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+    first_day = calendar.weekday(year, month, 1)
     
-    # حساب أول يوم في الشهر (0 = الاثنين، 6 = الأحد في Python)
-    first_day = calendar.weekday(year, month, 1)  # 0 = الاثنين
-    
-    # إنشاء شبكة 6 أسابيع × 7 أيام
+    # إنشاء شبكة الأيام
     calendar_days = []
     week = []
-    
-    # تعبئة الأيام الفارغة قبل أول يوم
     for i in range(first_day):
         week.append("")
-    
-    # تعبئة أيام الشهر
     for day in range(1, days_in_month + 1):
         week.append(day)
         if len(week) == 7:
             calendar_days.append(week)
             week = []
-    
-    # تعبئة الأيام الفارغة بعد آخر يوم
     if week:
         while len(week) < 7:
             week.append("")
         calendar_days.append(week)
     
-    # بناء جدول واحد لكل أيام الشهر
-    html_content += '<table class="shifts-table">'
-    
-    # صف رؤوس الأيام
-    html_content += '<tr>'
+    # بناء الجدول
+    html_content += '<table class="shifts-table"><tr>'
     for day_name in weekdays_ar:
         html_content += f'<th>{day_name}</th>'
     html_content += '</tr>'
     
-    # عرض كل أسبوع في صف
     for week in calendar_days:
         html_content += '<tr>'
         for i, day_num in enumerate(week):
             weekend_class = 'weekend-day' if weekdays_ar[i] in ['الجمعة', 'السبت'] else ''
-            
             if day_num:
                 shift_type = emp_shifts.get(day_num)
                 if shift_type:
@@ -432,8 +383,6 @@ def show_printable_report(employee_data, shifts_data, year, month, center_name, 
         html_content += '</tr>'
     
     html_content += '</table>'
-    
-    # تذييل التقرير
     html_content += f"""
         <div class="footer">
             <div>توقيع المشرف: ________________</div>
@@ -443,21 +392,16 @@ def show_printable_report(employee_data, shifts_data, year, month, center_name, 
     </div>
     """
     
-    # عرض التقرير في Streamlit
     st.markdown(html_content, unsafe_allow_html=True)
-    
-    # زر الطباعة (يظهر فقط على الشاشة)
     st.markdown("""
     <div class="print-button">
         <button onclick="window.print()">🖨️ طباعة التقرير</button>
     </div>
     """, unsafe_allow_html=True)
     
-    # زر العودة
     if st.button("🔙 العودة للتعديل", use_container_width=True):
         st.rerun()
-
-def _get_services():
+        def _get_services():
     """تهيئة الخدمات"""
     auth = st.session_state.auth_service
     cs = st.session_state.get("center_service")
@@ -484,7 +428,7 @@ def _get_services():
 def show_shifts():
     """صفحة إدارة المناوبات"""
     
-    # ===== متغير للتحكم بإعادة التحميل (الحل الجذري) =====
+    # ===== متغير للتحكم بإعادة التحميل =====
     if 'reload_shifts' in st.session_state and st.session_state.reload_shifts:
         st.session_state.shift_service = None
         st.session_state.reload_shifts = False
@@ -573,12 +517,18 @@ def show_shifts():
             for day in range(1, days_in_month + 1):
                 shift_type = emp_shifts.get(day)
                 if shift_type and shift_type in SHIFT_TYPES:
-                    total_hours += SHIFT_TYPES[shift_type]["hours"]
+                    # جميع المناوبات 12 ساعة (ما عدا الإجازات)
+                    if shift_type in ['D12', 'N12', 'O12']:
+                        total_hours += 12
+                    elif shift_type == 'V':
+                        total_hours += 0
+                    else:
+                        total_hours += SHIFT_TYPES[shift_type]["hours"]
             
             total_hours_all += total_hours
             
             # حساب نسبة الإنجاز
-            completion_rate = int((total_hours / avg_monthly_hours) * 100) if avg_monthly_hours > 0 else 0
+            completion_rate = int((total_hours / (days_in_month * 12)) * 100) if days_in_month > 0 else 0
             
             row = {
                 "الموظف": emp['full_name'],
@@ -629,19 +579,19 @@ def show_shifts():
             
             # دليل الرموز
             st.markdown("### 🔑 دليل الرموز")
-            cols = st.columns(6)
-            codes_to_show = ["D8", "N12", "O6", "V", "E", "M"]
+            cols = st.columns(5)
+            codes_to_show = ["D12", "N12", "O12", "V", "CP8"]
             for i, code in enumerate(codes_to_show):
                 if code in SHIFT_TYPES:
                     info = SHIFT_TYPES[code]
-                    with cols[i % 6]:
+                    with cols[i % 5]:
                         st.markdown(f"<div style='background:{info['color']}; color:{info['text_color']}; padding:0.5rem; border-radius:8px; text-align:center;'><strong>{code}</strong> - {info['name']}</div>", unsafe_allow_html=True)
     
-    # ===== وضع التعديل مع حل مشكلة عدم التحديث =====
+    # ===== وضع التعديل =====
     elif view_mode == "✏️ تعديل":
         st.subheader("✏️ تعديل المناوبات")
         
-        # ===== حل مشكلة عدم التحديث =====
+        # حل مشكلة عدم التحديث
         if 'last_emp_selected' not in st.session_state:
             st.session_state.last_emp_selected = None
         
@@ -682,13 +632,23 @@ def show_shifts():
                 with col1:
                     day = st.number_input("اليوم", 1, days_in_month, 1, key="single_day")
                 with col2:
-                    shift_options = [""] + list(SHIFT_TYPES.keys())
+                    # رموز المناوبات (12 ساعة فقط)
+                    shift_options = [""] + ["D12", "N12", "O12", "V", "CP8", "CP24", "LN8"]
                     current_shift = emp_shifts.get(day, "")
                     current_index = shift_options.index(current_shift) if current_shift in shift_options else 0
                     new_shift = st.selectbox(
                         "المناوبة",
                         options=shift_options,
-                        format_func=lambda x: "بدون مناوبة" if x == "" else f"{x} - {SHIFT_TYPES[x]['name']}",
+                        format_func=lambda x: {
+                            "": "بدون مناوبة",
+                            "D12": "D12 - صباحي 12 س",
+                            "N12": "N12 - ليلي 12 س",
+                            "O12": "O12 - تداخلي 12 س",
+                            "V": "V - إجازة",
+                            "CP8": "CP8 - تكميلية 8 س",
+                            "CP24": "CP24 - تكميلية 24 س",
+                            "LN8": "LN8 - ليلي تكميلي 8 س"
+                        }.get(x, x),
                         index=current_index,
                         key="single_shift"
                     )
@@ -716,11 +676,20 @@ def show_shifts():
                 with col2:
                     to_day = st.number_input("إلى يوم", from_day, days_in_month, from_day, key="range_to")
                 
-                shift_options = [""] + list(SHIFT_TYPES.keys())
+                shift_options = [""] + ["D12", "N12", "O12", "V", "CP8", "CP24", "LN8"]
                 new_shift = st.selectbox(
                     "المناوبة",
                     options=shift_options,
-                    format_func=lambda x: "بدون مناوبة" if x == "" else f"{x} - {SHIFT_TYPES[x]['name']}",
+                    format_func=lambda x: {
+                        "": "بدون مناوبة",
+                        "D12": "D12 - صباحي 12 س",
+                        "N12": "N12 - ليلي 12 س",
+                        "O12": "O12 - تداخلي 12 س",
+                        "V": "V - إجازة",
+                        "CP8": "CP8 - تكميلية 8 س",
+                        "CP24": "CP24 - تكميلية 24 س",
+                        "LN8": "LN8 - ليلي تكميلي 8 س"
+                    }.get(x, x),
                     key="range_shift"
                 )
                 
@@ -769,8 +738,17 @@ def show_shifts():
                 
                 team_shift = st.selectbox(
                     "المناوبة للفريق كامل",
-                    options=[""] + list(SHIFT_TYPES.keys()),
-                    format_func=lambda x: "بدون مناوبة" if x == "" else f"{x} - {SHIFT_TYPES[x]['name']}",
+                    options=[""] + ["D12", "N12", "O12", "V", "CP8", "CP24", "LN8"],
+                    format_func=lambda x: {
+                        "": "بدون مناوبة",
+                        "D12": "D12 - صباحي 12 س",
+                        "N12": "N12 - ليلي 12 س",
+                        "O12": "O12 - تداخلي 12 س",
+                        "V": "V - إجازة",
+                        "CP8": "CP8 - تكميلية 8 س",
+                        "CP24": "CP24 - تكميلية 24 س",
+                        "LN8": "LN8 - ليلي تكميلي 8 س"
+                    }.get(x, x),
                     key="team_shift"
                 )
                 
@@ -791,15 +769,13 @@ def show_shifts():
             else:
                 st.info("لا توجد فرق واضحة في هذا المركز")
         
-        # ===== تبويب 3: أنماط التناوب =====
+        # ===== تبويب 3: أنماط التناوب (محدث) =====
         with edit_tabs[2]:
             st.markdown("#### أنماط التناوب")
             patterns = {
-                "نظام 2+2+4": ["D12", "D12", "N12", "N12", "", "", "", ""],
-                "نظام دوام رسمي": ["D8", "D8", "D8", "D8", "D8", "", ""],
-                "نظام تداخلي": ["O8", "O8", ""],
+                "نظام 2+2+4 (صباحي/ليلي)": ["D12", "D12", "N12", "N12", "", "", "", ""],
                 "نظام 3+3+3": ["D12", "D12", "D12", "N12", "N12", "N12", "", "", ""],
-                "نظام نهاية أسبوع": ["D8", "D8", "N8", "N8", "", "", ""],
+                "نظام تداخلي": ["O12", "O12", ""],
             }
             
             selected_pattern = st.selectbox("اختر النمط", list(patterns.keys()))
@@ -815,7 +791,7 @@ def show_shifts():
                         text_color = info.get('text_color', '#4A5568')
                         st.markdown(f"<div style='background:{bg_color}; color:{text_color}; padding:0.5rem; border-radius:8px; text-align:center;'>{p}</div>", unsafe_allow_html=True)
                     else:
-                        st.markdown(f"<div style='background:#E0E0E0; color:#4A5568; padding:0.5rem; border-radius:8px; text-align:center;'>-</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='background:#E0E0E0; color:#4A5568; padding:0.5rem; border-radius:8px; text-align:center;'>إجازة</div>", unsafe_allow_html=True)
             
             start_day = st.number_input("بدءًا من يوم", 1, days_in_month, 1)
             
@@ -832,6 +808,138 @@ def show_shifts():
                 st.success(f"✅ تم تطبيق نمط {selected_pattern} على {success_count} يوم")
                 st.session_state.reload_shifts = True
                 st.rerun()
+    
+    # ===== وضع التوليد التلقائي (محدث) =====
+    elif view_mode == "⚡ توليد تلقائي":
+        st.subheader("⚡ توليد مناوبات تلقائي للفرق")
+        
+        # استخراج الفرق
+        teams_data = {}
+        for emp in employees:
+            code = emp.get('emp_code', '')
+            if code and code[0] in 'ABCD':
+                team = code[0]
+                if team not in teams_data:
+                    teams_data[team] = []
+                teams_data[team].append(emp)
+        
+        if not teams_data:
+            st.warning("⚠️ لا توجد فرق واضحة في هذا المركز")
+            return
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            team_options = [f"الفريق {team} ({len(members)} موظف)" for team, members in teams_data.items()]
+            team_options.append("جميع الفرق")
+            selected_team_display = st.selectbox("👥 اختر الفريق", team_options)
+            
+            if selected_team_display == "جميع الفرق":
+                team_members = []
+                for team in teams_data.values():
+                    team_members.extend(team)
+            else:
+                team_letter = list(teams_data.keys())[team_options.index(selected_team_display)]
+                team_members = teams_data[team_letter]
+        
+        with col2:
+            generation_patterns = {
+                "نظام 2+2+4 (صباحي/ليلي)": {
+                    "pattern": ["D12", "D12", "N12", "N12", "", "", "", ""],
+                    "description": "2 صباحي، 2 ليلي، 4 إجازة"
+                },
+                "نظام 3+3+3": {
+                    "pattern": ["D12", "D12", "D12", "N12", "N12", "N12", "", "", ""],
+                    "description": "3 صباحي، 3 ليلي، 3 إجازة"
+                },
+                "نظام تداخلي": {
+                    "pattern": ["O12", "O12", ""],
+                    "description": "2 تداخلي، 1 إجازة"
+                }
+            }
+            
+            selected_pattern = st.selectbox("📊 اختر نمط التناوب", list(generation_patterns.keys()))
+            pattern_info = generation_patterns[selected_pattern]
+            st.caption(f"📝 {pattern_info['description']}")
+            
+            pattern = pattern_info["pattern"]
+            st.markdown("**نمط الدورة:**")
+            pattern_cols = st.columns(len(pattern))
+            for i, p in enumerate(pattern):
+                with pattern_cols[i]:
+                    if p:
+                        info = SHIFT_TYPES.get(p, {})
+                        bg_color = info.get('color', '#E0E0E0')
+                        st.markdown(f"<div style='background:{bg_color}; color:black; padding:0.3rem; border-radius:5px; text-align:center;'>{p}</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='background:#E0E0E0; padding:0.3rem; border-radius:5px; text-align:center;'>إجازة</div>", unsafe_allow_html=True)
+        
+        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            start_day = st.number_input("📅 بدء من يوم", 1, days_in_month, 1)
+        with col2:
+            rotation = st.selectbox("🔄 خيار التطبيق", ["نفس البداية للكل", "تدوير البداية"])
+        with col3:
+            ignore_weekends = st.checkbox("🚫 تجاهل عطل نهاية الأسبوع (جمعة/سبت)")
+        
+        st.markdown("---")
+        st.markdown(f"**👥 الموظفون المشمولون ({len(team_members)}):**")
+        
+        with st.expander("عرض قائمة الموظفين"):
+            for member in team_members:
+                st.markdown(f"- {member['full_name']} ({member.get('emp_no', '')})")
+        
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            generate_btn = st.button("⚡ توليد المناوبات", use_container_width=True, type="primary")
+        
+        if generate_btn:
+            if not team_members:
+                st.error("❌ لا يوجد موظفون في الفريق المحدد")
+            else:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                total_updates = 0
+                total_members = len(team_members)
+                
+                for member_idx, member in enumerate(team_members):
+                    status_text.text(f"جاري توليد مناوبات {member['full_name']}...")
+                    
+                    if rotation == "تدوير البداية":
+                        member_start = start_day + member_idx
+                        if member_start > days_in_month:
+                            member_start = ((member_start - 1) % days_in_month) + 1
+                    else:
+                        member_start = start_day
+                    
+                    day = member_start
+                    pattern_idx = 0
+                    
+                    while day <= days_in_month:
+                        if ignore_weekends:
+                            current_date = datetime(year, month, day)
+                            if current_date.weekday() in [4, 5]:
+                                day += 1
+                                continue
+                        
+                        shift_type = pattern[pattern_idx % len(pattern)]
+                        if shift_type:
+                            date_str = f"{year}-{month:02d}-{day:02d}"
+                            if ss.update_employee_shift(str(member["id"]), date_str, shift_type):
+                                total_updates += 1
+                        day += 1
+                        pattern_idx += 1
+                    
+                    progress_bar.progress((member_idx + 1) / total_members)
+                
+                status_text.text("")
+                st.success(f"✅ تم توليد {total_updates} مناوبة لـ {total_members} موظف")
+                st.balloons()
+                
+                if st.button("🔄 تحديث وعرض الجدول", use_container_width=True):
+                    st.cache_data.clear()
+                    st.rerun()
     
     # ===== وضع التكميل التلقائي =====
     elif view_mode == "🔄 تكميل الفرق":
@@ -1020,8 +1128,16 @@ def show_shifts():
             shift_date = st.date_input("📅 التاريخ", value=datetime(year, month, 1))
             shift_type = st.selectbox(
                 "⏰ نوع المناوبة",
-                options=list(SHIFT_TYPES.keys()),
-                format_func=lambda x: f"{x} - {SHIFT_TYPES[x]['name']} ({SHIFT_TYPES[x]['hours']} س)"
+                options=["D12", "N12", "O12", "V", "CP8", "CP24", "LN8"],
+                format_func=lambda x: {
+                    "D12": "D12 - صباحي 12 س",
+                    "N12": "N12 - ليلي 12 س",
+                    "O12": "O12 - تداخلي 12 س",
+                    "V": "V - إجازة",
+                    "CP8": "CP8 - تكميلية 8 س",
+                    "CP24": "CP24 - تكميلية 24 س",
+                    "LN8": "LN8 - ليلي تكميلي 8 س"
+                }.get(x, x)
             )
             
             emp_options = {f"{e['full_name']} ({e.get('emp_no', '')})": e["id"] for e in employees}
@@ -1044,151 +1160,6 @@ def show_shifts():
                     st.session_state.reload_shifts = True
                     st.rerun()
     
-    # ===== وضع التوليد التلقائي =====
-    elif view_mode == "⚡ توليد تلقائي":
-        st.subheader("⚡ توليد مناوبات تلقائي للفرق")
-        
-        # استخراج الفرق
-        teams_data = {}
-        for emp in employees:
-            code = emp.get('emp_code', '')
-            if code and code[0] in 'ABCD':
-                team = code[0]
-                if team not in teams_data:
-                    teams_data[team] = []
-                teams_data[team].append(emp)
-        
-        if not teams_data:
-            st.warning("⚠️ لا توجد فرق واضحة في هذا المركز")
-            return
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            team_options = [f"الفريق {team} ({len(members)} موظف)" for team, members in teams_data.items()]
-            team_options.append("جميع الفرق")
-            selected_team_display = st.selectbox("👥 اختر الفريق", team_options)
-            
-            if selected_team_display == "جميع الفرق":
-                team_members = []
-                for team in teams_data.values():
-                    team_members.extend(team)
-            else:
-                team_letter = list(teams_data.keys())[team_options.index(selected_team_display)]
-                team_members = teams_data[team_letter]
-        
-        with col2:
-            generation_patterns = {
-                "نظام 5 أيام عمل + 2 إجازة (صباحي)": {
-                    "pattern": ["D8", "D8", "D8", "D8", "D8", "", ""],
-                    "description": "أحد - خميس صباحي، جمعة - سبت إجازة"
-                },
-                "نظام 5 أيام عمل + 2 إجازة (ليلي)": {
-                    "pattern": ["N8", "N8", "N8", "N8", "N8", "", ""],
-                    "description": "أحد - خميس ليلي، جمعة - سبت إجازة"
-                },
-                "نظام 2+2+4": {
-                    "pattern": ["D12", "D12", "N12", "N12", "", "", "", ""],
-                    "description": "2 صباحي، 2 ليلي، 4 إجازة"
-                },
-                "نظام 3+3+3": {
-                    "pattern": ["D12", "D12", "D12", "N12", "N12", "N12", "", "", ""],
-                    "description": "3 صباحي، 3 ليلي، 3 إجازة"
-                },
-                "نظام تداخلي": {
-                    "pattern": ["O8", "O8", ""],
-                    "description": "2 تداخلي، 1 إجازة"
-                },
-                "نظام نهاية أسبوع": {
-                    "pattern": ["D8", "D8", "N8", "N8", "", "", ""],
-                    "description": "أحد-اثنين صباحي، ثلاثاء-أربعاء ليلي، خميس-سبت إجازة"
-                }
-            }
-            
-            selected_pattern = st.selectbox("📊 اختر نمط التناوب", list(generation_patterns.keys()))
-            pattern_info = generation_patterns[selected_pattern]
-            st.caption(f"📝 {pattern_info['description']}")
-            
-            pattern = pattern_info["pattern"]
-            st.markdown("**نمط الدورة:**")
-            pattern_cols = st.columns(len(pattern))
-            for i, p in enumerate(pattern):
-                with pattern_cols[i]:
-                    if p:
-                        info = SHIFT_TYPES.get(p, {})
-                        bg_color = info.get('color', '#E0E0E0')
-                        st.markdown(f"<div style='background:{bg_color}; color:black; padding:0.3rem; border-radius:5px; text-align:center;'>{p}</div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"<div style='background:#E0E0E0; padding:0.3rem; border-radius:5px; text-align:center;'>إجازة</div>", unsafe_allow_html=True)
-        
-        st.markdown("---")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            start_day = st.number_input("📅 بدء من يوم", 1, days_in_month, 1)
-        with col2:
-            rotation = st.selectbox("🔄 خيار التطبيق", ["نفس البداية للكل", "تدوير البداية"])
-        with col3:
-            ignore_weekends = st.checkbox("🚫 تجاهل عطل نهاية الأسبوع (جمعة/سبت)")
-        
-        st.markdown("---")
-        st.markdown(f"**👥 الموظفون المشمولون ({len(team_members)}):**")
-        
-        with st.expander("عرض قائمة الموظفين"):
-            for member in team_members:
-                st.markdown(f"- {member['full_name']} ({member.get('emp_no', '')})")
-        
-        col1, col2 = st.columns([3, 1])
-        with col2:
-            generate_btn = st.button("⚡ توليد المناوبات", use_container_width=True, type="primary")
-        
-        if generate_btn:
-            if not team_members:
-                st.error("❌ لا يوجد موظفون في الفريق المحدد")
-            else:
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                total_updates = 0
-                total_members = len(team_members)
-                
-                for member_idx, member in enumerate(team_members):
-                    status_text.text(f"جاري توليد مناوبات {member['full_name']}...")
-                    
-                    if rotation == "تدوير البداية":
-                        member_start = start_day + member_idx
-                        if member_start > days_in_month:
-                            member_start = ((member_start - 1) % days_in_month) + 1
-                    else:
-                        member_start = start_day
-                    
-                    day = member_start
-                    pattern_idx = 0
-                    
-                    while day <= days_in_month:
-                        # تجاهل عطل نهاية الأسبوع
-                        if ignore_weekends:
-                            current_date = datetime(year, month, day)
-                            if current_date.weekday() in [4, 5]:  # جمعة = 4, سبت = 5
-                                day += 1
-                                continue
-                        
-                        shift_type = pattern[pattern_idx % len(pattern)]
-                        if shift_type:
-                            date_str = f"{year}-{month:02d}-{day:02d}"
-                            if ss.update_employee_shift(str(member["id"]), date_str, shift_type):
-                                total_updates += 1
-                        day += 1
-                        pattern_idx += 1
-                    
-                    progress_bar.progress((member_idx + 1) / total_members)
-                
-                status_text.text("")
-                st.success(f"✅ تم توليد {total_updates} مناوبة لـ {total_members} موظف")
-                st.balloons()
-                
-                if st.button("🔄 تحديث وعرض الجدول", use_container_width=True):
-                    st.cache_data.clear()
-                    st.rerun()
-    
     # ===== وضع استيراد Excel =====
     elif view_mode == "📥 استيراد Excel":
         st.subheader("📥 استيراد مناوبات من Excel")
@@ -1199,7 +1170,7 @@ def show_shifts():
                 <li>الملف يجب أن يكون بصيغة Excel (.xlsx)</li>
                 <li>الأعمدة المطلوبة: <b>الرقم الوظيفي، اليوم، المناوبة</b></li>
                 <li>اليوم: رقم اليوم من 1 إلى 31</li>
-                <li>المناوبة: رمز المناوبة (D8, N12, V, CP8, ...)</li>
+                <li>المناوبة: D12, N12, O12, V, CP8, CP24, LN8</li>
                 <li>اترك الخلية فارغة إذا كان اليوم بدون مناوبة</li>
             </ul>
         </div>
