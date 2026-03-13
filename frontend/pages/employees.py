@@ -41,7 +41,7 @@ def is_hq_employee(emp_code: str) -> bool:
     return False
 
 def decode_employee_code(code: str) -> Dict[str, Any]:
-    """فك شفرة الموظف حسب نظام الفرق - محدث لدعم ترميز ديراب"""
+    """فك شفرة الموظف حسب نظام الفرق - محدث لدعم جميع الرموز"""
     if not code:
         return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
     
@@ -141,31 +141,40 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 4. فريق التداخلية (O12)
-    if code.startswith('O') and code[1:].isdigit():
-        center_num = int(code[1:])
-        center_info = CENTER_CODES.get(center_num, {
-            'name': f'تمركز {center_num}',
-            'type': 'تمركز',
-            'is_virtual': True
-        })
+    # 4. فريق التداخلية (O12, O14, O14A)
+    if code.startswith('O') and len(code) > 1:
+        team = code
+        team_name = "تداخلية"
+        if code == 'O12':
+            team_name = "تداخلية 12"
+        elif code == 'O14':
+            team_name = "تداخلية 14"
+        elif code == 'O14A':
+            team_name = "تداخلية 14A"
         return {
             'role': 'فريق تداخلية',
+            'team': team,
+            'team_name': team_name,
             'type': 'تداخلية',
             'category': 'overlap',
             'icon': '🔄',
             'color': '#45CFEF',
-            'center_num': center_num,
-            'center_name': center_info['name'],
-            'center_type': center_info.get('type', 'تمركز'),
-            'is_virtual': True,
+            'center': HQ_CENTER['name'],
+            'center_id': 'HQ',
+            'is_hq': True,
             'original': code
         }
     
     # 5. فريق التدخل السريع (RR)
     if code.startswith('RR'):
+        team = code
+        team_name = "تدخل سريع"
+        if len(code) > 2:
+            team_name = f"تدخل سريع {code[2:]}"
         return {
             'role': 'فريق تدخل سريع',
+            'team': team,
+            'team_name': team_name,
             'type': 'تدخل سريع',
             'category': 'rapid_response',
             'icon': '⚡',
@@ -178,8 +187,14 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
     
     # 6. العمليات (XW)
     if code.startswith('XW'):
+        team = code
+        team_name = "عمليات"
+        if len(code) > 2:
+            team_name = f"عمليات {code[2:]}"
         return {
             'role': 'فريق عمليات',
+            'team': team,
+            'team_name': team_name,
             'type': 'عمليات',
             'category': 'operations',
             'icon': '🖥️',
@@ -190,11 +205,30 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 7. الوحدات الخاصة (ST, TT, Y, YY, ...)
+    # 7. الدعم اللوجستي (AZ, BZ, CZ, DZ)
+    if code in ['AZ', 'BZ', 'CZ', 'DZ']:
+        team = code[0]
+        return {
+            'role': 'دعم لوجستي',
+            'team': f'{team}Z',
+            'team_name': f'الدعم اللوجستي {team}',
+            'type': 'دعم',
+            'category': 'logistic',
+            'icon': '📦',
+            'color': '#64748B',
+            'center': HQ_CENTER['name'],
+            'center_id': 'HQ',
+            'is_hq': True,
+            'original': code
+        }
+    
+    # 8. الوحدات الخاصة (ST, TT, Y, YY, ...)
     if code in SPECIAL_UNITS:
         unit = SPECIAL_UNITS[code]
         return {
             'role': unit['name'],
+            'team': code,
+            'team_name': unit['name'],
             'type': unit['category'],
             'category': 'special',
             'icon': unit['icon'],
@@ -205,7 +239,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 8. إذا ما تطابق مع أي شيء
+    # 9. إذا ما تطابق مع أي شيء
     return {
         'type': 'غير معروف',
         'category': 'unknown',
@@ -794,7 +828,7 @@ def show_employees():
             with c1:
                 emp_no = st.text_input("📋 الرقم الوظيفي *")
                 full_name = st.text_input("👤 الاسم الكامل *")
-                emp_code = st.text_input("🔤 رمز الموظف", placeholder="مثال: A10, B5, C0")
+                emp_code = st.text_input("🔤 رمز الموظف", placeholder="مثال: A10, B5, C0, RR1, XW2")
                 employee_type = st.selectbox("📌 الفئة", list(EMP_TYPE_LABELS.keys()), format_func=lambda x: EMP_TYPE_LABELS.get(x, x))
                 hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.now())
             with c2:
@@ -869,7 +903,7 @@ def show_employees():
                                 index=list(EMP_TYPE_LABELS.keys()).index(emp.get('employee_type', 'admin')) if emp.get('employee_type') in EMP_TYPE_LABELS else 0,
                                 format_func=lambda x: EMP_TYPE_LABELS.get(x, x)
                             )
-                            new_code = st.text_input("الرمز", value=emp.get('emp_code', ''), placeholder="مثال: A10, B5, C0")
+                            new_code = st.text_input("الرمز", value=emp.get('emp_code', ''), placeholder="مثال: A10, B5, C0, RR1, XW2")
                         
                         with qc2:
                             center_list = [c['name'] for c in centers]
@@ -963,7 +997,7 @@ def show_employees():
             with c1:
                 emp_no = st.text_input("📋 الرقم الوظيفي", value=emp.get("emp_no",""), disabled=True)
                 full_name = st.text_input("👤 الاسم الكامل *", value=emp.get("full_name",""))
-                emp_code = st.text_input("🔤 رمز الموظف", value=emp.get("emp_code",""), placeholder="مثال: A10, B5, C0")
+                emp_code = st.text_input("🔤 رمز الموظف", value=emp.get("emp_code",""), placeholder="مثال: A10, B5, C0, RR1, XW2")
                 national_id = st.text_input("🆔 رقم الهوية", value=emp.get("national_id",""))
                 hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.strptime(emp.get("hire_date","2020-01-01"), "%Y-%m-%d").date() if emp.get("hire_date") else datetime.now())
             with c2:
