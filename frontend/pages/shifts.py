@@ -560,12 +560,32 @@ def show_shifts():
                     with cols[i % 6]:
                         st.markdown(f"<div style='background:{info['color']}; color:{info['text_color']}; padding:0.5rem; border-radius:8px; text-align:center;'><strong>{code}</strong> - {info['name']}</div>", unsafe_allow_html=True)
     
-    # ===== وضع التعديل =====
+    # ===== وضع التعديل مع حل مشكلة عدم التحديث =====
     elif view_mode == "✏️ تعديل":
         st.subheader("✏️ تعديل المناوبات")
         
+        # ===== حل مشكلة عدم التحديث (الجديد) =====
+        if 'last_emp_selected' not in st.session_state:
+            st.session_state.last_emp_selected = None
+        
         emp_names = [f"{e['full_name']} ({e.get('emp_no', '')})" for e in employees]
-        selected_emp_name = st.selectbox("👤 اختر الموظف", emp_names)
+        
+        # نستخدم key ثابت للـ selectbox
+        selected_emp_name = st.selectbox("👤 اختر الموظف", emp_names, key="emp_selector")
+        
+        # إذا تغير الموظف، نعيد تعيين المفاتيح
+        if selected_emp_name != st.session_state.last_emp_selected:
+            st.session_state.last_emp_selected = selected_emp_name
+            
+            # حذف المفاتيح القديمة عشان تتجدد القيم
+            keys_to_clear = ['single_day', 'single_shift', 'range_from', 'range_to', 'range_shift']
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
+            
+            # نعيد تشغيل الصفحة عشان تظهر القيم الجديدة
+            st.rerun()
+        
         selected_emp = employees[emp_names.index(selected_emp_name)]
         emp_id = str(selected_emp["id"])
         
