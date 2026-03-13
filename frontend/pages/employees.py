@@ -9,6 +9,7 @@ from utils.constants import (
     get_center_name, is_virtual_center, get_shift_info, get_special_unit_info
 )
 from typing import Dict, List, Any, Optional
+import requests
 
 # ============================================================================
 # دوال فك الترميز (Decoding Functions) - محدثة
@@ -430,11 +431,66 @@ def get_user_employee_id():
     return st.session_state.get("user_employee_id")
 
 # ============================================================================
-# دوال استيراد Excel
+# دوال استيراد Excel - محدثة مع إنشاء تلقائي للمراكز
 # ============================================================================
 
+def ensure_center_exists(center_num, cs):
+    """التأكد من وجود المركز، وإنشائه إذا لم يكن موجوداً"""
+    try:
+        centers = cs.get_centers()
+        
+        # البحث عن المركز بالرقم
+        center_exists = any(c.get('code') == str(center_num) for c in centers)
+        
+        if not center_exists:
+            # أسماء المراكز
+            center_names = {
+                "1": "المنصورة",
+                "2": "الخالدية",
+                "3": "منفوحة",
+                "4": "الدار البيضاء",
+                "5": "العزيزية",
+                "6": "الإسكان",
+                "7": "الحائر",
+                "8": "الشفاء",
+                "9": "عكاظ",
+                "10": "ديراب",
+                "12": "التمركز"
+            }
+            
+            center_name = center_names.get(str(center_num), f"مركز {center_num}")
+            
+            # إنشاء المركز عبر API
+            center_data = {
+                "name": center_name,
+                "code": str(center_num),
+                "city": "الرياض" if center_num != 12 else "متنقل",
+                "is_active": True
+            }
+            
+            # استخدام requests مباشرة
+            import requests
+            from config import config
+            
+            response = requests.post(
+                f"{config.API_URL}/centers/",
+                headers=st.session_state.auth_service.get_headers(),
+                json=center_data
+            )
+            
+            if response.status_code == 201:
+                print(f"✅ تم إنشاء مركز {center_name} تلقائياً")
+                return True
+            else:
+                print(f"❌ فشل إنشاء المركز: {response.text}")
+                return False
+        return True
+    except Exception as e:
+        print(f"خطأ في التأكد من وجود المركز: {e}")
+        return False
+
 def import_employees_from_excel(uploaded_file, es, cs):
-    """استيراد الموظفين من ملف Excel"""
+    """استيراد الموظفين من ملف Excel مع إنشاء تلقائي للمراكز"""
     try:
         df = pd.read_excel(uploaded_file)
         
@@ -465,14 +521,6 @@ def import_employees_from_excel(uploaded_file, es, cs):
         # الحصول على مركز رئيسي (إذا ما فيه مراكز)
         centers = cs.get_centers() or []
         
-        # البحث عن المركز الرئيسي للقطاع
-        hq_center = next((c for c in centers if c.get('code') == 'HQ' or c.get('is_hq')), None)
-        default_center_id = str(hq_center['id']) if hq_center else (str(centers[0]['id']) if centers else None)
-        
-        if not default_center_id:
-            st.error("❌ لا يوجد مراكز في النظام. الرجاء إضافة مركز رئيسي أولاً.")
-            return 0, len(df)
-        
         success = 0
         failed = 0
         errors = []
@@ -488,15 +536,10 @@ def import_employees_from_excel(uploaded_file, es, cs):
                 job_title = str(row['طبيعة العمل']).strip()
                 emp_type = type_mapping.get(job_title, 'admin')
                 
-                employee_data = {
-                    'emp_no': emp_no,
-                    'full_name': str(row['الاسم']).strip(),
-                    'employee_type': emp_type,
-                    'center_id': default_center_id,
-                    'is_active': True
-                }
+                emp_code = None
+                center_id = None
                 
-                # إضافة الرمز إذا كان موجوداً
+                # استخراج الرمز
                 if has_emp_code and 'رمز' in row:
                     emp_code = str(row['رمز']).strip()
                     # توحيد ترميز ديراب
@@ -510,7 +553,42 @@ def import_employees_from_excel(uploaded_file, es, cs):
                         emp_code = 'D10'
                     
                     if emp_code and emp_code != 'nan':
-                        employee_data['emp_code'] = emp_code
+                        # استخراج رقم المركز من الكود (A1 -> 1, B10 -> 10)
+                        if len(emp_code) > 1 and emp_code[1:].isdigit():
+                            center_num = emp_code[1:]
+                            # التأكد من وجود المركز
+                            if ensure_center_exists(int(center_num), cs):
+                                # جلب المركز من قاعدة البيانات
+                                centers = cs.get_centers()
+                                for c in centers:
+                                    if c.get('code') == str(center_num):
+                                        center_id = c['id']
+                                        break
+                
+                # إذا لم نجد مركز من الرمز، استخدم المركز الرئيسي كبديل
+                if not center_id:
+                    # البحث عن المركز الرئيسي
+                    hq_center = next((c for c in centers if c.get('code') == 'HQ' or c.get('is_hq')), None)
+                    if hq_center:
+                        center_id = str(hq_center['id'])
+                    elif centers:
+                        center_id = str(centers[0]['id'])
+                
+                if not center_id:
+                    failed += 1
+                    errors.append(f"سطر {idx+2}: لا يوجد مركز متاح")
+                    continue
+                
+                employee_data = {
+                    'emp_no': emp_no,
+                    'full_name': str(row['الاسم']).strip(),
+                    'employee_type': emp_type,
+                    'center_id': center_id,
+                    'is_active': True
+                }
+                
+                if emp_code and emp_code != 'nan':
+                    employee_data['emp_code'] = emp_code
                 
                 # محاولة إنشاء الموظف
                 if es.create_employee(employee_data):
