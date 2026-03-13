@@ -156,7 +156,7 @@ def show_incidents():
             else:
                 st.info("لا توجد بيانات للعرض")
     
-    # ==================== تسجيل بلاغ جديد ====================
+    # ==================== تسجيل بلاغ جديد (محدث) ====================
     with tabs[1]:
         st.subheader("➕ تسجيل بلاغ جديد")
         
@@ -188,9 +188,30 @@ def show_incidents():
                     st.warning("لا توجد مراكز متاحة")
             
             with col2:
-                call_time = st.datetime_input("⏰ وقت البلاغ", value=datetime.now())
-                dispatch_time = st.datetime_input("🚑 وقت التوجيه", value=None)
-                arrival_time = st.datetime_input("✅ وقت الوصول", value=None)
+                # ===== تعديل: استبدال st.datetime_input =====
+                st.markdown("#### ⏰ وقت البلاغ")
+                col_date1, col_time1 = st.columns(2)
+                with col_date1:
+                    call_date = st.date_input("📅 التاريخ", value=datetime.now().date())
+                with col_time1:
+                    call_time = st.time_input("⏱️ الوقت", value=datetime.now().time())
+                call_datetime = datetime.combine(call_date, call_time)
+                
+                st.markdown("#### 🚑 وقت التوجيه (اختياري)")
+                col_date2, col_time2 = st.columns(2)
+                with col_date2:
+                    dispatch_date = st.date_input("📅 التاريخ", value=None, key="dispatch_date")
+                with col_time2:
+                    dispatch_time = st.time_input("⏱️ الوقت", value=None, key="dispatch_time")
+                dispatch_datetime = datetime.combine(dispatch_date, dispatch_time) if dispatch_date and dispatch_time else None
+                
+                st.markdown("#### ✅ وقت الوصول (اختياري)")
+                col_date3, col_time3 = st.columns(2)
+                with col_date3:
+                    arrival_date = st.date_input("📅 التاريخ", value=None, key="arrival_date")
+                with col_time3:
+                    arrival_time = st.time_input("⏱️ الوقت", value=None, key="arrival_time")
+                arrival_datetime = datetime.combine(arrival_date, arrival_time) if arrival_date and arrival_time else None
                 
                 # اختيار الفريق
                 if center_id:
@@ -215,14 +236,14 @@ def show_incidents():
                         "incident_number": incident_number,
                         "location": location,
                         "priority": priority,
-                        "call_time": call_time.isoformat(),
+                        "call_time": call_datetime.isoformat(),
                         "shift_id": None,  # يمكن ربطه بالمناوبة لاحقاً
                     }
                     
-                    if dispatch_time:
-                        incident_data["dispatch_time"] = dispatch_time.isoformat()
-                    if arrival_time:
-                        incident_data["arrival_time"] = arrival_time.isoformat()
+                    if dispatch_datetime:
+                        incident_data["dispatch_time"] = dispatch_datetime.isoformat()
+                    if arrival_datetime:
+                        incident_data["arrival_time"] = arrival_datetime.isoformat()
                     if assigned_crew:
                         incident_data["assigned_crew"] = str(assigned_crew)
                     
