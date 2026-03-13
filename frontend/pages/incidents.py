@@ -12,15 +12,15 @@ def _get_services():
     """تهيئة خدمات البلاغات"""
     auth = st.session_state.auth_service
     
-    is = st.session_state.get("incident_service")
+    inc_svc = st.session_state.get("incident_service")
     es = st.session_state.get("employee_service")
     cs = st.session_state.get("center_service")
     ss = st.session_state.get("shift_service")
     
-    if not is:
+    if not inc_svc:
         from services.incident_service import IncidentService
-        is = IncidentService(auth)
-        st.session_state.incident_service = is
+        inc_svc = IncidentService(auth)
+        st.session_state.incident_service = inc_svc
     
     if not es:
         from services.employee_service import EmployeeService
@@ -37,14 +37,14 @@ def _get_services():
         ss = ShiftService(auth)
         st.session_state.shift_service = ss
     
-    return is, es, cs, ss
+    return inc_svc, es, cs, ss
 
 def show_incidents():
     """صفحة إدارة البلاغات والإحصائيات"""
     
     page_header("🚨 إدارة البلاغات", "تسجيل وإحصاءات البلاغات لكل فريق", "🚑")
     
-    is_, es, cs, ss = _get_services()
+    inc_svc, es, cs, ss = _get_services()
     
     # تبويبات البلاغات
     tabs = st.tabs([
@@ -96,9 +96,9 @@ def show_incidents():
         
         # جلب إحصائيات البلاغات
         with st.spinner("جاري تحميل الإحصائيات..."):
-            team_stats = is_.get_incidents_stats_by_team(start_date_str, end_date_str)
-            center_stats = is_.get_incidents_stats_by_center(start_date_str, end_date_str)
-            avg_response = is_.get_avg_response_time(start_date_str, end_date_str)
+            team_stats = inc_svc.get_incidents_stats_by_team(start_date_str, end_date_str)
+            center_stats = inc_svc.get_incidents_stats_by_center(start_date_str, end_date_str)
+            avg_response = inc_svc.get_avg_response_time(start_date_str, end_date_str)
         
         # مؤشرات رئيسية
         total_incidents = sum([t.get("count", 0) for t in team_stats]) if team_stats else 0
@@ -227,7 +227,7 @@ def show_incidents():
                         incident_data["assigned_crew"] = str(assigned_crew)
                     
                     # إرسال البيانات
-                    result = is_.create_incident(incident_data)
+                    result = inc_svc.create_incident(incident_data)
                     if result:
                         st.success(f"✅ تم تسجيل البلاغ {incident_number} بنجاح")
                         st.balloons()
@@ -256,11 +256,11 @@ def show_incidents():
         
         # جلب الإحصائيات
         with st.spinner("جاري تحميل إحصائيات الفرق..."):
-            team_stats_detail = is_.get_incidents_stats_by_team(
+            team_stats_detail = inc_svc.get_incidents_stats_by_team(
                 stats_start.strftime("%Y-%m-%d"),
                 stats_end.strftime("%Y-%m-%d")
             )
-            avg_response_time = is_.get_avg_response_time(
+            avg_response_time = inc_svc.get_avg_response_time(
                 stats_start.strftime("%Y-%m-%d"),
                 stats_end.strftime("%Y-%m-%d")
             )
@@ -324,7 +324,7 @@ def show_incidents():
         
         # جلب البلاغات
         with st.spinner("جاري تحميل البلاغات..."):
-            incidents_data = is_.get_incidents(limit=500)
+            incidents_data = inc_svc.get_incidents(limit=500)
             incidents = incidents_data.get("items", [])
         
         if incidents:
