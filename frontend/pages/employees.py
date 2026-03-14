@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional
 import requests
 
 # ============================================================================
-# دوال فك الترميز (Decoding Functions) - النسخة النهائية
+# دوال فك الترميز (Decoding Functions) - النسخة النهائية مع أولوية صحيحة
 # ============================================================================
 
 def get_shift_display_name(shift_code: str) -> str:
@@ -41,7 +41,7 @@ def is_hq_employee(emp_code: str) -> bool:
     return False
 
 def decode_employee_code(code: str) -> Dict[str, Any]:
-    """فك شفرة الموظف حسب نظام الفرق - النسخة النهائية"""
+    """فك شفرة الموظف حسب نظام الفرق - مع أولوية رموز الموظفين"""
     if not code:
         return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
     
@@ -61,7 +61,34 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # التحقق إذا كان رمز مناوبة (D8, N12, V, ...)
+    # ===== أولوية رموز الموظفين (قبل المناوبات) =====
+    # أعضاء الفرق (A1, A2, A10, B1, B2, B10, C3, ...)
+    if code and code[0] in 'ABCD' and len(code) > 1 and code[1:].isdigit():
+        team = code[0]
+        center_num = int(code[1:])
+        team_info = TEAM_CODES.get(team, {})
+        center_info = CENTER_CODES.get(center_num, {
+            'name': f'مركز {center_num}',
+            'type': 'مركز',
+            'is_virtual': False
+        })
+        
+        return {
+            'role': 'عضو فريق',
+            'team': team,
+            'team_name': team_info.get('name', f'الفريق {team}'),
+            'type': 'مناوبة',
+            'category': 'shift',
+            'icon': '👤',
+            'color': team_info.get('color', '#64748B'),
+            'center_num': center_num,
+            'center_name': center_info['name'],
+            'center_type': center_info.get('type', 'مركز'),
+            'is_virtual': center_info.get('is_virtual', False),
+            'original': code
+        }
+    
+    # ===== التحقق من رموز المناوبات بعد الموظفين =====
     if code in SHIFT_TYPES:
         shift_info = SHIFT_TYPES[code]
         return {
@@ -131,33 +158,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 3. أعضاء الفرق (A1, B7, C3, ...) - باقي المراكز
-    if code and code[0] in 'ABCD' and code[1:].isdigit():
-        team = code[0]
-        center_num = int(code[1:])
-        team_info = TEAM_CODES.get(team, {})
-        center_info = CENTER_CODES.get(center_num, {
-            'name': f'مركز {center_num}',
-            'type': 'مركز',
-            'is_virtual': False
-        })
-        
-        return {
-            'role': 'عضو فريق',
-            'team': team,
-            'team_name': team_info.get('name', f'الفريق {team}'),
-            'type': 'مناوبة',
-            'category': 'shift',
-            'icon': '👤',
-            'color': team_info.get('color', '#64748B'),
-            'center_num': center_num,
-            'center_name': center_info['name'],
-            'center_type': center_info.get('type', 'مركز'),
-            'is_virtual': center_info.get('is_virtual', False),
-            'original': code
-        }
-    
-    # 4. فريق التداخلية (O12, O14, O14A)
+    # 3. فريق التداخلية (O12, O14, O14A)
     if code.startswith('O') and len(code) > 1:
         team = code
         team_name = "تداخلية"
@@ -181,7 +182,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 5. فريق التدخل السريع (RR)
+    # 4. فريق التدخل السريع (RR)
     if code.startswith('RR'):
         team = code
         team_name = "تدخل سريع"
@@ -201,7 +202,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 6. العمليات (XW)
+    # 5. العمليات (XW)
     if code.startswith('XW'):
         team = code
         team_name = "عمليات"
@@ -221,7 +222,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 7. الدعم اللوجستي (AZ, BZ, CZ, DZ)
+    # 6. الدعم اللوجستي (AZ, BZ, CZ, DZ)
     if code in ['AZ', 'BZ', 'CZ', 'DZ']:
         team = code[0]
         return {
@@ -238,7 +239,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 8. الوحدات الخاصة (ST, TT, Y, YY, ...)
+    # 7. الوحدات الخاصة (ST, TT, Y, YY, ...)
     if code in SPECIAL_UNITS:
         unit = SPECIAL_UNITS[code]
         return {
@@ -255,7 +256,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 9. إذا ما تطابق مع أي شيء
+    # 8. إذا ما تطابق مع أي شيء
     return {
         'type': 'غير معروف',
         'category': 'unknown',
