@@ -7,6 +7,7 @@ from utils.helpers import page_header, section_title
 from components.cards import kpi_row
 from components.charts import create_line_chart, display_chart
 from utils.constants import SHIFT_TYPES, get_all_shift_codes, get_shift_info
+import random  # 👈 أضفنا هذا
 
 # ===== دالة استيراد المناوبات من Excel =====
 def import_shifts_from_excel(uploaded_file, ss, employees, year, month):
@@ -85,7 +86,7 @@ def import_shifts_from_excel(uploaded_file, ss, employees, year, month):
         st.error(f"❌ خطأ في معالجة الملف: {str(e)}")
         return 0, 0
 
-# ===== دوام رسمي (للمدير والإداريين فقط) =====
+# ===== دوام رسمي =====
 def show_official_schedule():
     st.markdown("""
     <div style="
@@ -115,31 +116,21 @@ def show_official_schedule():
     </div>
     """, unsafe_allow_html=True)
 
-# ===== دالة حساب ساعات الموظف - محدثة =====
+# ===== دالة حساب ساعات الموظف =====
 def calculate_employee_hours(employee_data, emp_shifts, days_in_month, center_name):
     """
-    حساب ساعات الموظف - جميع الموظفين (ما عدا المدير والإداريين) = 12 ساعة
+    حساب ساعات الموظف
     """
     emp_code = employee_data.get('emp_code', '')
     
-    # ===== المدير والإداريين فقط (بدون ترميز) =====
-    if not emp_code or emp_code in ['مدير', 'اداري']:
-        working_days = 0
-        for day in range(1, days_in_month + 1):
-            shift_type = emp_shifts.get(day)
-            if shift_type and shift_type != 'V':
-                working_days += 1
-        return working_days * 8  # 8 ساعات دوام رسمي
-    
-    # ===== باقي الموظفين (الكل 12 ساعة) =====
     total = 0
     for day in range(1, days_in_month + 1):
         shift_type = emp_shifts.get(day)
         if shift_type and shift_type in SHIFT_TYPES:
-            # جميع المناوبات 12 ساعة (صباحي/ليلي)
             if shift_type in ['D12', 'N12', 'O12']:
                 total += 12
-            # للمناوبات التكميلية حسب ساعاتها
+            elif shift_type == 'V':
+                total += 0
             else:
                 total += SHIFT_TYPES[shift_type]["hours"]
     return total
@@ -472,8 +463,12 @@ def show_shifts():
     with col4:
         view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق", "📥 استيراد Excel"], horizontal=True)
     
-    # جلب الموظفين
-    employees = es.get_employees(center_id=center_id).get("items", [])
+    # ===== جلب الموظفين مع كسر Cache =====
+    with st.spinner("جاري تحميل الموظفين..."):
+        employees = es.get_employees(
+            center_id=center_id,
+            _cache_buster=random.randint(1, 10000)  # 👈 لكسر Cache
+        ).get("items", [])
     
     if not employees:
         st.warning(f"⚠️ لا يوجد موظفون في {selected_center}")
@@ -501,7 +496,6 @@ def show_shifts():
             continue
     
     days_in_month = calendar.monthrange(year, month)[1]
-    avg_monthly_hours = days_in_month * 8  # متوسط ساعات الشهر
     
     # ===== عرض الجدول =====
     if view_mode == "📋 الجدول":
@@ -518,7 +512,6 @@ def show_shifts():
             for day in range(1, days_in_month + 1):
                 shift_type = emp_shifts.get(day)
                 if shift_type and shift_type in SHIFT_TYPES:
-                    # جميع المناوبات 12 ساعة (ما عدا الإجازات)
                     if shift_type in ['D12', 'N12', 'O12']:
                         total_hours += 12
                     elif shift_type == 'V':
@@ -633,7 +626,6 @@ def show_shifts():
                 with col1:
                     day = st.number_input("اليوم", 1, days_in_month, 1, key="single_day")
                 with col2:
-                    # رموز المناوبات (12 ساعة فقط)
                     shift_options = [""] + ["D12", "N12", "O12", "V", "CP8", "CP24", "LN8"]
                     current_shift = emp_shifts.get(day, "")
                     current_index = shift_options.index(current_shift) if current_shift in shift_options else 0
@@ -770,7 +762,7 @@ def show_shifts():
             else:
                 st.info("لا توجد فرق واضحة في هذا المركز")
         
-        # ===== تبويب 3: أنماط التناوب (محدث) =====
+        # ===== تبويب 3: أنماط التناوب =====
         with edit_tabs[2]:
             st.markdown("#### أنماط التناوب")
             patterns = {
@@ -810,7 +802,7 @@ def show_shifts():
                 st.session_state.reload_shifts = True
                 st.rerun()
     
-    # ===== وضع التوليد التلقائي (محدث) =====
+    # ===== وضع التوليد التلقائي =====
     elif view_mode == "⚡ توليد تلقائي":
         st.subheader("⚡ توليد مناوبات تلقائي للفرق")
         

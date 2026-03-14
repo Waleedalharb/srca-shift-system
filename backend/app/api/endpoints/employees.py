@@ -15,14 +15,26 @@ from app.schemas.employee import (
 router = APIRouter()
 
 def get_center_from_code(db: Session, emp_code: str) -> Optional[UUID]:
-    """تحديد المركز المناسب بناءً على كود الموظف (نسخة محسنة)"""
+    """تحديد المركز المناسب بناءً على كود الموظف"""
     if not emp_code:
         return None
     
-    # 1. مدير القطاع (0) -> المركز الرئيسي (HQ)
-    if emp_code == '0':
+    # 1. مدير القطاع والقيادات (0, A0, B0, C0, D0) -> المركز الرئيسي (HQ)
+    if emp_code == '0' or (emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD'):
         center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
-        return center.id if center else None
+        if not center:
+            # إنشاء مركز HQ إذا لم يكن موجوداً
+            center = EmergencyCenter(
+                id=uuid4(),
+                name="المركز الرئيسي للقطاع",
+                code="HQ",
+                city="الرياض",
+                is_active=True
+            )
+            db.add(center)
+            db.commit()
+            db.refresh(center)
+        return center.id
     
     # 2. التداخلية والتدخل السريع -> التمركز (12)
     if emp_code.startswith('O') or emp_code.startswith('RR'):
@@ -32,21 +44,16 @@ def get_center_from_code(db: Session, emp_code: str) -> Optional[UUID]:
     # 3. أعضاء الفرق (A1, A2, A10, B1, B2, B10, C3, ...) -> المراكز 1-10
     if emp_code and emp_code[0] in 'ABCD' and len(emp_code) > 1 and emp_code[1:].isdigit():
         center_num = int(emp_code[1:])
-        if 1 <= center_num <= 10:  # فقط المراكز 1-10
+        if 1 <= center_num <= 10:
             center = db.query(EmergencyCenter).filter(EmergencyCenter.code == str(center_num)).first()
             return center.id if center else None
     
-    # 4. القيادات (A0, B0, C0, D0) -> المركز الرئيسي (HQ)
-    if emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD':
-        center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
-        return center.id if center else None
-    
-    # 5. العمليات (XW) -> المركز الرئيسي (HQ)
+    # 4. العمليات (XW) -> المركز الرئيسي (HQ)
     if emp_code.startswith('XW'):
         center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
         return center.id if center else None
     
-    # 6. الوحدات الخاصة والدعم (ST, TT, Y, YY, Z, AZ, BZ, CZ, DZ) -> المركز الرئيسي (HQ)
+    # 5. الوحدات الخاصة والدعم (ST, TT, Y, YY, Z, AZ, BZ, CZ, DZ) -> المركز الرئيسي (HQ)
     special_codes = ['ST', 'TT', 'Y', 'YY', 'YYY', 'YYYY', 'Z', 'AZ', 'BZ', 'CZ', 'DZ']
     if emp_code in special_codes:
         center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
@@ -63,6 +70,7 @@ def get_employees(
     center_id: Optional[str] = Query(None, description="تصفية حسب المركز"),
     search: Optional[str] = Query(None, description="بحث بالاسم أو الرقم الوظيفي"),
     employee_type: Optional[str] = Query(None, description="نوع الموظف"),
+    _cache_buster: Optional[int] = Query(None, description="لكسر Cache"),
 ) -> dict:
     """جلب قائمة الموظفين حسب الصلاحية"""
     
@@ -70,22 +78,18 @@ def get_employees(
     
     # ===== تصفية حسب صلاحية المستخدم =====
     if current_user.role.value == "field_leader":
-        # مشرف مركز - يشوف موظفي مركزه فقط
         if current_user.employee and current_user.employee.center_id:
             query = query.filter(Employee.center_id == current_user.employee.center_id)
         else:
             return {"total": 0, "items": []}
     
     elif current_user.role.value in ["paramedic", "emt"]:
-        # موظف عادي - يشوف نفسه فقط
         if current_user.employee:
             query = query.filter(Employee.id == current_user.employee.id)
         else:
             return {"total": 0, "items": []}
     
-    # كبير المسعفين والمشرفين يشوفون الكل
-    
-    # تصفية حسب المركز (إذا أضيفت)
+    # تصفية حسب المركز
     if center_id:
         try:
             center_uuid = UUID(center_id)
@@ -119,13 +123,9 @@ def get_employees_stats(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> dict:
-    """
-    إحصائيات سريعة عن الموظفين
-    """
-    # بناء الاستعلام الأساسي
+    """إحصائيات سريعة عن الموظفين"""
     query = db.query(Employee)
     
-    # تصفية حسب صلاحية المستخدم
     if current_user.role.value == "field_leader":
         if current_user.employee and current_user.employee.center_id:
             query = query.filter(Employee.center_id == current_user.employee.center_id)
@@ -133,31 +133,19 @@ def get_employees_stats(
         if current_user.employee:
             query = query.filter(Employee.id == current_user.employee.id)
         else:
-            return {
-                "total": 0,
-                "by_type": {"paramedics": 0, "emts": 0, "admins": 0},
-                "on_duty": 0,
-                "available": 0,
-                "top_centers": []
-            }
+            return {"total": 0, "by_type": {}, "on_duty": 0, "available": 0, "top_centers": []}
     
-    # إجمالي الموظفين
     total = query.count()
     
-    # حسب النوع
     by_type = {
         "paramedics": query.filter(Employee.employee_type == "paramedic").count(),
         "emts": query.filter(Employee.employee_type == "emt").count(),
         "admins": query.filter(Employee.employee_type == "admin").count()
     }
     
-    # الحضور الآن
     on_duty = query.filter(Employee.is_on_duty == True).count()
-    
-    # الموظفين المتاحين
     available = query.filter(Employee.is_available == True).count()
     
-    # حسب المراكز (للمديرين فقط)
     top_centers = []
     if current_user.role.value in ["chief_paramedic", "operations_supervisor", "admin"]:
         from app.models.center import EmergencyCenter
@@ -183,15 +171,9 @@ def get_employee(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Employee:
-    """جلب بيانات موظف محدد"""
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    
     if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="الموظف غير موجود"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الموظف غير موجود")
     return employee
 
 @router.post("/", response_model=EmployeeSchema, status_code=status.HTTP_201_CREATED)
@@ -200,32 +182,24 @@ def create_employee(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Employee:
-    """إنشاء موظف جديد - يحترم center_id المرسل من الفرونتند"""
-    
     # التحقق من عدم تكرار الرقم الوظيفي
     existing = db.query(Employee).filter(Employee.emp_no == employee_in.emp_no).first()
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="الرقم الوظيفي موجود مسبقاً"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="الرقم الوظيفي موجود مسبقاً")
     
-    # 👇 التعديل المهم: نستخدم center_id اللي جا من الفرونتند أولاً
+    # استخدام center_id المرسل من الفرونتند أولاً
     center_id = employee_in.center_id
     
-    # إذا ما كان فيه center_id من الفرونتند، نحاول نحسبه من الكود
+    # إذا لم يكن موجود، نحسب من الكود
     if not center_id and employee_in.emp_code:
         auto_center_id = get_center_from_code(db, employee_in.emp_code)
         if auto_center_id:
             center_id = auto_center_id
     
-    # إذا كان مشرف مركز، يتأكد أن الموظف الجديد في مركزه
+    # التحقق من صلاحية مشرف المركز
     if current_user.role.value == "field_leader":
         if current_user.employee and current_user.employee.center_id != center_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="لا يمكنك إضافة موظف لمركز آخر"
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="لا يمكنك إضافة موظف لمركز آخر")
     
     employee = Employee(
         id=uuid4(),
@@ -255,24 +229,14 @@ def update_employee(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Employee:
-    """تحديث بيانات موظف"""
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    
     if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="الموظف غير موجود"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الموظف غير موجود")
     
-    # التحقق من الصلاحية
     if current_user.role.value == "field_leader":
         if current_user.employee and employee.center_id != current_user.employee.center_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="لا يمكنك تعديل موظف من مركز آخر"
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="لا يمكنك تعديل موظف من مركز آخر")
     
-    # تحديث البيانات
     update_data = employee_in.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(employee, field, value)
@@ -288,21 +252,12 @@ def delete_employee(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> None:
-    """حذف موظف - فقط كبير المسعفين يمكنه الحذف"""
-    # التحقق من الصلاحية يدوياً
     if current_user.role.value != "chief_paramedic":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="فقط كبير المسعفين يمكنه حذف الموظفين"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="فقط كبير المسعفين يمكنه حذف الموظفين")
     
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    
     if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="الموظف غير موجود"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الموظف غير موجود")
     
     db.delete(employee)
     db.commit()

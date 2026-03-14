@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional
 import requests
 
 # ============================================================================
-# دوال فك الترميز (Decoding Functions) - النسخة النهائية مع أولوية صحيحة
+# دوال فك الترميز (Decoding Functions) - النسخة النهائية
 # ============================================================================
 
 def get_shift_display_name(shift_code: str) -> str:
@@ -26,8 +26,8 @@ def is_hq_employee(emp_code: str) -> bool:
     if not emp_code:
         return False
     
-    # القيادات (A0, B0, C0, D0)
-    if emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD':
+    # مدير القطاع والقيادات (0, A0, B0, C0, D0)
+    if emp_code == '0' or (emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD'):
         return True
     
     # العمليات (XW1 → XW5)
@@ -35,7 +35,7 @@ def is_hq_employee(emp_code: str) -> bool:
         return True
     
     # الوحدات الخاصة والدعم
-    if emp_code in SPECIAL_UNITS:
+    if emp_code in SPECIAL_UNITS or emp_code in ['AZ', 'BZ', 'CZ', 'DZ']:
         return True
     
     return False
@@ -45,24 +45,27 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
     if not code:
         return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
     
-    # ===== مدير القطاع (مشعل الحجيلي) =====
-    if code == '0':
+    # ===== مدير القطاع والقيادات (0, A0, B0, C0, D0) =====
+    if code == '0' or (code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD'):
+        team = code[0] if code != '0' else ''
+        role = 'مدير القطاع' if code == '0' else 'قائد فريق'
+        team_name = 'الإدارة' if code == '0' else f'الفريق {team}'
+        
         return {
-            'role': 'مدير القطاع',
-            'team': 'الإدارة',
-            'team_name': 'الإدارة',
+            'role': role,
+            'team': team,
+            'team_name': team_name,
             'type': 'قيادة',
             'category': 'leadership',
             'icon': '👑',
             'color': '#CE2E26',
-            'center': HQ_CENTER['name'],
+            'center': 'المركز الرئيسي للقطاع',
             'center_id': 'HQ',
             'is_hq': True,
             'original': code
         }
     
-    # ===== أولوية رموز الموظفين (قبل المناوبات) =====
-    # أعضاء الفرق (A1, A2, A10, B1, B2, B10, C3, ...)
+    # ===== أعضاء الفرق (A1, A2, A10, B1, B2, B10, C3, ...) =====
     if code and code[0] in 'ABCD' and len(code) > 1 and code[1:].isdigit():
         team = code[0]
         center_num = int(code[1:])
@@ -104,7 +107,6 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
         }
     
     # ===== دعم الترميز القديم لمركز ديراب =====
-    # تحويل الرموز القديمة إلى الصيغة الجديدة
     if code.lower() in ['aa', 'aa10']:
         return decode_employee_code('A10')
     if code.lower() in ['bb', 'bb10']:
@@ -114,10 +116,10 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
     if code.lower() in ['dd', 'dd10']:
         return decode_employee_code('D10')
     
-    # 1. الترميز الجديد لمركز ديراب (A10, B10, C10, D10)
+    # ===== الترميز الجديد لمركز ديراب (A10, B10, C10, D10) =====
     if code in ['A10', 'B10', 'C10', 'D10']:
         team = code[0]
-        center_num = 10  # ديراب
+        center_num = 10
         team_info = TEAM_CODES.get(team, {})
         center_info = CENTER_CODES.get(center_num, {
             'name': f'مركز {center_num}',
@@ -140,25 +142,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # 2. القيادات (A0, B0, C0, D0)
-    if code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD':
-        team = code[0]
-        team_info = TEAM_CODES.get(team, {})
-        return {
-            'role': 'قائد فريق',
-            'team': team,
-            'team_name': team_info.get('name', f'الفريق {team}'),
-            'type': 'قيادة',
-            'category': 'leadership',
-            'icon': '👑',
-            'color': '#CE2E26',
-            'center': HQ_CENTER['name'],
-            'center_id': 'HQ',
-            'is_hq': True,
-            'original': code
-        }
-    
-    # 3. فريق التداخلية (O12, O14, O14A)
+    # ===== فريق التداخلية (O12, O14, O14A) =====
     if code.startswith('O') and len(code) > 1:
         team = code
         team_name = "تداخلية"
@@ -176,13 +160,13 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'category': 'overlap',
             'icon': '🔄',
             'color': '#45CFEF',
-            'center': HQ_CENTER['name'],
+            'center': 'المركز الرئيسي للقطاع',
             'center_id': 'HQ',
             'is_hq': True,
             'original': code
         }
     
-    # 4. فريق التدخل السريع (RR)
+    # ===== فريق التدخل السريع (RR) =====
     if code.startswith('RR'):
         team = code
         team_name = "تدخل سريع"
@@ -196,13 +180,13 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'category': 'rapid_response',
             'icon': '⚡',
             'color': '#CE2E26',
-            'center': HQ_CENTER['name'],
+            'center': 'المركز الرئيسي للقطاع',
             'center_id': 'HQ',
             'is_hq': True,
             'original': code
         }
     
-    # 5. العمليات (XW)
+    # ===== العمليات (XW) =====
     if code.startswith('XW'):
         team = code
         team_name = "عمليات"
@@ -216,13 +200,13 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'category': 'operations',
             'icon': '🖥️',
             'color': '#513A87',
-            'center': HQ_CENTER['name'],
+            'center': 'المركز الرئيسي للقطاع',
             'center_id': 'HQ',
             'is_hq': True,
             'original': code
         }
     
-    # 6. الدعم اللوجستي (AZ, BZ, CZ, DZ)
+    # ===== الدعم اللوجستي (AZ, BZ, CZ, DZ) =====
     if code in ['AZ', 'BZ', 'CZ', 'DZ']:
         team = code[0]
         return {
@@ -233,13 +217,13 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'category': 'logistic',
             'icon': '📦',
             'color': '#64748B',
-            'center': HQ_CENTER['name'],
+            'center': 'المركز الرئيسي للقطاع',
             'center_id': 'HQ',
             'is_hq': True,
             'original': code
         }
     
-    # 7. الوحدات الخاصة (ST, TT, Y, YY, ...)
+    # ===== الوحدات الخاصة (ST, TT, Y, YY, ...) =====
     if code in SPECIAL_UNITS:
         unit = SPECIAL_UNITS[code]
         return {
@@ -250,13 +234,13 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'category': 'special',
             'icon': unit['icon'],
             'color': unit['color'],
-            'center': HQ_CENTER['name'],
+            'center': 'المركز الرئيسي للقطاع',
             'center_id': 'HQ',
             'is_hq': True,
             'original': code
         }
     
-    # 8. إذا ما تطابق مع أي شيء
+    # ===== إذا ما تطابق مع أي شيء =====
     return {
         'type': 'غير معروف',
         'category': 'unknown',
@@ -339,7 +323,7 @@ def employee_card(emp: Dict[str, Any]):
     """, unsafe_allow_html=True)
 
 def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
-    """لوحة معلومات المركز الرئيسي - النسخة المحسنة"""
+    """لوحة معلومات المركز الرئيسي"""
     if not hq_employees:
         st.info("لا يوجد موظفون في المركز الرئيسي")
         return
@@ -347,22 +331,18 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
     st.markdown("### 🏢 المركز الرئيسي للقطاع")
     
     # تصنيف الموظفين
-    leadership = []  # القيادات (A0, B0, ...) + مدير القطاع
+    leadership = []  # مدير القطاع والقيادات (0, A0, B0, ...)
     operations = []   # العمليات (XW)
     rapid_response = []  # التدخل السريع (RR)
     support = []      # الدعم (Y, YY, ...)
     special = []      # وحدات خاصة (ST, TT)
-    shift_employees = []  # موظفين برموز مناوبات (A1, B2, C3, O12, ...)
+    shift_employees = []  # باقي الموظفين
     
     for emp in hq_employees:
         code = emp.get('emp_code', '')
         
-        # مدير القطاع
-        if code == '0':
-            leadership.append(emp)
-        
-        # القيادات (A0, B0, C0, D0)
-        elif code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD':
+        # مدير القطاع والقيادات
+        if code == '0' or (code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD'):
             leadership.append(emp)
         
         # العمليات (XW)
@@ -381,7 +361,7 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
         elif code in SPECIAL_UNITS or code in ['AZ', 'BZ', 'CZ', 'DZ']:
             support.append(emp)
         
-        # باقي الموظفين (A1, B2, C3, O12, ...)
+        # باقي الموظفين
         else:
             shift_employees.append(emp)
     
@@ -401,7 +381,6 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
         st.metric("🚛 وحدات خاصة", len(special))
     
     # تبويبات للعرض
-    tabs_list = []
     tab_names = []
     if leadership:
         tab_names.append("👑 القيادات")
@@ -500,7 +479,7 @@ def get_user_employee_id():
     return st.session_state.get("user_employee_id")
 
 # ============================================================================
-# دوال استيراد Excel - محدثة مع إنشاء تلقائي للمراكز
+# دوال استيراد Excel
 # ============================================================================
 
 def ensure_center_exists(center_num, cs):
@@ -524,7 +503,8 @@ def ensure_center_exists(center_num, cs):
                 "8": "الشفاء",
                 "9": "عكاظ",
                 "10": "ديراب",
-                "12": "التمركز"
+                "12": "التمركز",
+                "HQ": "المركز الرئيسي للقطاع"
             }
             
             center_name = center_names.get(str(center_num), f"مركز {center_num}")
@@ -537,7 +517,6 @@ def ensure_center_exists(center_num, cs):
                 "is_active": True
             }
             
-            # استخدام requests مباشرة
             import requests
             from config import config
             
@@ -559,7 +538,7 @@ def ensure_center_exists(center_num, cs):
         return False
 
 def import_employees_from_excel(uploaded_file, es, cs):
-    """استيراد الموظفين من ملف Excel مع إنشاء تلقائي للمراكز"""
+    """استيراد الموظفين من ملف Excel"""
     try:
         df = pd.read_excel(uploaded_file)
         
@@ -796,8 +775,8 @@ def show_employees():
                 emp['emp_code'] = emp.get('emp_no', '')
         
         # تقسيم الموظفين
-        hq_employees = [e for e in all_employees if is_hq_employee(e.get('emp_code', '')) or e.get('emp_code') == '0']
-        center_employees = [e for e in all_employees if not is_hq_employee(e.get('emp_code', '')) and e.get('emp_code') != '0']
+        hq_employees = [e for e in all_employees if is_hq_employee(e.get('emp_code', ''))]
+        center_employees = [e for e in all_employees if not is_hq_employee(e.get('emp_code', ''))]
         
         # إحصائيات سريعة
         total = len(all_employees)
@@ -820,7 +799,7 @@ def show_employees():
             st.markdown("### 🏥 موظفو المراكز")
             
             # فلترة حسب المركز
-            center_options = ["الكل"] + [c['name'] for c in centers if not c.get('is_hq', False)]
+            center_options = ["الكل"] + [c['name'] for c in centers if c.get('code') not in ['HQ', '0']]
             selected_center = st.selectbox("🏥 المركز", center_options)
             
             if selected_center == "الكل":
@@ -863,7 +842,7 @@ def show_employees():
             with c1:
                 emp_no = st.text_input("📋 الرقم الوظيفي *")
                 full_name = st.text_input("👤 الاسم الكامل *")
-                emp_code = st.text_input("🔤 رمز الموظف", placeholder="مثال: A10, B5, C0, RR1, XW2")
+                emp_code = st.text_input("🔤 رمز الموظف", placeholder="مثال: A1, B5, C10, D0, RR1, XW2")
                 employee_type = st.selectbox("📌 الفئة", list(EMP_TYPE_LABELS.keys()), format_func=lambda x: EMP_TYPE_LABELS.get(x, x))
                 hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.now())
             with c2:
@@ -872,7 +851,6 @@ def show_employees():
                 email = st.text_input("📧 البريد")
                 
                 center_opts = {c["name"]: c["id"] for c in centers}
-                center_opts["المركز الرئيسي"] = next((c['id'] for c in centers if c.get('is_hq')), None)
                 sel_center = st.selectbox("🏥 المركز *", list(center_opts.keys()))
                 center_id = center_opts.get(sel_center)
             
@@ -938,13 +916,10 @@ def show_employees():
                                 index=list(EMP_TYPE_LABELS.keys()).index(emp.get('employee_type', 'admin')) if emp.get('employee_type') in EMP_TYPE_LABELS else 0,
                                 format_func=lambda x: EMP_TYPE_LABELS.get(x, x)
                             )
-                            new_code = st.text_input("الرمز", value=emp.get('emp_code', ''), placeholder="مثال: A10, B5, C0, RR1, XW2")
+                            new_code = st.text_input("الرمز", value=emp.get('emp_code', ''), placeholder="مثال: A1, B5, C10")
                         
                         with qc2:
                             center_list = [c['name'] for c in centers]
-                            if "المركز الرئيسي" not in center_list:
-                                center_list.append("المركز الرئيسي")
-                            
                             current_center = next((c['name'] for c in centers if c['id'] == emp.get('center_id')), "المركز الرئيسي")
                             new_center = st.selectbox(
                                 "المركز",
@@ -955,10 +930,7 @@ def show_employees():
                         
                         if st.form_submit_button("💾 حفظ", use_container_width=True, type="primary"):
                             # تحديد ID المركز
-                            if new_center == "المركز الرئيسي":
-                                center_id = next((c['id'] for c in centers if c.get('is_hq')), None)
-                            else:
-                                center_id = next((c['id'] for c in centers if c['name'] == new_center), None)
+                            center_id = next((c['id'] for c in centers if c['name'] == new_center), None)
                             
                             if center_id:
                                 data = {
@@ -1032,7 +1004,7 @@ def show_employees():
             with c1:
                 emp_no = st.text_input("📋 الرقم الوظيفي", value=emp.get("emp_no",""), disabled=True)
                 full_name = st.text_input("👤 الاسم الكامل *", value=emp.get("full_name",""))
-                emp_code = st.text_input("🔤 رمز الموظف", value=emp.get("emp_code",""), placeholder="مثال: A10, B5, C0, RR1, XW2")
+                emp_code = st.text_input("🔤 رمز الموظف", value=emp.get("emp_code",""), placeholder="مثال: A1, B5, C10")
                 national_id = st.text_input("🆔 رقم الهوية", value=emp.get("national_id",""))
                 hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.strptime(emp.get("hire_date","2020-01-01"), "%Y-%m-%d").date() if emp.get("hire_date") else datetime.now())
             with c2:
@@ -1045,7 +1017,6 @@ def show_employees():
                 employee_type = st.selectbox("📌 الفئة", type_list, index=type_index, format_func=lambda x: EMP_TYPE_LABELS.get(x, x))
                 
                 center_opts = {c["name"]: c["id"] for c in centers}
-                center_opts["المركز الرئيسي"] = next((c['id'] for c in centers if c.get('is_hq')), None)
                 current_center = next((c["name"] for c in centers if c["id"] == emp.get("center_id")), "")
                 sel_center = st.selectbox("🏥 المركز", list(center_opts.keys()), index=list(center_opts.keys()).index(current_center) if current_center in center_opts else 0)
             
