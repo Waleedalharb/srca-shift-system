@@ -30,7 +30,6 @@ def get_center_from_code(db: Session, emp_code: str) -> Optional[UUID]:
         return center.id if center else None
     
     # 3. أعضاء الفرق (A1, A2, A10, B1, B2, B10, C3, ...) -> المراكز 1-10
-    # هذا الشرط يجب أن يأتي قبل القيادات عشان A10 ما يروح للقيادات
     if emp_code and emp_code[0] in 'ABCD' and len(emp_code) > 1 and emp_code[1:].isdigit():
         center_num = int(emp_code[1:])
         if 1 <= center_num <= 10:  # فقط المراكز 1-10
@@ -55,7 +54,6 @@ def get_center_from_code(db: Session, emp_code: str) -> Optional[UUID]:
     
     return None
 
-# باقي الدوال كما هي (لم تتغير)
 @router.get("/", response_model=EmployeeList)
 def get_employees(
     db: Session = Depends(deps.get_db),
@@ -202,7 +200,7 @@ def create_employee(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Employee:
-    """إنشاء موظف جديد - مع تحديد المركز تلقائياً حسب الكود"""
+    """إنشاء موظف جديد - يحترم center_id المرسل من الفرونتند"""
     
     # التحقق من عدم تكرار الرقم الوظيفي
     existing = db.query(Employee).filter(Employee.emp_no == employee_in.emp_no).first()
@@ -212,9 +210,11 @@ def create_employee(
             detail="الرقم الوظيفي موجود مسبقاً"
         )
     
-    # تحديد المركز بناءً على كود الموظف
+    # 👇 التعديل المهم: نستخدم center_id اللي جا من الفرونتند أولاً
     center_id = employee_in.center_id
-    if employee_in.emp_code:
+    
+    # إذا ما كان فيه center_id من الفرونتند، نحاول نحسبه من الكود
+    if not center_id and employee_in.emp_code:
         auto_center_id = get_center_from_code(db, employee_in.emp_code)
         if auto_center_id:
             center_id = auto_center_id
@@ -248,7 +248,6 @@ def create_employee(
     
     return employee
 
-# ✅ دالة تحديث الموظف
 @router.put("/{employee_id}", response_model=EmployeeSchema)
 def update_employee(
     employee_id: UUID,
