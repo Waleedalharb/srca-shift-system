@@ -10,7 +10,7 @@ class Employee(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     emp_no = Column(String(10), unique=True, nullable=False, index=True)
-    emp_code = Column(String(20), nullable=True)  # ✅ رمز الموظف (A1, B7, O12, ...)
+    emp_code = Column(String(20), nullable=True)  # رمز الموظف (A1, B7, O12, ...)
     full_name = Column(String(100), nullable=False)
     national_id = Column(String(20), unique=True)
     phone = Column(String(20))
@@ -26,7 +26,7 @@ class Employee(Base):
     supervisor_id = Column(UUID, ForeignKey("employees.id"), nullable=True)
     
     # الحالة الحالية
-    is_active = Column(Boolean, default=True)  # ✅ حالة النشاط
+    is_active = Column(Boolean, default=True)
     is_on_duty = Column(Boolean, default=False)
     is_available = Column(Boolean, default=True)
     current_shift_id = Column(UUID, ForeignKey("shifts.id"), nullable=True)
@@ -48,6 +48,5 @@ class Employee(Base):
     leaves = relationship("Leave", back_populates="employee", foreign_keys="[Leave.employee_id]")
     
     def __repr__(self):
-        # عرض حالة النشاط في التمثيل النصي
         active_status = "نشط" if self.is_active else "غير نشط"
         return f"<Employee {self.emp_no}: {self.full_name} ({active_status})>"

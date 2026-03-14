@@ -6,7 +6,7 @@ from typing import Optional, List
 
 from app.api import deps
 from app.models.employee import Employee
-from app.models.center import EmergencyCenter  # 👈 أضفنا هذا
+from app.models.center import EmergencyCenter
 from app.models.user import User
 from app.schemas.employee import (
     EmployeeCreate, EmployeeUpdate, Employee as EmployeeSchema, EmployeeList
@@ -230,7 +230,7 @@ def create_employee(
         employee_type=employee_in.employee_type,
         center_id=center_id,
         role_id=employee_in.role_id,
-        emp_code=employee_in.emp_code,  # 👈 أضفنا هذا
+        emp_code=employee_in.emp_code,
         is_active=True
     )
     
