@@ -26,8 +26,8 @@ def is_hq_employee(emp_code: str) -> bool:
     if not emp_code:
         return False
     
-    # مدير القطاع والقيادات (0, A0, B0, C0, D0)
-    if emp_code == '0' or (emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD'):
+    # مدير القطاع (0) والقيادات (A0, B0, C0, D0)
+    if emp_code == '0' or emp_code in ['A0', 'B0', 'C0', 'D0']:
         return True
     
     # العمليات (XW1 → XW5)
@@ -41,20 +41,16 @@ def is_hq_employee(emp_code: str) -> bool:
     return False
 
 def decode_employee_code(code: str) -> Dict[str, Any]:
-    """فك شفرة الموظف حسب نظام الفرق - مع أولوية رموز الموظفين"""
+    """فك شفرة الموظف حسب نظام الفرق - مع أولوية صحيحة للرموز"""
     if not code:
         return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
     
-    # ===== مدير القطاع والقيادات (0, A0, B0, C0, D0) =====
-    if code == '0' or (code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD'):
-        team = code[0] if code != '0' else ''
-        role = 'مدير القطاع' if code == '0' else 'قائد فريق'
-        team_name = 'الإدارة' if code == '0' else f'الفريق {team}'
-        
+    # ===== مدير القطاع (مشعل الحجيلي) =====
+    if code == '0':
         return {
-            'role': role,
-            'team': team,
-            'team_name': team_name,
+            'role': 'مدير القطاع',
+            'team': 'الإدارة',
+            'team_name': 'الإدارة',
             'type': 'قيادة',
             'category': 'leadership',
             'icon': '👑',
@@ -66,6 +62,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
         }
     
     # ===== أعضاء الفرق (A1, A2, A10, B1, B2, B10, C3, ...) =====
+    # هذا الشرط يجي قبل القيادات عشان A10 ما يروح للقيادات
     if code and code[0] in 'ABCD' and len(code) > 1 and code[1:].isdigit():
         team = code[0]
         center_num = int(code[1:])
@@ -91,7 +88,25 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # ===== التحقق من رموز المناوبات بعد الموظفين =====
+    # ===== القيادات (A0, B0, C0, D0) فقط =====
+    if code in ['A0', 'B0', 'C0', 'D0']:
+        team = code[0]
+        team_info = TEAM_CODES.get(team, {})
+        return {
+            'role': 'قائد فريق',
+            'team': team,
+            'team_name': team_info.get('name', f'الفريق {team}'),
+            'type': 'قيادة',
+            'category': 'leadership',
+            'icon': '👑',
+            'color': '#CE2E26',
+            'center': 'المركز الرئيسي للقطاع',
+            'center_id': 'HQ',
+            'is_hq': True,
+            'original': code
+        }
+    
+    # ===== التحقق من رموز المناوبات =====
     if code in SHIFT_TYPES:
         shift_info = SHIFT_TYPES[code]
         return {
@@ -331,7 +346,7 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
     st.markdown("### 🏢 المركز الرئيسي للقطاع")
     
     # تصنيف الموظفين
-    leadership = []  # مدير القطاع والقيادات (0, A0, B0, ...)
+    leadership = []  # مدير القطاع والقيادات (0, A0, B0, C0, D0)
     operations = []   # العمليات (XW)
     rapid_response = []  # التدخل السريع (RR)
     support = []      # الدعم (Y, YY, ...)
@@ -342,7 +357,7 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
         code = emp.get('emp_code', '')
         
         # مدير القطاع والقيادات
-        if code == '0' or (code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD'):
+        if code == '0' or code in ['A0', 'B0', 'C0', 'D0']:
             leadership.append(emp)
         
         # العمليات (XW)
@@ -616,7 +631,7 @@ def import_employees_from_excel(uploaded_file, es, cs):
                 # إذا لم نجد مركز من الرمز، استخدم المركز الرئيسي كبديل
                 if not center_id:
                     # البحث عن المركز الرئيسي
-                    hq_center = next((c for c in centers if c.get('code') == 'HQ' or c.get('is_hq')), None)
+                    hq_center = next((c for c in centers if c.get('code') == 'HQ'), None)
                     if hq_center:
                         center_id = str(hq_center['id'])
                     elif centers:
