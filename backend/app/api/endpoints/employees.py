@@ -6,12 +6,47 @@ from typing import Optional, List
 
 from app.api import deps
 from app.models.employee import Employee
+from app.models.center import EmergencyCenter  # 👈 أضفنا هذا
 from app.models.user import User
 from app.schemas.employee import (
     EmployeeCreate, EmployeeUpdate, Employee as EmployeeSchema, EmployeeList
 )
 
 router = APIRouter()
+
+def get_center_from_code(db: Session, emp_code: str) -> Optional[UUID]:
+    """تحديد المركز المناسب بناءً على كود الموظف"""
+    if not emp_code:
+        return None
+    
+    # 1. التداخلية والتدخل السريع -> التمركز (12)
+    if emp_code.startswith('O') or emp_code.startswith('RR'):
+        center = db.query(EmergencyCenter).filter(EmergencyCenter.code == '12').first()
+        return center.id if center else None
+    
+    # 2. أعضاء الفرق (A1, B2, C3, D4, ...) -> المراكز 1-10
+    if len(emp_code) > 1 and emp_code[1:].isdigit() and emp_code[0] in 'ABCD':
+        center_num = int(emp_code[1:])
+        center = db.query(EmergencyCenter).filter(EmergencyCenter.code == str(center_num)).first()
+        return center.id if center else None
+    
+    # 3. القيادات (A0, B0, C0, D0) -> المركز الرئيسي (HQ)
+    if emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD':
+        center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
+        return center.id if center else None
+    
+    # 4. العمليات (XW) -> المركز الرئيسي (HQ)
+    if emp_code.startswith('XW'):
+        center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
+        return center.id if center else None
+    
+    # 5. الوحدات الخاصة والدعم (ST, TT, Y, YY, Z, AZ, BZ, CZ, DZ) -> المركز الرئيسي (HQ)
+    special_codes = ['ST', 'TT', 'Y', 'YY', 'YYY', 'YYYY', 'Z', 'AZ', 'BZ', 'CZ', 'DZ']
+    if emp_code in special_codes:
+        center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
+        return center.id if center else None
+    
+    return None
 
 @router.get("/", response_model=EmployeeList)
 def get_employees(
@@ -159,7 +194,7 @@ def create_employee(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Employee:
-    """إنشاء موظف جديد"""
+    """إنشاء موظف جديد - مع تحديد المركز تلقائياً حسب الكود"""
     
     # التحقق من عدم تكرار الرقم الوظيفي
     existing = db.query(Employee).filter(Employee.emp_no == employee_in.emp_no).first()
@@ -169,9 +204,16 @@ def create_employee(
             detail="الرقم الوظيفي موجود مسبقاً"
         )
     
+    # تحديد المركز بناءً على كود الموظف
+    center_id = employee_in.center_id
+    if employee_in.emp_code:
+        auto_center_id = get_center_from_code(db, employee_in.emp_code)
+        if auto_center_id:
+            center_id = auto_center_id
+    
     # إذا كان مشرف مركز، يتأكد أن الموظف الجديد في مركزه
     if current_user.role.value == "field_leader":
-        if current_user.employee and current_user.employee.center_id != employee_in.center_id:
+        if current_user.employee and current_user.employee.center_id != center_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="لا يمكنك إضافة موظف لمركز آخر"
@@ -186,8 +228,9 @@ def create_employee(
         email=employee_in.email,
         hire_date=employee_in.hire_date,
         employee_type=employee_in.employee_type,
-        center_id=employee_in.center_id,
+        center_id=center_id,
         role_id=employee_in.role_id,
+        emp_code=employee_in.emp_code,  # 👈 أضفنا هذا
         is_active=True
     )
     
