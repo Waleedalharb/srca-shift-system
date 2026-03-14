@@ -117,8 +117,8 @@ class EmployeeService:
             st.error(f"خطأ: {str(e)}")
             return None
     
-    def get_employees(self, center_id=None, search=None, employee_type=None, skip=0, limit=100):
-        """قائمة الموظفين"""
+    def get_employees(self, center_id=None, search=None, employee_type=None, skip=0, limit=100, _cache_buster=None):
+        """قائمة الموظفين - مع إضافة _cache_buster لكسر Cache"""
         try:
             params = {"skip": skip, "limit": limit}
             if center_id:
@@ -127,6 +127,8 @@ class EmployeeService:
                 params["search"] = search
             if employee_type:
                 params["employee_type"] = employee_type
+            if _cache_buster:
+                params["_"] = _cache_buster  # إضافة بارامتر عشوائي لكسر Cache
             
             response = requests.get(
                 self.base_url,
