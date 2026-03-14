@@ -338,7 +338,7 @@ def employee_card(emp: Dict[str, Any]):
     """, unsafe_allow_html=True)
 
 def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
-    """لوحة معلومات المركز الرئيسي"""
+    """لوحة معلومات المركز الرئيسي - النسخة المحسنة"""
     if not hq_employees:
         st.info("لا يوجد موظفون في المركز الرئيسي")
         return
@@ -351,24 +351,38 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
     rapid_response = []  # التدخل السريع (RR)
     support = []      # الدعم (Y, YY, ...)
     special = []      # وحدات خاصة (ST, TT)
-    shift_employees = []  # موظفين برموز مناوبات
+    shift_employees = []  # موظفين برموز مناوبات (A1, B2, C3, O12, ...)
     
     for emp in hq_employees:
         code = emp.get('emp_code', '')
+        
+        # مدير القطاع
         if code == '0':
             leadership.append(emp)
-        elif code in SHIFT_TYPES:
-            shift_employees.append(emp)
-        elif code.endswith('0') and code[0] in 'ABCD':
+        
+        # القيادات (A0, B0, C0, D0)
+        elif code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD':
             leadership.append(emp)
+        
+        # العمليات (XW)
         elif code.startswith('XW'):
             operations.append(emp)
+        
+        # التدخل السريع (RR)
         elif code.startswith('RR'):
             rapid_response.append(emp)
+        
+        # وحدات خاصة (ST, TT)
         elif code in ['ST', 'TT']:
             special.append(emp)
-        elif code in SPECIAL_UNITS:
+        
+        # الدعم (Y, YY, YYY, YYYY, Z, AZ, BZ, CZ, DZ)
+        elif code in SPECIAL_UNITS or code in ['AZ', 'BZ', 'CZ', 'DZ']:
             support.append(emp)
+        
+        # باقي الموظفين (A1, B2, C3, O12, ...)
+        else:
+            shift_employees.append(emp)
     
     # إحصائيات سريعة
     cols = st.columns(6)
