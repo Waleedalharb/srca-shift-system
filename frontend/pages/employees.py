@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional
 import requests
 
 # ============================================================================
-# دوال فك الترميز (Decoding Functions) - محدثة
+# دوال فك الترميز (Decoding Functions) - النسخة النهائية
 # ============================================================================
 
 def get_shift_display_name(shift_code: str) -> str:
@@ -41,9 +41,25 @@ def is_hq_employee(emp_code: str) -> bool:
     return False
 
 def decode_employee_code(code: str) -> Dict[str, Any]:
-    """فك شفرة الموظف حسب نظام الفرق - محدث لدعم جميع الرموز"""
+    """فك شفرة الموظف حسب نظام الفرق - النسخة النهائية"""
     if not code:
         return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
+    
+    # ===== مدير القطاع (مشعل الحجيلي) =====
+    if code == '0':
+        return {
+            'role': 'مدير القطاع',
+            'team': 'الإدارة',
+            'team_name': 'الإدارة',
+            'type': 'قيادة',
+            'category': 'leadership',
+            'icon': '👑',
+            'color': '#CE2E26',
+            'center': HQ_CENTER['name'],
+            'center_id': 'HQ',
+            'is_hq': True,
+            'original': code
+        }
     
     # التحقق إذا كان رمز مناوبة (D8, N12, V, ...)
     if code in SHIFT_TYPES:
@@ -274,7 +290,9 @@ def employee_card(emp: Dict[str, Any]):
     bg_color = decoded.get('color', '#475569')
     
     # النوع المعروض
-    if decoded.get('role') == 'قائد فريق':
+    if decoded.get('role') == 'مدير القطاع':
+        display_type = "مدير القطاع"
+    elif decoded.get('role') == 'قائد فريق':
         display_type = f"{decoded['team_name']} - قائد"
     elif decoded.get('role') == 'عضو فريق':
         display_type = f"{decoded['team_name']}"
@@ -328,7 +346,7 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
     st.markdown("### 🏢 المركز الرئيسي للقطاع")
     
     # تصنيف الموظفين
-    leadership = []  # القيادات (A0, B0, ...)
+    leadership = []  # القيادات (A0, B0, ...) + مدير القطاع
     operations = []   # العمليات (XW)
     rapid_response = []  # التدخل السريع (RR)
     support = []      # الدعم (Y, YY, ...)
@@ -337,7 +355,9 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
     
     for emp in hq_employees:
         code = emp.get('emp_code', '')
-        if code in SHIFT_TYPES:
+        if code == '0':
+            leadership.append(emp)
+        elif code in SHIFT_TYPES:
             shift_employees.append(emp)
         elif code.endswith('0') and code[0] in 'ABCD':
             leadership.append(emp)
@@ -761,8 +781,8 @@ def show_employees():
                 emp['emp_code'] = emp.get('emp_no', '')
         
         # تقسيم الموظفين
-        hq_employees = [e for e in all_employees if is_hq_employee(e.get('emp_code', ''))]
-        center_employees = [e for e in all_employees if not is_hq_employee(e.get('emp_code', ''))]
+        hq_employees = [e for e in all_employees if is_hq_employee(e.get('emp_code', '')) or e.get('emp_code') == '0']
+        center_employees = [e for e in all_employees if not is_hq_employee(e.get('emp_code', '')) and e.get('emp_code') != '0']
         
         # إحصائيات سريعة
         total = len(all_employees)
