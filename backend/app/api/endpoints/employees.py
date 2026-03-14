@@ -15,32 +15,39 @@ from app.schemas.employee import (
 router = APIRouter()
 
 def get_center_from_code(db: Session, emp_code: str) -> Optional[UUID]:
-    """تحديد المركز المناسب بناءً على كود الموظف"""
+    """تحديد المركز المناسب بناءً على كود الموظف (نسخة محسنة)"""
     if not emp_code:
         return None
     
-    # 1. التداخلية والتدخل السريع -> التمركز (12)
+    # 1. مدير القطاع (0) -> المركز الرئيسي (HQ)
+    if emp_code == '0':
+        center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
+        return center.id if center else None
+    
+    # 2. التداخلية والتدخل السريع -> التمركز (12)
     if emp_code.startswith('O') or emp_code.startswith('RR'):
         center = db.query(EmergencyCenter).filter(EmergencyCenter.code == '12').first()
         return center.id if center else None
     
-    # 2. أعضاء الفرق (A1, B2, C3, D4, ...) -> المراكز 1-10
-    if len(emp_code) > 1 and emp_code[1:].isdigit() and emp_code[0] in 'ABCD':
+    # 3. أعضاء الفرق (A1, A2, A10, B1, B2, B10, C3, ...) -> المراكز 1-10
+    # هذا الشرط يجب أن يأتي قبل القيادات عشان A10 ما يروح للقيادات
+    if emp_code and emp_code[0] in 'ABCD' and len(emp_code) > 1 and emp_code[1:].isdigit():
         center_num = int(emp_code[1:])
-        center = db.query(EmergencyCenter).filter(EmergencyCenter.code == str(center_num)).first()
-        return center.id if center else None
+        if 1 <= center_num <= 10:  # فقط المراكز 1-10
+            center = db.query(EmergencyCenter).filter(EmergencyCenter.code == str(center_num)).first()
+            return center.id if center else None
     
-    # 3. القيادات (A0, B0, C0, D0) -> المركز الرئيسي (HQ)
+    # 4. القيادات (A0, B0, C0, D0) -> المركز الرئيسي (HQ)
     if emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD':
         center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
         return center.id if center else None
     
-    # 4. العمليات (XW) -> المركز الرئيسي (HQ)
+    # 5. العمليات (XW) -> المركز الرئيسي (HQ)
     if emp_code.startswith('XW'):
         center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
         return center.id if center else None
     
-    # 5. الوحدات الخاصة والدعم (ST, TT, Y, YY, Z, AZ, BZ, CZ, DZ) -> المركز الرئيسي (HQ)
+    # 6. الوحدات الخاصة والدعم (ST, TT, Y, YY, Z, AZ, BZ, CZ, DZ) -> المركز الرئيسي (HQ)
     special_codes = ['ST', 'TT', 'Y', 'YY', 'YYY', 'YYYY', 'Z', 'AZ', 'BZ', 'CZ', 'DZ']
     if emp_code in special_codes:
         center = db.query(EmergencyCenter).filter(EmergencyCenter.code == 'HQ').first()
@@ -48,6 +55,7 @@ def get_center_from_code(db: Session, emp_code: str) -> Optional[UUID]:
     
     return None
 
+# باقي الدوال كما هي (لم تتغير)
 @router.get("/", response_model=EmployeeList)
 def get_employees(
     db: Session = Depends(deps.get_db),
