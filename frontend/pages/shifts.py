@@ -8,6 +8,8 @@ from components.cards import kpi_row
 from components.charts import create_line_chart, display_chart
 from utils.constants import SHIFT_TYPES, get_all_shift_codes, get_shift_info
 import random
+import requests  # 👈 مهم جداً
+from config import config  # 👈 مهم جداً
 
 # ============================================================================
 # دوال مساعدة لاستيراد المناوبات
