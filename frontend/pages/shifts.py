@@ -34,7 +34,7 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         excel_file = pd.ExcelFile(uploaded_file)
         sheet_names = excel_file.sheet_names
         
-        # ✅ التعديل: نبحث عن الورقة الصحيحة
+        # ✅ نبحث عن الورقة الصحيحة
         target_sheet = 'بيانات ومعلومات القطاع الجنوبي'
         if target_sheet not in sheet_names:
             st.warning(f"⚠️ لم يتم العثور على ورقة '{target_sheet}'")
@@ -44,7 +44,7 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         # قراءة الورقة بدون header
         df = pd.read_excel(uploaded_file, sheet_name=target_sheet, header=None)
         
-        # ✅ التعديل: نبدأ من الصف 10 مباشرة (index 9 في Python)
+        # ✅ نبدأ من الصف 10 مباشرة (index 9 في Python)
         start_row = 9  # الصف 10 (لأن العد يبدأ من 0)
         st.success(f"✅ بدأنا القراءة من الصف 10 في ورقة '{target_sheet}'")
         
@@ -61,44 +61,18 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         
         st.info(f"✅ تم تحميل {len(emp_dict)} موظف من قاعدة البيانات")
         
-        # ===== تشخيص: عرض أول 10 أكواد من الملف وأول 10 من قاعدة البيانات =====
-        st.write("🔍 **تشخيص الأكواد:**")
+        # ===== تشخيص: عرض أول 5 أكواد من الملف =====
+        st.write("🔍 **عينة من أول 5 صفوف في الملف:**")
+        sample_data = []
+        for i in range(start_row, min(start_row + 5, len(df))):
+            row_data = df.iloc[i]
+            seq = str(row_data[1]).strip() if pd.notna(row_data[1]) else 'فارغ'
+            code = str(row_data[2]).strip() if pd.notna(row_data[2]) else 'فارغ'
+            name = str(row_data[3]).strip() if pd.notna(row_data[3]) else 'فارغ'
+            sample_data.append(f"الصف {i+1}: التسلسل={seq}, الكود={code}, الاسم={name}")
         
-        # أكواد قاعدة البيانات
-        st.write("**أول 10 أكواد من قاعدة البيانات:**")
-        db_codes = list(emp_dict.keys())[:10]
-        db_preview = []
-        for code in db_codes:
-            emp = emp_dict[code]
-            db_preview.append(f"`{code}`: {emp['full_name']}")
-        st.write("، ".join(db_preview))
-        
-        # أكواد ملف Excel
-        st.write("**أول 10 أكواد من ملف Excel:**")
-        excel_codes = []
-        excel_names = []
-        sample_rows = 0
-        for idx in range(start_row, min(start_row + 20, len(df))):
-            row = df.iloc[idx]
-            code = str(row[2]).strip() if pd.notna(row[2]) else 'فارغ'
-            name = str(row[3]).strip() if pd.notna(row[3]) else 'فارغ'
-            if code and code != 'فارغ' and code not in excel_codes:
-                excel_codes.append(code)
-                excel_names.append(f"`{code}`: {name}")
-                sample_rows += 1
-            if sample_rows >= 10:
-                break
-        
-        st.write("، ".join(excel_names))
-        
-        # التحقق من التطابق
-        common_codes = set(emp_dict.keys()) & set(excel_codes)
-        st.write(f"**عدد الأكواد المشتركة:** {len(common_codes)} من أصل {len(excel_codes)} في الملف")
-        
-        if len(common_codes) == 0:
-            st.error("❌ **لا يوجد أي تطابق بين أكواد الملف وقاعدة البيانات!**")
-            st.write("مثال على أول كود في قاعدة البيانات:", list(emp_dict.keys())[0] if emp_dict else "لا يوجد")
-            st.write("مثال على أول كود في الملف:", excel_codes[0] if excel_codes else "لا يوجد")
+        for line in sample_data:
+            st.write(line)
         # =============================================
         
         success = 0
@@ -118,10 +92,10 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
             if not seq or not seq.isdigit():
                 continue
             
-            # الكود (الرقم الوظيفي) - العمود C (index 2)
+            # الكود (الرقم الوظيفي) - العمود C (index 2) - هذا هو المهم للربط
             emp_no = str(row[2]).strip() if pd.notna(row[2]) else ''
             
-            # الاسم - للعرض فقط
+            # الاسم - العمود D (index 3) - للعرض فقط
             emp_name = str(row[3]).strip() if pd.notna(row[3]) else ''
             
             status_text.text(f"جاري استيراد مناوبات: {emp_name} (كود: {emp_no})...")
