@@ -61,6 +61,46 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         
         st.info(f"✅ تم تحميل {len(emp_dict)} موظف من قاعدة البيانات")
         
+        # ===== تشخيص: عرض أول 10 أكواد من الملف وأول 10 من قاعدة البيانات =====
+        st.write("🔍 **تشخيص الأكواد:**")
+        
+        # أكواد قاعدة البيانات
+        st.write("**أول 10 أكواد من قاعدة البيانات:**")
+        db_codes = list(emp_dict.keys())[:10]
+        db_preview = []
+        for code in db_codes:
+            emp = emp_dict[code]
+            db_preview.append(f"`{code}`: {emp['full_name']}")
+        st.write("، ".join(db_preview))
+        
+        # أكواد ملف Excel
+        st.write("**أول 10 أكواد من ملف Excel:**")
+        excel_codes = []
+        excel_names = []
+        sample_rows = 0
+        for idx in range(start_row, min(start_row + 20, len(df))):
+            row = df.iloc[idx]
+            code = str(row[2]).strip() if pd.notna(row[2]) else 'فارغ'
+            name = str(row[3]).strip() if pd.notna(row[3]) else 'فارغ'
+            if code and code != 'فارغ' and code not in excel_codes:
+                excel_codes.append(code)
+                excel_names.append(f"`{code}`: {name}")
+                sample_rows += 1
+            if sample_rows >= 10:
+                break
+        
+        st.write("، ".join(excel_names))
+        
+        # التحقق من التطابق
+        common_codes = set(emp_dict.keys()) & set(excel_codes)
+        st.write(f"**عدد الأكواد المشتركة:** {len(common_codes)} من أصل {len(excel_codes)} في الملف")
+        
+        if len(common_codes) == 0:
+            st.error("❌ **لا يوجد أي تطابق بين أكواد الملف وقاعدة البيانات!**")
+            st.write("مثال على أول كود في قاعدة البيانات:", list(emp_dict.keys())[0] if emp_dict else "لا يوجد")
+            st.write("مثال على أول كود في الملف:", excel_codes[0] if excel_codes else "لا يوجد")
+        # =============================================
+        
         success = 0
         failed = 0
         errors = []
