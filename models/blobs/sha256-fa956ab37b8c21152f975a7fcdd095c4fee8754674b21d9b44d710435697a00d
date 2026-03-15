@@ -1,1 +1,3 @@
-{"stop":["\u003c|system|\u003e","\u003c|user|\u003e","\u003c|assistant|\u003e","\u003c/s\u003e"]}
+version https://git-lfs.github.com/spec/v1
+oid sha256:fa956ab37b8c21152f975a7fcdd095c4fee8754674b21d9b44d710435697a00d
+size 98

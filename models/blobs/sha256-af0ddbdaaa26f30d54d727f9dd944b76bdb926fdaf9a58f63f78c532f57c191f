@@ -1,5 +1,3 @@
-<|system|>
-{{ .System }}</s>
-<|user|>
-{{ .Prompt }}</s>
-<|assistant|>
+version https://git-lfs.github.com/spec/v1
+oid sha256:af0ddbdaaa26f30d54d727f9dd944b76bdb926fdaf9a58f63f78c532f57c191f
+size 70
