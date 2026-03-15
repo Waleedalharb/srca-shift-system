@@ -631,21 +631,35 @@ def show_shifts():
     with st.spinner("جاري تحميل المناوبات..."):
         shifts = ss.get_shifts_by_month(center_id, year, month)
     
-    # تحويل المناوبات إلى خريطة
+    # تحويل المناوبات إلى خريطة مع مراعاة جدول shift_assignments
     shifts_map = {}
+    
+    # محاولة جلب التعيينات لكل مناوبة
     for shift in shifts:
         shift_date = shift.get("date", "").split("T")[0]
         try:
             day = int(shift_date.split("-")[2])
-            for assignment in shift.get("assignments", []):
+            shift_id = shift.get("id")
+            shift_type = shift.get("shift_type")
+            
+            # جلب التعيينات لهذه المناوبة (إذا كانت الدالة موجودة)
+            assignments = []
+            if hasattr(ss, 'get_assignments_by_shift'):
+                assignments = ss.get_assignments_by_shift(shift_id) or []
+            
+            # إذا ما فيه تعيينات، نستخدم الطريقة القديمة (للتوافق)
+            if not assignments and shift.get("assignments"):
+                assignments = shift.get("assignments", [])
+            
+            for assignment in assignments:
                 emp_id = assignment.get("employee_id")
-                if emp_id:
+                if emp_id and shift_type and shift_type != "off":
                     if emp_id not in shifts_map:
                         shifts_map[emp_id] = {}
-                    shift_type = shift.get("shift_type")
-                    if shift_type and shift_type != "off":
-                        shifts_map[emp_id][day] = shift_type
-        except:
+                    shifts_map[emp_id][day] = shift_type
+                    
+        except Exception as e:
+            print(f"خطأ في معالجة المناوبة: {e}")
             continue
     
     days_in_month = calendar.monthrange(year, month)[1]
