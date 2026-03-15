@@ -45,23 +45,16 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
             st.info(f"الأوراق الموجودة: {', '.join(sheet_names)}")
             return 0, 0
         
-        # قراءة الورقة بدون header عشان نحدد البيانات يدويًا
+        # قراءة الورقة بدون header
         df = pd.read_excel(uploaded_file, sheet_name=target_sheet, header=None)
         
-        # البحث عن بداية البيانات (الصف 10 - فيه "م" في العمود B)
-        start_row = None
-        for i in range(20):
-            if i < len(df) and pd.notna(df.iloc[i, 1]) and str(df.iloc[i, 1]).strip() == 'م':
-                start_row = i + 1  # الصف اللي بعده هو بداية البيانات
-                break
+        # ✅ التعديل: نبدأ من الصف 10 مباشرة (index 9 في Python)
+        # بافتراض أن الصف 9 هو عنوان الجدول والبيانات تبدأ من الصف 10
+        start_row = 9  # الصف 10 (لأن العد يبدأ من 0)
         
-        if not start_row:
-            st.error("❌ لم يتم العثور على بداية جدول المناوبات (ابحث عن 'م' في العمود B)")
-            return 0, 0
+        st.success(f"✅ بدأنا القراءة من الصف 10 مباشرة")
         
-        st.success(f"✅ تم العثور على بداية البيانات في الصف {start_row + 1}")
-        
-        # جلب جميع الموظفين من قاعدة البيانات (بدون فلترة مركز)
+        # جلب جميع الموظفين من قاعدة البيانات
         cs, es, _ = _get_services()
         all_employees = es.get_employees(limit=500).get("items", [])
         
@@ -103,9 +96,8 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
                 employee_id = emp_dict[emp_no]['id']
                 
                 # قراءة المناوبات للأيام 1-31 (الأعمدة G إلى AK)
-                # G = index 6, H=7, ... AK=36
                 for day in range(1, 32):
-                    col_index = 5 + day  # 5+1=6 (G), 5+2=7 (H), ...
+                    col_index = 5 + day  # G = index 6, H=7, ... AK=36
                     if col_index < len(row):
                         shift_code = row[col_index] if pd.notna(row[col_index]) else ''
                         
@@ -1354,8 +1346,7 @@ def show_shifts():
                 <h5 style="margin: 0 0 0.5rem 0;">📌 تعليمات الملف الأفقي:</h5>
                 <ul style="margin: 0; padding-right: 1.5rem; font-size: 0.9rem;">
                     <li>الملف يجب أن يحتوي على ورقة <b>بيانات ومعلومات القطاع الجنوبي</b></li>
-                    <li>الصف 9 هو عنوان الجدول (م, الكود, الاسم, ...)</li>
-                    <li>البيانات تبدأ من الصف 10</li>
+                    <li>البيانات تبدأ من الصف 10 مباشرة</li>
                     <li>الأعمدة G إلى AK هي الأيام 1-31</li>
                     <li><b>⚠️ مهم: النظام يعتمد على الكود (الرقم الوظيفي) فقط لربط المناوبات</b></li>
                 </ul>
