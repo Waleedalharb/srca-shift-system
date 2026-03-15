@@ -7,11 +7,148 @@ from utils.helpers import page_header, section_title
 from components.cards import kpi_row
 from components.charts import create_line_chart, display_chart
 from utils.constants import SHIFT_TYPES, get_all_shift_codes, get_shift_info
-import random  # 👈 أضفنا هذا
+import random
 
-# ===== دالة استيراد المناوبات من Excel =====
+# ============================================================================
+# دوال مساعدة لاستيراد المناوبات
+# ============================================================================
+
+def normalize_shift_code(code):
+    """توحيد رموز المناوبات"""
+    if pd.isna(code):
+        return None
+    
+    code = str(code).upper().strip()
+    
+    # رموز معروفة
+    valid_shifts = ['D12', 'N12', 'O12', 'V', 'VC', 'N8', 'O8']
+    
+    if code in valid_shifts:
+        # توحيد V و VC
+        if code in ['V', 'VC']:
+            return 'V'
+        return code
+    
+    # إذا الرمز غير معروف، نرجعه كما هو (النظام بياخذه)
+    return code
+
+def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
+    """استيراد المناوبات من ورقة 'بيانات ومعلومات القطاع الجنوبي' - تعتمد على الكود فقط"""
+    try:
+        excel_file = pd.ExcelFile(uploaded_file)
+        sheet_names = excel_file.sheet_names
+        
+        # نبحث عن الورقة المهمة فقط
+        target_sheet = 'بيانات ومعلومات القطاع الجنوبي'
+        if target_sheet not in sheet_names:
+            st.warning(f"⚠️ لم يتم العثور على ورقة '{target_sheet}'")
+            st.info(f"الأوراق الموجودة: {', '.join(sheet_names)}")
+            return 0, 0
+        
+        # قراءة الورقة بدون header عشان نحدد البيانات يدويًا
+        df = pd.read_excel(uploaded_file, sheet_name=target_sheet, header=None)
+        
+        # البحث عن بداية البيانات (الصف 10 - فيه "م" في العمود B)
+        start_row = None
+        for i in range(20):
+            if i < len(df) and pd.notna(df.iloc[i, 1]) and str(df.iloc[i, 1]).strip() == 'م':
+                start_row = i + 1  # الصف اللي بعده هو بداية البيانات
+                break
+        
+        if not start_row:
+            st.error("❌ لم يتم العثور على بداية جدول المناوبات (ابحث عن 'م' في العمود B)")
+            return 0, 0
+        
+        st.success(f"✅ تم العثور على بداية البيانات في الصف {start_row + 1}")
+        
+        # جلب جميع الموظفين من قاعدة البيانات (بدون فلترة مركز)
+        cs, es, _ = _get_services()
+        all_employees = es.get_employees(limit=500).get("items", [])
+        
+        # إنشاء قاموس بالرقم الوظيفي -> بيانات الموظف
+        emp_dict = {}
+        for emp in all_employees:
+            emp_no = emp.get('emp_no')
+            if emp_no:
+                emp_dict[str(emp_no).strip()] = emp
+        
+        st.info(f"✅ تم تحميل {len(emp_dict)} موظف من قاعدة البيانات")
+        
+        success = 0
+        failed = 0
+        errors = []
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        total_rows = min(start_row + 200, len(df)) - start_row
+        
+        for idx in range(start_row, min(start_row + 200, len(df))):
+            row = df.iloc[idx]
+            
+            # الرقم التسلسلي (نتأكد إنه رقم)
+            seq = str(row[1]).strip() if pd.notna(row[1]) else ''
+            if not seq or not seq.isdigit():
+                continue
+            
+            # الكود (الرقم الوظيفي) - العمود C (index 2)
+            emp_no = str(row[2]).strip() if pd.notna(row[2]) else ''
+            
+            # الاسم - للعرض فقط
+            emp_name = str(row[3]).strip() if pd.notna(row[3]) else ''
+            
+            status_text.text(f"جاري استيراد مناوبات: {emp_name} (كود: {emp_no})...")
+            
+            if emp_no and emp_no in emp_dict:
+                employee_id = emp_dict[emp_no]['id']
+                
+                # قراءة المناوبات للأيام 1-31 (الأعمدة G إلى AK)
+                # G = index 6, H=7, ... AK=36
+                for day in range(1, 32):
+                    col_index = 5 + day  # 5+1=6 (G), 5+2=7 (H), ...
+                    if col_index < len(row):
+                        shift_code = row[col_index] if pd.notna(row[col_index]) else ''
+                        
+                        if shift_code and str(shift_code).strip() not in ['', 'nan']:
+                            normalized = normalize_shift_code(str(shift_code))
+                            
+                            if normalized:
+                                date_str = f"{year}-{month:02d}-{day:02d}"
+                                if ss.update_employee_shift(str(employee_id), date_str, normalized):
+                                    success += 1
+                                else:
+                                    failed += 1
+                                    errors.append(f"{emp_name} - يوم {day}: فشل الحفظ")
+                            else:
+                                # حتى لو الرمز غير معروف، نحاول نحفظه
+                                date_str = f"{year}-{month:02d}-{day:02d}"
+                                if ss.update_employee_shift(str(employee_id), date_str, str(shift_code)):
+                                    success += 1
+                                else:
+                                    failed += 1
+                                    errors.append(f"{emp_name} - يوم {day}: فشل الحفظ للرمز {shift_code}")
+            else:
+                failed += 1
+                errors.append(f"⚠️ الموظف بكود {emp_no} غير موجود في قاعدة البيانات")
+            
+            progress_bar.progress((idx - start_row + 1) / total_rows)
+        
+        status_text.text("")
+        
+        if errors:
+            with st.expander(f"🔍 عرض الأخطاء والتحذيرات ({len(errors)})"):
+                for err in errors[:30]:  # نعرض أول 30 خطأ فقط
+                    st.warning(err)
+        
+        return success, failed
+        
+    except Exception as e:
+        st.error(f"❌ خطأ في معالجة الملف: {str(e)}")
+        return 0, 0
+
+# ===== دالة استيراد المناوبات من Excel (للتوافق مع الكود القديم) =====
 def import_shifts_from_excel(uploaded_file, ss, employees, year, month):
-    """استيراد المناوبات من ملف Excel"""
+    """استيراد المناوبات من ملف Excel (نسخة احتياطية)"""
     try:
         df = pd.read_excel(uploaded_file)
         
@@ -467,7 +604,7 @@ def show_shifts():
     with st.spinner("جاري تحميل الموظفين..."):
         employees = es.get_employees(
             center_id=center_id,
-            _cache_buster=random.randint(1, 10000)  # 👈 لكسر Cache
+            _cache_buster=random.randint(1, 10000)
         ).get("items", [])
     
     if not employees:
@@ -1153,57 +1290,107 @@ def show_shifts():
                     st.session_state.reload_shifts = True
                     st.rerun()
     
-    # ===== وضع استيراد Excel =====
+    # ===== وضع استيراد Excel (محدث) =====
     elif view_mode == "📥 استيراد Excel":
         st.subheader("📥 استيراد مناوبات من Excel")
-        st.markdown("""
-        <div style="background: #F0F9FF; padding: 1rem; border-radius: 12px; margin-bottom: 1rem;">
-            <h5 style="margin: 0 0 0.5rem 0;">📌 تعليمات:</h5>
-            <ul style="margin: 0; padding-right: 1.5rem; font-size: 0.9rem;">
-                <li>الملف يجب أن يكون بصيغة Excel (.xlsx)</li>
-                <li>الأعمدة المطلوبة: <b>الرقم الوظيفي، اليوم، المناوبة</b></li>
-                <li>اليوم: رقم اليوم من 1 إلى 31</li>
-                <li>المناوبة: D12, N12, O12, V, CP8, CP24, LN8</li>
-                <li>اترك الخلية فارغة إذا كان اليوم بدون مناوبة</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
         
-        uploaded_file = st.file_uploader(
-            "📤 اختر ملف Excel",
-            type=['xlsx', 'xls'],
-            key="shifts_upload_excel"
+        # اختيار نوع الملف
+        file_type = st.radio(
+            "نوع الملف",
+            ["ملف عمودي (رقم وظيفي - يوم - مناوبة)", "ملف أفقي (من ورقة بيانات ومعلومات القطاع الجنوبي)"],
+            horizontal=True
         )
         
-        if uploaded_file:
-            try:
-                df_preview = pd.read_excel(uploaded_file)
-                st.dataframe(df_preview.head(5), use_container_width=True)
-                st.caption(f"إجمالي {len(df_preview)} مناوبة في الملف")
-                
-                if st.button("🚀 بدء الاستيراد", use_container_width=True, type="primary"):
-                    success, failed = import_shifts_from_excel(uploaded_file, ss, employees, year, month)
+        if file_type == "ملف عمودي (رقم وظيفي - يوم - مناوبة)":
+            st.markdown("""
+            <div style="background: #F0F9FF; padding: 1rem; border-radius: 12px; margin-bottom: 1rem;">
+                <h5 style="margin: 0 0 0.5rem 0;">📌 تعليمات الملف العمودي:</h5>
+                <ul style="margin: 0; padding-right: 1.5rem; font-size: 0.9rem;">
+                    <li>الأعمدة المطلوبة: <b>الرقم الوظيفي، اليوم، المناوبة</b></li>
+                    <li>اليوم: رقم اليوم من 1 إلى 31</li>
+                    <li>المناوبة: D12, N12, O12, V, CP8, CP24, LN8</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            uploaded_file = st.file_uploader(
+                "📤 اختر ملف Excel (عمودي)",
+                type=['xlsx', 'xls'],
+                key="shifts_upload_vertical"
+            )
+            
+            if uploaded_file:
+                try:
+                    df_preview = pd.read_excel(uploaded_file)
+                    st.dataframe(df_preview.head(5), use_container_width=True)
+                    st.caption(f"إجمالي {len(df_preview)} مناوبة في الملف")
                     
-                    if success > 0:
-                        st.success(f"✅ تم استيراد {success} مناوبة بنجاح!")
-                        st.balloons()
-                    if failed > 0:
-                        st.warning(f"⚠️ فشل استيراد {failed} مناوبة")
+                    if st.button("🚀 بدء الاستيراد (عمودي)", use_container_width=True, type="primary"):
+                        success, failed = import_shifts_from_excel(uploaded_file, ss, employees, year, month)
+                        
+                        if success > 0:
+                            st.success(f"✅ تم استيراد {success} مناوبة بنجاح!")
+                            st.balloons()
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("✅ نجاح", success)
+                        with col2:
+                            st.metric("❌ فشل", failed)
+                        with col3:
+                            st.metric("📦 إجمالي", len(df_preview))
+                        
+                        if success > 0:
+                            if st.button("🔄 تحديث الجدول", use_container_width=True):
+                                st.session_state.reload_shifts = True
+                                st.rerun()
+                                
+                except Exception as e:
+                    st.error(f"❌ خطأ في قراءة الملف: {str(e)}")
+        
+        else:  # ملف أفقي
+            st.markdown("""
+            <div style="background: #F0F9FF; padding: 1rem; border-radius: 12px; margin-bottom: 1rem;">
+                <h5 style="margin: 0 0 0.5rem 0;">📌 تعليمات الملف الأفقي:</h5>
+                <ul style="margin: 0; padding-right: 1.5rem; font-size: 0.9rem;">
+                    <li>الملف يجب أن يحتوي على ورقة <b>بيانات ومعلومات القطاع الجنوبي</b></li>
+                    <li>الصف 9 هو عنوان الجدول (م, الكود, الاسم, ...)</li>
+                    <li>البيانات تبدأ من الصف 10</li>
+                    <li>الأعمدة G إلى AK هي الأيام 1-31</li>
+                    <li><b>⚠️ مهم: النظام يعتمد على الكود (الرقم الوظيفي) فقط لربط المناوبات</b></li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            uploaded_file = st.file_uploader(
+                "📤 اختر ملف Excel (أفقي)",
+                type=['xlsx', 'xls'],
+                key="shifts_upload_horizontal"
+            )
+            
+            if uploaded_file:
+                try:
+                    # عرض معاينة للأوراق
+                    excel_file = pd.ExcelFile(uploaded_file)
+                    st.info(f"📑 الأوراق الموجودة: {', '.join(excel_file.sheet_names)}")
                     
-                    # عرض إحصائيات
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("✅ نجاح", success)
-                    with col2:
-                        st.metric("❌ فشل", failed)
-                    with col3:
-                        st.metric("📦 إجمالي", len(df_preview))
-                    
-                    # زر تحديث
-                    if success > 0:
-                        if st.button("🔄 تحديث الجدول", use_container_width=True):
-                            st.session_state.reload_shifts = True
-                            st.rerun()
-                            
-            except Exception as e:
-                st.error(f"❌ خطأ في قراءة الملف: {str(e)}")
+                    if st.button("🚀 بدء الاستيراد (أفقي)", use_container_width=True, type="primary"):
+                        success, failed = import_shifts_from_master_sheet(uploaded_file, ss, year, month)
+                        
+                        if success > 0:
+                            st.success(f"✅ تم استيراد {success} مناوبة بنجاح!")
+                            st.balloons()
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("✅ نجاح", success)
+                        with col2:
+                            st.metric("❌ فشل", failed)
+                        
+                        if success > 0:
+                            if st.button("🔄 تحديث الجدول", use_container_width=True):
+                                st.session_state.reload_shifts = True
+                                st.rerun()
+                                
+                except Exception as e:
+                    st.error(f"❌ خطأ في قراءة الملف: {str(e)}")
