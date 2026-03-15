@@ -82,9 +82,10 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        total_rows = min(start_row + 200, len(df)) - start_row
+        # ✅ التعديل: نقرأ كل الصفوف حتى نهاية الملف
+        total_rows = len(df) - start_row
         
-        for idx in range(start_row, min(start_row + 200, len(df))):
+        for idx in range(start_row, len(df)):
             row = df.iloc[idx]
             
             # الكود (الرقم الوظيفي) - العمود B (index 1) - هذا هو المهم للربط
@@ -556,6 +557,14 @@ def _get_services():
 def show_shifts():
     """صفحة إدارة المناوبات"""
     
+    # ===== حل مشكلة عدم التحديث =====
+    if 'refresh_shifts_data' in st.session_state and st.session_state.refresh_shifts_data:
+        st.session_state.shift_service = None
+        st.session_state.refresh_shifts_data = False
+        st.cache_data.clear()
+        st.cache_resource.clear()
+    # =================================
+    
     # ===== متغير للتحكم بإعادة التحميل =====
     if 'reload_shifts' in st.session_state and st.session_state.reload_shifts:
         st.session_state.shift_service = None
@@ -657,8 +666,10 @@ def show_shifts():
             
             total_hours_all += total_hours
             
-            # حساب نسبة الإنجاز
-            completion_rate = int((total_hours / (days_in_month * 12)) * 100) if days_in_month > 0 else 0
+            # ✅ التعديل: نسبة الإنجاز = إجمالي الساعات ÷ 192 ساعة (المطلوب شهرياً)
+            required_hours = 192
+            completion_rate = int((total_hours / required_hours) * 100) if required_hours > 0 else 0
+            completion_rate = min(completion_rate, 100)  # ما تزيد عن 100%
             
             row = {
                 "الموظف": emp['full_name'],
@@ -788,6 +799,7 @@ def show_shifts():
                         if ss.update_employee_shift(emp_id, date_str, "off"):
                             st.success(f"✅ تم حذف مناوبة يوم {day}")
                             st.session_state.reload_shifts = True
+                            st.session_state.refresh_shifts_data = True
                             st.rerun()
                 
                 if st.button("💾 حفظ التغيير", key="save_single", use_container_width=True, type="primary"):
@@ -796,6 +808,7 @@ def show_shifts():
                         if ss.update_employee_shift(emp_id, date_str, new_shift):
                             st.success(f"✅ تم تحديث يوم {day} إلى {new_shift}")
                             st.session_state.reload_shifts = True
+                            st.session_state.refresh_shifts_data = True
                             st.rerun()
             
             else:  # نطاق أيام
@@ -832,6 +845,7 @@ def show_shifts():
                     
                     st.success(f"✅ تم تحديث {success_count} يوم")
                     st.session_state.reload_shifts = True
+                    st.session_state.refresh_shifts_data = True
                     st.rerun()
         
         # ===== تبويب 2: فريق كامل =====
@@ -894,6 +908,7 @@ def show_shifts():
                     
                     st.success(f"✅ تم تحديث {success_count} مناوبة من أصل {total}")
                     st.session_state.reload_shifts = True
+                    st.session_state.refresh_shifts_data = True
                     st.rerun()
             else:
                 st.info("لا توجد فرق واضحة في هذا المركز")
@@ -936,6 +951,7 @@ def show_shifts():
                 
                 st.success(f"✅ تم تطبيق نمط {selected_pattern} على {success_count} يوم")
                 st.session_state.reload_shifts = True
+                st.session_state.refresh_shifts_data = True
                 st.rerun()
     
     # ===== وضع التوليد التلقائي =====
@@ -1204,6 +1220,7 @@ def show_shifts():
                             if success_count > 0:
                                 st.success(f"✅ تم إضافة {success_count} تكميلية للفريق {team_letter}")
                                 st.session_state.reload_shifts = True
+                                st.session_state.refresh_shifts_data = True
                                 st.rerun()
                 else:
                     st.success(f"✅ الفريق {team_letter} مكتمل التغطية!")
@@ -1247,6 +1264,7 @@ def show_shifts():
             
             st.success(f"✅ تم إضافة {total_tkmilia} تكميلية للمركز")
             st.session_state.reload_shifts = True
+            st.session_state.refresh_shifts_data = True
             st.rerun()
     
     # ===== وضع الإضافة =====
@@ -1287,6 +1305,7 @@ def show_shifts():
                     
                     st.success(f"✅ تم إضافة المناوبة لـ {success_count} موظف")
                     st.session_state.reload_shifts = True
+                    st.session_state.refresh_shifts_data = True
                     st.rerun()
     
     # ===== وضع استيراد Excel (محدث) =====
@@ -1342,6 +1361,7 @@ def show_shifts():
                         if success > 0:
                             if st.button("🔄 تحديث الجدول", use_container_width=True):
                                 st.session_state.reload_shifts = True
+                                st.session_state.refresh_shifts_data = True
                                 st.rerun()
                                 
                 except Exception as e:
@@ -1388,6 +1408,7 @@ def show_shifts():
                         if success > 0:
                             if st.button("🔄 تحديث الجدول", use_container_width=True):
                                 st.session_state.reload_shifts = True
+                                st.session_state.refresh_shifts_data = True
                                 st.rerun()
                                 
                 except Exception as e:
