@@ -61,15 +61,15 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         
         st.info(f"✅ تم تحميل {len(emp_dict)} موظف من قاعدة البيانات")
         
-        # ===== تشخيص: عرض أول 5 أكواد من الملف =====
-        st.write("🔍 **عينة من أول 5 صفوف في الملف:**")
+        # ===== تشخيص: عرض أول 5 صفوف من الملف بالتنسيق الصحيح =====
+        st.write("🔍 **عينة من أول 5 صفوف في الملف (بعد التصحيح):**")
         sample_data = []
         for i in range(start_row, min(start_row + 5, len(df))):
             row_data = df.iloc[i]
-            seq = str(row_data[1]).strip() if pd.notna(row_data[1]) else 'فارغ'
-            code = str(row_data[2]).strip() if pd.notna(row_data[2]) else 'فارغ'
-            name = str(row_data[3]).strip() if pd.notna(row_data[3]) else 'فارغ'
-            sample_data.append(f"الصف {i+1}: التسلسل={seq}, الكود={code}, الاسم={name}")
+            code = str(row_data[1]).strip() if pd.notna(row_data[1]) else 'فارغ'  # العمود B
+            name = str(row_data[2]).strip() if pd.notna(row_data[2]) else 'فارغ'  # العمود C
+            job = str(row_data[3]).strip() if pd.notna(row_data[3]) else 'فارغ'   # العمود D
+            sample_data.append(f"الصف {i+1}: الكود={code}, الاسم={name}, الوظيفة={job}")
         
         for line in sample_data:
             st.write(line)
@@ -87,16 +87,14 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         for idx in range(start_row, min(start_row + 200, len(df))):
             row = df.iloc[idx]
             
-            # الرقم التسلسلي (نتأكد إنه رقم)
-            seq = str(row[1]).strip() if pd.notna(row[1]) else ''
-            if not seq or not seq.isdigit():
-                continue
+            # الكود (الرقم الوظيفي) - العمود B (index 1) - هذا هو المهم للربط
+            emp_no = str(row[1]).strip() if pd.notna(row[1]) else ''
             
-            # الكود (الرقم الوظيفي) - العمود C (index 2) - هذا هو المهم للربط
-            emp_no = str(row[2]).strip() if pd.notna(row[2]) else ''
+            # الاسم - العمود C (index 2) - للعرض فقط
+            emp_name = str(row[2]).strip() if pd.notna(row[2]) else ''
             
-            # الاسم - العمود D (index 3) - للعرض فقط
-            emp_name = str(row[3]).strip() if pd.notna(row[3]) else ''
+            # طبيعة العمل - العمود D (index 3) - للعلم فقط
+            job_title = str(row[3]).strip() if pd.notna(row[3]) else ''
             
             status_text.text(f"جاري استيراد مناوبات: {emp_name} (كود: {emp_no})...")
             
