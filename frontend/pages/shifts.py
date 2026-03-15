@@ -8,8 +8,6 @@ from components.cards import kpi_row
 from components.charts import create_line_chart, display_chart
 from utils.constants import SHIFT_TYPES, get_all_shift_codes, get_shift_info
 import random
-import requests  # 👈 مهم جداً
-from config import config  # 👈 مهم جداً
 
 # ============================================================================
 # دوال مساعدة لاستيراد المناوبات
@@ -84,7 +82,7 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # ✅ التعديل: نقرأ كل الصفوف حتى نهاية الملف
+        # ✅ نقرأ كل الصفوف حتى نهاية الملف
         total_rows = len(df) - start_row
         
         for idx in range(start_row, len(df)):
@@ -668,7 +666,7 @@ def show_shifts():
             
             total_hours_all += total_hours
             
-            # ✅ التعديل: نسبة الإنجاز = إجمالي الساعات ÷ 192 ساعة (المطلوب شهرياً)
+            # ✅ نسبة الإنجاز = إجمالي الساعات ÷ 192 ساعة (المطلوب شهرياً)
             required_hours = 192
             completion_rate = int((total_hours / required_hours) * 100) if required_hours > 0 else 0
             completion_rate = min(completion_rate, 100)  # ما تزيد عن 100%
