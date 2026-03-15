@@ -17,19 +17,15 @@ def normalize_shift_code(code):
     """توحيد رموز المناوبات"""
     if pd.isna(code):
         return None
-    
     code = str(code).upper().strip()
-    
     # رموز معروفة
     valid_shifts = ['D12', 'N12', 'O12', 'V', 'VC', 'N8', 'O8']
-    
     if code in valid_shifts:
         # توحيد V و VC
         if code in ['V', 'VC']:
             return 'V'
         return code
-    
-    # إذا الرمز غير معروف، نرجعه كما هو (النظام بياخذه)
+    # إذا الرمز غير معروف، نرجعه كما هو (النظام سيأخذه)
     return code
 
 def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
@@ -38,7 +34,7 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         excel_file = pd.ExcelFile(uploaded_file)
         sheet_names = excel_file.sheet_names
         
-        # نبحث عن الورقة المهمة فقط
+        # ✅ التعديل: نبحث عن الورقة الصحيحة
         target_sheet = 'بيانات ومعلومات القطاع الجنوبي'
         if target_sheet not in sheet_names:
             st.warning(f"⚠️ لم يتم العثور على ورقة '{target_sheet}'")
@@ -49,10 +45,8 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         df = pd.read_excel(uploaded_file, sheet_name=target_sheet, header=None)
         
         # ✅ التعديل: نبدأ من الصف 10 مباشرة (index 9 في Python)
-        # بافتراض أن الصف 9 هو عنوان الجدول والبيانات تبدأ من الصف 10
         start_row = 9  # الصف 10 (لأن العد يبدأ من 0)
-        
-        st.success(f"✅ بدأنا القراءة من الصف 10 مباشرة")
+        st.success(f"✅ بدأنا القراءة من الصف 10 في ورقة '{target_sheet}'")
         
         # جلب جميع الموظفين من قاعدة البيانات
         cs, es, _ = _get_services()
@@ -96,8 +90,9 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
                 employee_id = emp_dict[emp_no]['id']
                 
                 # قراءة المناوبات للأيام 1-31 (الأعمدة G إلى AK)
+                # G = index 6, H=7, ... AK=36
                 for day in range(1, 32):
-                    col_index = 5 + day  # G = index 6, H=7, ... AK=36
+                    col_index = 5 + day  # 5+1=6 (G), 5+2=7 (H), ...
                     if col_index < len(row):
                         shift_code = row[col_index] if pd.notna(row[col_index]) else ''
                         
