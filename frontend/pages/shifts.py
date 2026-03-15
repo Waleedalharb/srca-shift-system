@@ -606,7 +606,7 @@ def show_shifts():
         month = st.number_input("📆 الشهر", 1, 12, datetime.now().month)
     
     with col4:
-        view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق", "📥 استيراد Excel"], horizontal=True)
+        view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق", "📥 استيراد Excel", "💡 مساعد ذكي"], horizontal=True)
     
     # ===== جلب الموظفين مع كسر Cache =====
     with st.spinner("جاري تحميل الموظفين..."):
