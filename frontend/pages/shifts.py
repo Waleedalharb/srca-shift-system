@@ -35,7 +35,7 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         sheet_names = excel_file.sheet_names
         
         # ✅ نبحث عن الورقة الصحيحة
-        target_sheet = 'بيانات ومعلومات القтаع الجنوبي'
+        target_sheet = 'بيانات ومعلومات القطاع الجنوبي'
         if target_sheet not in sheet_names:
             st.warning(f"⚠️ لم يتم العثور على ورقة '{target_sheet}'")
             st.info(f"الأوراق الموجودة: {', '.join(sheet_names)}")
