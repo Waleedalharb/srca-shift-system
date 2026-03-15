@@ -8,6 +8,8 @@ from components.cards import kpi_row
 from components.charts import create_line_chart, display_chart
 from utils.constants import SHIFT_TYPES, get_all_shift_codes, get_shift_info
 import random
+import requests
+from config import config
 
 # ============================================================================
 # دوال مساعدة لاستيراد المناوبات
@@ -82,10 +84,10 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # ✅ نقرأ 200 صف (كما كان في الملف الشغال)
-        total_rows = min(start_row + 200, len(df)) - start_row
+        # ✅ نقرأ كل الصفوف حتى نهاية الملف
+        total_rows = len(df) - start_row
         
-        for idx in range(start_row, min(start_row + 200, len(df))):
+        for idx in range(start_row, len(df)):
             row = df.iloc[idx]
             
             # الكود (الرقم الوظيفي) - العمود B (index 1) - هذا هو المهم للربط
@@ -612,7 +614,7 @@ def show_shifts():
         month = st.number_input("📆 الشهر", 1, 12, datetime.now().month)
     
     with col4:
-        view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق", "📥 استيراد Excel"], horizontal=True)
+        view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق", "📥 استيراد Excel", "💡 مساعد ذكي"], horizontal=True)
     
     # ===== جلب الموظفين مع كسر Cache =====
     with st.spinner("جاري تحميل الموظفين..."):
