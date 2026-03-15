@@ -10,7 +10,6 @@ from utils.constants import (
 )
 from typing import Dict, List, Any, Optional
 import requests
-import openpyxl
 import random
 
 # ============================================================================
@@ -28,8 +27,8 @@ def is_hq_employee(emp_code: str) -> bool:
     if not emp_code:
         return False
     
-    # مدير القطاع والقيادات (0, A0, B0, C0, D0)
-    if emp_code == '0' or (emp_code.endswith('0') and len(emp_code) <= 3 and emp_code[0] in 'ABCD'):
+    # مدير القطاع (0) والقيادات (A0, B0, C0, D0)
+    if emp_code == '0' or emp_code in ['A0', 'B0', 'C0', 'D0']:
         return True
     
     # العمليات (XW1 → XW5)
@@ -43,20 +42,16 @@ def is_hq_employee(emp_code: str) -> bool:
     return False
 
 def decode_employee_code(code: str) -> Dict[str, Any]:
-    """فك شفرة الموظف حسب نظام الفرق - مع أولوية رموز الموظفين"""
+    """فك شفرة الموظف حسب نظام الفرق - مع أولوية صحيحة للرموز"""
     if not code:
         return {'type': 'غير معروف', 'category': 'unknown', 'original': code}
     
-    # ===== مدير القطاع والقيادات (0, A0, B0, C0, D0) =====
-    if code == '0' or (code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD'):
-        team = code[0] if code != '0' else ''
-        role = 'مدير القطاع' if code == '0' else 'قائد فريق'
-        team_name = 'الإدارة' if code == '0' else f'الفريق {team}'
-        
+    # ===== مدير القطاع (مشعل الحجيلي) =====
+    if code == '0':
         return {
-            'role': role,
-            'team': team,
-            'team_name': team_name,
+            'role': 'مدير القطاع',
+            'team': 'الإدارة',
+            'team_name': 'الإدارة',
             'type': 'قيادة',
             'category': 'leadership',
             'icon': '👑',
@@ -68,6 +63,7 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
         }
     
     # ===== أعضاء الفرق (A1, A2, A10, B1, B2, B10, C3, ...) =====
+    # هذا الشرط يجي قبل القيادات عشان A10 ما يروح للقيادات
     if code and code[0] in 'ABCD' and len(code) > 1 and code[1:].isdigit():
         team = code[0]
         center_num = int(code[1:])
@@ -93,7 +89,25 @@ def decode_employee_code(code: str) -> Dict[str, Any]:
             'original': code
         }
     
-    # ===== التحقق من رموز المناوبات بعد الموظفين =====
+    # ===== القيادات (A0, B0, C0, D0) فقط =====
+    if code in ['A0', 'B0', 'C0', 'D0']:
+        team = code[0]
+        team_info = TEAM_CODES.get(team, {})
+        return {
+            'role': 'قائد فريق',
+            'team': team,
+            'team_name': team_info.get('name', f'الفريق {team}'),
+            'type': 'قيادة',
+            'category': 'leadership',
+            'icon': '👑',
+            'color': '#CE2E26',
+            'center': 'المركز الرئيسي للقطاع',
+            'center_id': 'HQ',
+            'is_hq': True,
+            'original': code
+        }
+    
+    # ===== التحقق من رموز المناوبات =====
     if code in SHIFT_TYPES:
         shift_info = SHIFT_TYPES[code]
         return {
@@ -344,7 +358,7 @@ def display_hq_dashboard(hq_employees: List[Dict[str, Any]]):
         code = emp.get('emp_code', '')
         
         # مدير القطاع والقيادات
-        if code == '0' or (code.endswith('0') and len(code) <= 3 and code[0] in 'ABCD'):
+        if code == '0' or code in ['A0', 'B0', 'C0', 'D0']:
             leadership.append(emp)
         
         # العمليات (XW)
@@ -497,7 +511,7 @@ def convert_job_title(job_title):
     mapping = {
         'كبير مسعفين': 'chief_paramedic',
         'مساعد كبير مسعفين': 'assistant_chief',
-        'قائد ميداني': 'field_leader',
+        'قيادة ميدانية': 'field_leader',
         'تحكم عملياتي': 'operations_control',
         'تنسيق استجابة': 'response_coordinator',
         'أخصائي اسعاف': 'paramedic',
@@ -560,7 +574,7 @@ def get_center_from_code(emp_code, cs):
     return str(hq_center['id']) if hq_center else None
 
 # ============================================================================
-# دالة الاستيراد الشاملة (النسخة النهائية)
+# دالة استيراد Excel الشاملة (موظفين + مناوبات)
 # ============================================================================
 
 def import_complete_excel(uploaded_file, es, cs, ss):
@@ -576,7 +590,7 @@ def import_complete_excel(uploaded_file, es, cs, ss):
         employees_added = 0
         employees_updated = 0
         employees_failed = 0
-        employees_data = {}  # {emp_no: {'id': id, 'emp_code': code}}
+        employees_data = {}  # {emp_no: {'id': id, 'emp_code': code, 'full_name': name}}
         
         if 'الموظفين' in sheet_names:
             df_employees = pd.read_excel(uploaded_file, sheet_name='الموظفين')
@@ -747,11 +761,11 @@ def import_employees_from_excel(uploaded_file, es, cs):
             ss = ShiftService(st.session_state.auth_service)
         
         added, updated, shifts = import_complete_excel(uploaded_file, es, cs, ss)
-        return added + updated, 0, []
+        return added + updated, 0
         
     except Exception as e:
         st.error(f"❌ خطأ في معالجة الملف: {str(e)}")
-        return 0, 0, [str(e)]
+        return 0, 0
 
 # ============================================================================
 # الصفحة الرئيسية
@@ -852,7 +866,7 @@ def show_employees():
                         st.markdown(f"""- **📱 الجوال:** {employee.get('phone', '—')}\n- **📧 البريد:** {employee.get('email', '—')}\n- **📌 النوع:** {get_employee_type_label(employee.get('employee_type', ''))}""")
             return
         
-        # جلب البيانات
+        # جلب البيانات مع كسر Cache
         with st.spinner("جاري التحميل..."):
             result = es.get_employees(limit=500, _cache_buster=random.randint(1, 10000))
         
@@ -898,182 +912,26 @@ def show_employees():
                 filtered = [e for e in center_employees if str(e.get('center_id')) == str(center_id)]
             
             if filtered:
-                # عرض الموظفين مع زر تعديل
-                for emp in filtered:
-                    col1, col2 = st.columns([5, 1])
-                    
-                    with col1:
+                if st.session_state.get("is_mobile", False):
+                    for emp in filtered:
                         employee_card(emp)
-                    
-                    with col2:
-                        # زر تعديل
-                        if st.button("✏️ تعديل", key=f"edit_{emp['id']}", use_container_width=True):
-                            st.session_state.editing_employee = emp
-                            st.rerun()
+                else:
+                    df_data = []
+                    for emp in filtered:
+                        decoded = decode_employee_code(emp.get('emp_code', ''))
+                        df_data.append({
+                            "الرقم الوظيفي": emp.get("emp_no", ""),
+                            "الاسم": emp.get("full_name", ""),
+                            "الفريق": decoded.get('team_name', '') or decoded.get('type', ''),
+                            "الدور": decoded.get('role', ''),
+                            "على رأس العمل": "🚑" if emp.get("is_on_duty") else "—",
+                            "الحالة": "✅" if emp.get("is_active", True) else "❌",
+                            "id": emp.get("id", "")
+                        })
+                    df = pd.DataFrame(df_data)
+                    st.dataframe(df, use_container_width=True, hide_index=True, column_config={"id": None})
             else:
                 st.info("لا يوجد موظفون")
-        
-        # ===== نافذة تعديل الموظف (نسخة مطابقة للإضافة) =====
-        if "editing_employee" in st.session_state:
-            emp = st.session_state.editing_employee
-            
-            st.markdown("---")
-            st.subheader(f"✏️ تعديل: {emp.get('full_name','')}")
-            
-            with st.form(f"edit_employee_form"):
-                c1, c2 = st.columns(2)
-                
-                with c1:
-                    # الرقم الوظيفي (مقفل للتعديل)
-                    emp_no = st.text_input(
-                        "📋 الرقم الوظيفي *", 
-                        value=emp.get("emp_no", ""), 
-                        disabled=True
-                    )
-                    
-                    # الاسم الكامل
-                    full_name = st.text_input(
-                        "👤 الاسم الكامل *", 
-                        value=emp.get("full_name", "")
-                    )
-                    
-                    # رمز الموظف
-                    emp_code = st.text_input(
-                        "🔤 رمز الموظف", 
-                        value=emp.get("emp_code", ""),
-                        placeholder="مثال: A1, B5, C10, D0, RR1, XW2"
-                    )
-                    
-                    # تاريخ التعيين
-                    hire_date = st.date_input(
-                        "📅 تاريخ التعيين", 
-                        value=datetime.strptime(emp.get("hire_date", "2020-01-01"), "%Y-%m-%d").date() 
-                        if emp.get("hire_date") else datetime.now()
-                    )
-                
-                with c2:
-                    # رقم الهوية
-                    national_id = st.text_input(
-                        "🆔 رقم الهوية", 
-                        value=emp.get("national_id", "")
-                    )
-                    
-                    # الجوال
-                    phone = st.text_input(
-                        "📱 الجوال", 
-                        value=emp.get("phone", "")
-                    )
-                    
-                    # البريد الإلكتروني
-                    email = st.text_input(
-                        "📧 البريد", 
-                        value=emp.get("email", "")
-                    )
-                    
-                    # نوع الموظف (الفئة)
-                    type_list = list(EMP_TYPE_LABELS.keys())
-                    current_type = emp.get("employee_type", "admin")
-                    type_index = type_list.index(current_type) if current_type in type_list else 0
-                    
-                    employee_type = st.selectbox(
-                        "📌 الفئة", 
-                        type_list, 
-                        index=type_index,
-                        format_func=lambda x: EMP_TYPE_LABELS.get(x, x)
-                    )
-                    
-                    # المركز
-                    center_opts = {c["name"]: c["id"] for c in centers}
-                    current_center = next(
-                        (c["name"] for c in centers if c["id"] == emp.get("center_id")), 
-                        "المركز الرئيسي للقطاع"
-                    )
-                    
-                    # التأكد من وجود المركز في القائمة
-                    center_names = list(center_opts.keys())
-                    if current_center not in center_names:
-                        center_names.append(current_center)
-                    
-                    center_index = center_names.index(current_center) if current_center in center_names else 0
-                    sel_center = st.selectbox("🏥 المركز *", center_names, index=center_index)
-                
-                # الشهادات
-                certifications = st.multiselect(
-                    "📜 الشهادات", 
-                    ["ACLS", "PHTLS", "BLS", "PALS", "ITLS", "ATLS", "EMT-P"],
-                    default=emp.get("certifications", [])
-                )
-                
-                # حالة الموظف
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    is_active = st.checkbox("✅ نشط", value=emp.get("is_active", True))
-                with col2:
-                    is_on_duty = st.checkbox("🚑 على رأس العمل", value=emp.get("is_on_duty", False))
-                with col3:
-                    is_available = st.checkbox("🟢 متاح", value=emp.get("is_available", True))
-                
-                # ملاحظات
-                notes = st.text_area("📝 ملاحظات", value=emp.get("notes", ""))
-                
-                # أزرار التحكم
-                col_save, col_cancel, col_delete = st.columns(3)
-                
-                with col_save:
-                    save = st.form_submit_button("💾 حفظ التغييرات", use_container_width=True, type="primary")
-                
-                with col_cancel:
-                    cancel = st.form_submit_button("❌ إلغاء", use_container_width=True)
-                
-                with col_delete:
-                    delete = st.form_submit_button("🗑️ حذف", use_container_width=True)
-                
-                # ===== معالجة الأزرار =====
-                if save:
-                    if not full_name:
-                        st.error("❌ الاسم الكامل مطلوب")
-                    else:
-                        # تجهيز البيانات
-                        data = {
-                            "full_name": full_name,
-                            "employee_type": employee_type,
-                            "center_id": str(center_opts.get(sel_center, center_opts.get(current_center))),
-                            "phone": phone or None,
-                            "email": email or None,
-                            "national_id": national_id or None,
-                            "hire_date": hire_date.isoformat() if hire_date else None,
-                            "certifications": certifications,
-                            "is_active": is_active,
-                            "is_on_duty": is_on_duty,
-                            "is_available": is_available,
-                            "notes": notes or None
-                        }
-                        
-                        # إضافة رمز الموظف إذا كان موجود
-                        if emp_code:
-                            data["emp_code"] = emp_code
-                        
-                        # تحديث البيانات
-                        if es.update_employee(emp["id"], data):
-                            st.success("✅ تم تحديث البيانات بنجاح")
-                            st.cache_data.clear()
-                            st.session_state.force_reload_employees = True
-                            del st.session_state.editing_employee
-                            st.rerun()
-                
-                if cancel:
-                    del st.session_state.editing_employee
-                    st.rerun()
-                
-                if delete:
-                    if st.session_state.get("user_role") == "chief_paramedic":
-                        if es.delete_employee(emp["id"]):
-                            st.success(f"✅ تم حذف {emp['full_name']}")
-                            st.session_state.force_reload_employees = True
-                            del st.session_state.editing_employee
-                            st.rerun()
-                    else:
-                        st.error("❌ فقط كبير المسعفين يمكنه الحذف")
     
     # ===== تبويب 2: إضافة موظف =====
     with tabs[1]:
@@ -1237,3 +1095,89 @@ def show_employees():
                     st.rerun()
         
         st.markdown("</div>", unsafe_allow_html=True)
+    
+    # ===== قسم التعديل القديم (للتوافق) =====
+    if "editing_employee" in st.session_state:
+        st.markdown("---")
+        emp = st.session_state.editing_employee
+        st.subheader(f"✏️ تعديل: {emp.get('full_name','')}")
+        
+        with st.form("edit_employee_form"):
+            c1, c2 = st.columns(2)
+            with c1:
+                emp_no = st.text_input("📋 الرقم الوظيفي", value=emp.get("emp_no",""), disabled=True)
+                full_name = st.text_input("👤 الاسم الكامل *", value=emp.get("full_name",""))
+                emp_code = st.text_input("🔤 رمز الموظف", value=emp.get("emp_code",""), placeholder="مثال: A1, B5, C10")
+                national_id = st.text_input("🆔 رقم الهوية", value=emp.get("national_id",""))
+                hire_date = st.date_input("📅 تاريخ التعيين", value=datetime.strptime(emp.get("hire_date","2020-01-01"), "%Y-%m-%d").date() if emp.get("hire_date") else datetime.now())
+            with c2:
+                phone = st.text_input("📱 الجوال", value=emp.get("phone",""))
+                email = st.text_input("📧 البريد", value=emp.get("email",""))
+                
+                type_list = list(EMP_TYPE_LABELS.keys())
+                current_type = emp.get("employee_type", "admin")
+                type_index = type_list.index(current_type) if current_type in type_list else 0
+                employee_type = st.selectbox("📌 الفئة", type_list, index=type_index, format_func=lambda x: EMP_TYPE_LABELS.get(x, x))
+                
+                center_opts = {c["name"]: c["id"] for c in centers}
+                current_center = next((c["name"] for c in centers if c["id"] == emp.get("center_id")), "")
+                sel_center = st.selectbox("🏥 المركز", list(center_opts.keys()), index=list(center_opts.keys()).index(current_center) if current_center in center_opts else 0)
+            
+            certifications = st.multiselect("📜 الشهادات", ["ACLS","PHTLS","BLS","PALS","ITLS","ATLS","EMT-P"], default=emp.get("certifications", []))
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                is_active = st.checkbox("✅ نشط", value=emp.get("is_active", True))
+            with col2:
+                is_on_duty = st.checkbox("🚑 على رأس العمل", value=emp.get("is_on_duty", False))
+            with col3:
+                is_available = st.checkbox("🟢 متاح", value=emp.get("is_available", True))
+            
+            notes = st.text_area("📝 ملاحظات", value=emp.get("notes", ""))
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                save = st.form_submit_button("💾 حفظ", use_container_width=True, type="primary")
+            with col2:
+                cancel = st.form_submit_button("❌ إلغاء", use_container_width=True)
+            with col3:
+                delete = st.form_submit_button("🗑️ حذف", use_container_width=True)
+            
+            if save:
+                data = {
+                    "full_name": full_name,
+                    "employee_type": employee_type,
+                    "center_id": str(center_opts[sel_center]),
+                    "phone": phone or None,
+                    "email": email or None,
+                    "national_id": national_id or None,
+                    "hire_date": hire_date.isoformat() if hire_date else None,
+                    "certifications": certifications,
+                    "is_active": is_active,
+                    "is_on_duty": is_on_duty,
+                    "is_available": is_available,
+                    "notes": notes or None
+                }
+                if emp_code:
+                    data["emp_code"] = emp_code
+                
+                if es.update_employee(emp["id"], data):
+                    st.success("✅ تم التحديث")
+                    st.cache_data.clear()
+                    st.session_state.force_reload_employees = True
+                    del st.session_state.editing_employee
+                    st.rerun()
+            
+            if cancel:
+                del st.session_state.editing_employee
+                st.rerun()
+            
+            if delete:
+                if st.session_state.get("user_role") == "chief_paramedic":
+                    if es.delete_employee(emp["id"]):
+                        st.success(f"✅ تم حذف {emp['full_name']}")
+                        st.session_state.force_reload_employees = True
+                        del st.session_state.editing_employee
+                        st.rerun()
+                else:
+                    st.error("❌ فقط كبير المسعفين يمكنه الحذف")
