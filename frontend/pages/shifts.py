@@ -21,7 +21,7 @@ def normalize_shift_code(code):
         return None
     code = str(code).upper().strip()
     # رموز معروفة
-    valid_shifts = ['D12', 'N12', 'O12', 'V', 'VC', 'N8', 'O8']
+    valid_shifts = ['D12', 'N12', 'O12', 'V', 'VC', 'N8', 'O8', 'WO']
     if code in valid_shifts:
         # توحيد V و VC
         if code in ['V', 'VC']:
@@ -31,7 +31,7 @@ def normalize_shift_code(code):
     return code
 
 def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
-    """استيراد المناوبات من ورقة 'بيانات ومعلومات القطاع الجنوبي' - تعتمد على الكود فقط"""
+    """استيراد المناوبات من ورقة 'بيانات ومعلومات القطاع الجنوبي'"""
     try:
         excel_file = pd.ExcelFile(uploaded_file)
         sheet_names = excel_file.sheet_names
@@ -46,8 +46,9 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         # قراءة الورقة بدون header
         df = pd.read_excel(uploaded_file, sheet_name=target_sheet, header=None)
         
-        # ✅ نبدأ من الصف 10 مباشرة (index 9 في Python)
-        start_row = 9  # الصف 10 (لأن العد يبدأ من 0)
+        # ✅ نبدأ من الصف 9 (رأس الجدول) والبيانات من الصف 10
+        start_row = 9  # الصف 10 في Excel (لأن العد يبدأ من 0)
+        
         st.success(f"✅ بدأنا القراءة من الصف 10 في ورقة '{target_sheet}'")
         
         # جلب جميع الموظفين من قاعدة البيانات
@@ -63,15 +64,14 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         
         st.info(f"✅ تم تحميل {len(emp_dict)} موظف من قاعدة البيانات")
         
-        # ===== تشخيص: عرض أول 5 صفوف من الملف بالتنسيق الصحيح =====
-        st.write("🔍 **عينة من أول 5 صفوف في الملف (بعد التصحيح):**")
+        # ===== تشخيص: عرض أول 5 صفوف من الملف =====
+        st.write("🔍 **عينة من أول 5 صفوف في الملف:**")
         sample_data = []
         for i in range(start_row, min(start_row + 5, len(df))):
             row_data = df.iloc[i]
-            code = str(row_data[1]).strip() if pd.notna(row_data[1]) else 'فارغ'  # العمود B
-            name = str(row_data[2]).strip() if pd.notna(row_data[2]) else 'فارغ'  # العمود C
-            job = str(row_data[3]).strip() if pd.notna(row_data[3]) else 'فارغ'   # العمود D
-            sample_data.append(f"الصف {i+1}: الكود={code}, الاسم={name}, الوظيفة={job}")
+            code = str(row_data[1]).strip() if pd.notna(row_data[1]) else 'فارغ'  # العمود B (الكود)
+            name = str(row_data[2]).strip() if pd.notna(row_data[2]) else 'فارغ'  # العمود C (الاسم)
+            sample_data.append(f"الصف {i+1}: الكود={code}, الاسم={name}")
         
         for line in sample_data:
             st.write(line)
@@ -96,12 +96,13 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
             # الاسم - العمود C (index 2) - للعرض فقط
             emp_name = str(row[2]).strip() if pd.notna(row[2]) else ''
             
-            # طبيعة العمل - العمود D (index 3) - للعلم فقط
-            job_title = str(row[3]).strip() if pd.notna(row[3]) else ''
+            # نتأكد إن الكود موجود
+            if not emp_no or emp_no == 'فارغ':
+                continue
             
             status_text.text(f"جاري استيراد مناوبات: {emp_name} (كود: {emp_no})...")
             
-            if emp_no and emp_no in emp_dict:
+            if emp_no in emp_dict:
                 employee_id = emp_dict[emp_no]['id']
                 
                 # قراءة المناوبات للأيام 1-31 (الأعمدة G إلى AK)
@@ -139,7 +140,7 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         
         if errors:
             with st.expander(f"🔍 عرض الأخطاء والتحذيرات ({len(errors)})"):
-                for err in errors[:30]:  # نعرض أول 30 خطأ فقط
+                for err in errors[:30]:
                     st.warning(err)
         
         # ✅ كسر الكاش بعد الاستيراد الناجح
@@ -147,6 +148,8 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
             st.cache_data.clear()
             st.session_state.reload_shifts = True
             st.session_state.refresh_shifts_data = True
+            st.success(f"✅ تم استيراد {success} مناوبة بنجاح!")
+            st.balloons()
         
         return success, failed
         
@@ -627,11 +630,11 @@ def show_shifts():
         st.warning(f"⚠️ لا يوجد موظفون في {selected_center}")
         return
     
-    # جلب المناوبات للشهر المحدد (طريقة قديمة - للتوافق)
+    # جلب المناوبات للشهر المحدد
     with st.spinner("جاري تحميل المناوبات..."):
         shifts = ss.get_shifts_by_month(center_id, year, month)
     
-    # ✅ ===== الطريقة الجديدة: جلب مناوبات كل موظف على حدة =====
+    # ✅ ===== الطريقة الصحيحة: جلب مناوبات كل موظف على حدة =====
     shifts_map = {}
     
     # نجيب مناوبات كل موظف لحاله
