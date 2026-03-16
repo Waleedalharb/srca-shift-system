@@ -79,7 +79,7 @@ def get_shifts_by_month(
         for assignment in shift.assignments:
             employee = db.query(Employee).filter(Employee.id == assignment.employee_id).first()
             shift_data["assignments"].append({
-                "employee_id": str(assignment.employee_id),
+                "employee_id": str(assignment.employee_id) if assignment.employee_id else None,
                 "employee_name": employee.full_name if employee else "غير معروف"
             })
         
@@ -209,14 +209,22 @@ def update_employee_shift(
     ).first()
     
     if not assignment:
-        # إضافة تعيين جديد (بدون shift_type)
+        # إضافة تعيين جديد
         assignment = ShiftAssignment(
             id=uuid.uuid4(),
             shift_id=shift.id,
             employee_id=emp_uuid
         )
         db.add(assignment)
+    else:
+        # تحديث الموظف في التعيين الموجود
+        assignment.employee_id = emp_uuid
     
+    # تأكيد التغييرات
     db.commit()
+    db.refresh(assignment)
     
-    return {"message": "تم التحديث بنجاح"}
+    # تأكد من أن employee_id محفوظ بشكل صحيح
+    print(f"✅ تم حفظ تعيين: {assignment.id}, موظف: {assignment.employee_id}")
+    
+    return {"message": "تم التحديث بنجاح", "saved_id": str(assignment.id)}
