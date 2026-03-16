@@ -639,7 +639,23 @@ def show_shifts():
     for i, shift in enumerate(shifts[:3]):
         st.write(f"مناوبة {i+1}:")
         st.json(shift)
-    # =============================================
+    
+    # ✅ ===== تصفية المناوبات القديمة (اللي فيها employee_id = NULL) =====
+    filtered_shifts = []
+    for shift in shifts:
+        has_valid_assignment = False
+        for assignment in shift.get("assignments", []):
+            if assignment.get("employee_id"):
+                has_valid_assignment = True
+                break
+        if has_valid_assignment:
+            filtered_shifts.append(shift)
+    
+    if len(filtered_shifts) < len(shifts):
+        st.info(f"📊 من أصل {len(shifts)} مناوبة، {len(filtered_shifts)} فقط فيها تعيينات صحيحة (تم تجاهل {len(shifts) - len(filtered_shifts)} مناوبة قديمة)")
+    
+    shifts = filtered_shifts  # نستخدم المصفاة
+    # ====================================================
 
     # ✅ ===== الطريقة الصحيحة: جلب مناوبات كل موظف على حدة =====
     shifts_map = {}
@@ -751,7 +767,8 @@ def show_shifts():
                     with cols[i % 5]:
                         st.markdown(f"<div style='background:{info['color']}; color:{info['text_color']}; padding:0.5rem; border-radius:8px; text-align:center;'><strong>{code}</strong> - {info['name']}</div>", unsafe_allow_html=True)
     
-    # ===== وضع التعديل =====
+    # ===== باقي الأوضاع (✏️ تعديل، ➕ إضافة، ⚡ توليد تلقائي، ...) =====
+    # (الكود نفسه ما تغير)
     elif view_mode == "✏️ تعديل":
         st.subheader("✏️ تعديل المناوبات")
         
