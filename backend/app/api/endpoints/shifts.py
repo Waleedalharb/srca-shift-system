@@ -190,7 +190,7 @@ def update_employee_shift(
     ).first()
     
     if not shift:
-        # إذا ما في مناوبة، ننشئ واحدة جديدة
+        # إذا ما في مناوبة، ننشئ واحدة جديدة (بدون commit)
         shift = Shift(
             id=uuid.uuid4(),
             date=target_date,
@@ -198,10 +198,9 @@ def update_employee_shift(
             center_id=center_id
         )
         db.add(shift)
-        db.commit()
-        db.refresh(shift)
+        db.flush()  # 👈 نجيب الـ ID بدون commit
     else:
-        # تحديث نوع المناوبة في جدول Shift نفسه
+        # تحديث نوع المناوبة
         shift.shift_type = shift_type
     
     # البحث عن تعيين الموظف
@@ -222,20 +221,10 @@ def update_employee_shift(
         # تحديث الموظف في التعيين الموجود
         assignment.employee_id = emp_uuid
     
-    # تأكيد التغييرات
+    # ✅ commit واحد لكل التغييرات
     db.commit()
-    db.refresh(assignment)
+    db.refresh(shift)
     
-    # ✅ التحقق من أن التعيين حُفظ بشكل صحيح
-    saved_assignment = db.query(ShiftAssignment).filter(
-        ShiftAssignment.shift_id == shift.id,
-        ShiftAssignment.employee_id == emp_uuid
-    ).first()
+    print(f"✅ تم حفظ مناوبة: {shift.id}, عدد التعيينات: {len(shift.assignments)}")
     
-    if not saved_assignment:
-        print(f"❌ فشل حفظ التعيين للموظف {emp_uuid}")
-        raise HTTPException(status_code=500, detail="فشل حفظ التعيين")
-    
-    print(f"✅ تم التأكد من حفظ التعيين: {saved_assignment.id}")
-    
-    return {"message": "تم التحديث بنجاح", "saved_id": str(assignment.id)}
+    return {"message": "تم التحديث بنجاح", "shift_id": str(shift.id)}
