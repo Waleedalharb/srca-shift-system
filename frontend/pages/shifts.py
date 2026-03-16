@@ -631,36 +631,26 @@ def show_shifts():
     with st.spinner("جاري تحميل المناوبات..."):
         shifts = ss.get_shifts_by_month(center_id, year, month)
     
-    # تحويل المناوبات إلى خريطة مع مراعاة جدول shift_assignments
-    shifts_map = {}
+    # ✅ ===== التعديل الجوهري: بناء shifts_map للمركز وليس للموظف =====
+    # المناوبات مخزنة مركزياً، كل الموظفين في المركز نفسهم يأخذون نفس المناوبات
+    shifts_by_day = {}  # قاموس {day: shift_type}
     
-    # محاولة جلب التعيينات لكل مناوبة
     for shift in shifts:
         shift_date = shift.get("date", "").split("T")[0]
         try:
             day = int(shift_date.split("-")[2])
-            shift_id = shift.get("id")
             shift_type = shift.get("shift_type")
-            
-            # جلب التعيينات لهذه المناوبة (إذا كانت الدالة موجودة)
-            assignments = []
-            if hasattr(ss, 'get_assignments_by_shift'):
-                assignments = ss.get_assignments_by_shift(shift_id) or []
-            
-            # إذا ما فيه تعيينات، نستخدم الطريقة القديمة (للتوافق)
-            if not assignments and shift.get("assignments"):
-                assignments = shift.get("assignments", [])
-            
-            for assignment in assignments:
-                emp_id = assignment.get("employee_id")
-                if emp_id and shift_type and shift_type != "off":
-                    if emp_id not in shifts_map:
-                        shifts_map[emp_id] = {}
-                    shifts_map[emp_id][day] = shift_type
-                    
+            if shift_type and shift_type != "off":
+                shifts_by_day[day] = shift_type
         except Exception as e:
             print(f"خطأ في معالجة المناوبة: {e}")
             continue
+    
+    # ✅ بناء shifts_map لكل موظف بناءً على مناوبات المركز
+    shifts_map = {}
+    for emp in employees:
+        emp_id = str(emp["id"])
+        shifts_map[emp_id] = shifts_by_day.copy()  # كل الموظفين يأخذون نفس الجدول
     
     days_in_month = calendar.monthrange(year, month)[1]
     
@@ -750,7 +740,8 @@ def show_shifts():
                     with cols[i % 5]:
                         st.markdown(f"<div style='background:{info['color']}; color:{info['text_color']}; padding:0.5rem; border-radius:8px; text-align:center;'><strong>{code}</strong> - {info['name']}</div>", unsafe_allow_html=True)
     
-    # ===== وضع التعديل =====
+    # ===== باقي الأوضاع (✏️ تعديل، ➕ إضافة، ⚡ توليد تلقائي، ...) =====
+    # (باقي الكود كما هو دون تغيير)
     elif view_mode == "✏️ تعديل":
         st.subheader("✏️ تعديل المناوبات")
         
