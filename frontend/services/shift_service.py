@@ -83,7 +83,6 @@ class ShiftService:
             print(f"خطأ في get_shifts_by_month: {e}")
             return []
     
-    # ===== دالة جديدة: تجيب مناوبات كل موظف على حدة =====
     def get_employee_shifts_by_month(self, employee_id, year, month):
         """جلب مناوبات موظف محدد لشهر كامل"""
         try:
@@ -100,7 +99,7 @@ class ShiftService:
                     "employee_id": employee_id,
                     "start_date": start_date,
                     "end_date": end_date,
-                    "limit": 40  # 31 يوم كحد أقصى
+                    "limit": 40
                 },
                 timeout=10
             )
@@ -110,6 +109,50 @@ class ShiftService:
         except Exception as e:
             print(f"خطأ في get_employee_shifts_by_month: {e}")
             return []
+    
+    # ===== دالة جديدة: تجلب كل التعيينات للشهر =====
+    def get_assignments_by_month(self, center_id, year, month):
+        """جلب جميع تعيينات المناوبات لشهر كامل"""
+        try:
+            start_date = f"{year}-{month:02d}-01"
+            if month == 12:
+                end_date = f"{year+1}-01-01"
+            else:
+                end_date = f"{year}-{month+1:02d}-01"
+            
+            response = requests.get(
+                f"{self.base_url}/assignments/by_month",
+                headers=self.auth.get_headers(),
+                params={
+                    "center_id": center_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "limit": 1000
+                },
+                timeout=10
+            )
+            if response.status_code == 200:
+                return response.json().get("items", [])
+            return []
+        except Exception as e:
+            print(f"خطأ في get_assignments_by_month: {e}")
+            return []
+    
+    # ===== دالة جديدة: تجلب تفاصيل مناوبة معينة =====
+    def get_shift(self, shift_id):
+        """جلب تفاصيل مناوبة محددة"""
+        try:
+            response = requests.get(
+                f"{self.base_url}/{shift_id}",
+                headers=self.auth.get_headers(),
+                timeout=10
+            )
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except Exception as e:
+            print(f"خطأ في get_shift: {e}")
+            return None
     
     def create_shift(self, data):
         """إنشاء مناوبة جديدة"""
