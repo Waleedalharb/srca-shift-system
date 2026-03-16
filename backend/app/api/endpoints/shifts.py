@@ -62,7 +62,8 @@ def get_shifts_by_month(
     if end_date:
         query = query.filter(Shift.date < end_date)
     
-    shifts = query.limit(limit).all()
+    # 👈 ترتيب تنازلي (الأحدث أولاً)
+    shifts = query.order_by(Shift.date.desc()).limit(limit).all()
     
     # تحويل النتيجة إلى الشكل المطلوب مع إضافة الموظفين
     result = []
