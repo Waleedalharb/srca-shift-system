@@ -57,7 +57,7 @@ class ShiftService:
             return []
     
     def get_shifts_by_month(self, center_id, year, month):
-        """جلب المناوبات لشهر كامل"""
+        """جلب المناوبات لشهر كامل (طريقة قديمة)"""
         try:
             start_date = f"{year}-{month:02d}-01"
             if month == 12:
@@ -81,6 +81,34 @@ class ShiftService:
             return []
         except Exception as e:
             print(f"خطأ في get_shifts_by_month: {e}")
+            return []
+    
+    # ===== دالة جديدة: تجيب مناوبات كل موظف على حدة =====
+    def get_employee_shifts_by_month(self, employee_id, year, month):
+        """جلب مناوبات موظف محدد لشهر كامل"""
+        try:
+            start_date = f"{year}-{month:02d}-01"
+            if month == 12:
+                end_date = f"{year+1}-01-01"
+            else:
+                end_date = f"{year}-{month+1:02d}-01"
+            
+            response = requests.get(
+                f"{self.base_url}/by_employee",
+                headers=self.auth.get_headers(),
+                params={
+                    "employee_id": employee_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "limit": 40  # 31 يوم كحد أقصى
+                },
+                timeout=10
+            )
+            if response.status_code == 200:
+                return response.json().get("items", [])
+            return []
+        except Exception as e:
+            print(f"خطأ في get_employee_shifts_by_month: {e}")
             return []
     
     def create_shift(self, data):
@@ -114,7 +142,6 @@ class ShiftService:
             print(f"خطأ في assign_employee: {e}")
             return False
     
-    # دالة موحدة للحفظ (جديدة)
     def save_shift(self, employee_id, date, shift_type):
         """حفظ مناوبة (إنشاء أو تحديث)"""
         try:
@@ -147,5 +174,5 @@ class ShiftService:
             return False
     
     def update_employee_shift(self, employee_id, date, shift_type):
-        """تحديث مناوبة موظف ليوم محدد (نفس save_shift)"""
+        """تحديث مناوبة موظف ليوم محدد"""
         return self.save_shift(employee_id, date, shift_type)
