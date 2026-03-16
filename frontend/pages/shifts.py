@@ -46,8 +46,8 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         # قراءة الورقة بدون header
         df = pd.read_excel(uploaded_file, sheet_name=target_sheet, header=None)
         
-        # ✅ نبدأ من الصف 9 (رأس الجدول) والبيانات من الصف 10
-        start_row = 9  # الصف 10 في Excel (لأن العد يبدأ من 0)
+        # ✅ نبدأ من الصف 10 مباشرة (index 9 في Python)
+        start_row = 9  # الصف 10 (لأن العد يبدأ من 0)
         
         st.success(f"✅ بدأنا القراءة من الصف 10 في ورقة '{target_sheet}'")
         
@@ -634,6 +634,13 @@ def show_shifts():
     with st.spinner("جاري تحميل المناوبات..."):
         shifts = ss.get_shifts_by_month(center_id, year, month)
     
+    # ===== تشخيص: نشوف أول 3 مناوبات من الـ API =====
+    st.write("🔍 **تشخيص - أول 3 مناوبات من API:**")
+    for i, shift in enumerate(shifts[:3]):
+        st.write(f"مناوبة {i+1}:")
+        st.json(shift)
+    # =============================================
+
     # ✅ ===== الطريقة الصحيحة: جلب مناوبات كل موظف على حدة =====
     shifts_map = {}
     
