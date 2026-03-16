@@ -62,29 +62,30 @@ def get_shifts_by_month(
     if end_date:
         query = query.filter(Shift.date < end_date)
     
-    # 👈 ترتيب تنازلي (الأحدث أولاً)
+    # ترتيب تنازلي (الأحدث أولاً)
     shifts = query.order_by(Shift.date.desc()).limit(limit).all()
     
-    # تحويل النتيجة إلى الشكل المطلوب مع إضافة الموظفين
+    # ✅ تصفية: نجيب فقط المناوبات اللي فيها تعيينات
     result = []
     for shift in shifts:
-        shift_data = {
-            "id": str(shift.id),
-            "date": shift.date.isoformat(),
-            "shift_type": shift.shift_type,
-            "center_id": str(shift.center_id) if shift.center_id else None,
-            "assignments": []
-        }
-        
-        # إضافة تعيينات الموظفين
-        for assignment in shift.assignments:
-            employee = db.query(Employee).filter(Employee.id == assignment.employee_id).first()
-            shift_data["assignments"].append({
-                "employee_id": str(assignment.employee_id) if assignment.employee_id else None,
-                "employee_name": employee.full_name if employee else "غير معروف"
-            })
-        
-        result.append(shift_data)
+        if shift.assignments:  # إذا فيه تعيينات
+            shift_data = {
+                "id": str(shift.id),
+                "date": shift.date.isoformat(),
+                "shift_type": shift.shift_type,
+                "center_id": str(shift.center_id) if shift.center_id else None,
+                "assignments": []
+            }
+            
+            # إضافة تعيينات الموظفين
+            for assignment in shift.assignments:
+                employee = db.query(Employee).filter(Employee.id == assignment.employee_id).first()
+                shift_data["assignments"].append({
+                    "employee_id": str(assignment.employee_id) if assignment.employee_id else None,
+                    "employee_name": employee.full_name if employee else "غير معروف"
+                })
+            
+            result.append(shift_data)
     
     return {"items": result}
 
@@ -225,7 +226,16 @@ def update_employee_shift(
     db.commit()
     db.refresh(assignment)
     
-    # تأكد من أن employee_id محفوظ بشكل صحيح
-    print(f"✅ تم حفظ تعيين: {assignment.id}, موظف: {assignment.employee_id}")
+    # ✅ التحقق من أن التعيين حُفظ بشكل صحيح
+    saved_assignment = db.query(ShiftAssignment).filter(
+        ShiftAssignment.shift_id == shift.id,
+        ShiftAssignment.employee_id == emp_uuid
+    ).first()
+    
+    if not saved_assignment:
+        print(f"❌ فشل حفظ التعيين للموظف {emp_uuid}")
+        raise HTTPException(status_code=500, detail="فشل حفظ التعيين")
+    
+    print(f"✅ تم التأكد من حفظ التعيين: {saved_assignment.id}")
     
     return {"message": "تم التحديث بنجاح", "saved_id": str(assignment.id)}
