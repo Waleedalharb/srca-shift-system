@@ -360,3 +360,33 @@ class ShiftService:
         except Exception as e:
             print(f"\n❌ خطأ في debug_employee_shifts: {e}")
             return []
+    
+    # ===== 🧹 دالة تنظيف البيانات (جديدة) =====
+    def cleanup_all_shifts(self, month=None, year=None):
+        """مسح كل البيانات القديمة"""
+        try:
+            params = {"confirm": True}
+            if month and year:
+                params["month"] = month
+                params["year"] = year
+            
+            print(f"🧹 طلب تنظيف البيانات: {params}")
+            
+            response = requests.delete(
+                f"{self.base_url}/cleanup-all",
+                headers=self.auth.get_headers(),
+                params=params,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                print(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين")
+                return result
+            else:
+                print(f"❌ فشل التنظيف: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ خطأ في cleanup_all_shifts: {e}")
+            return None

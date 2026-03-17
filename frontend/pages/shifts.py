@@ -724,7 +724,7 @@ def show_shifts():
     # ===== عرض الدوام الرسمي =====
     show_official_schedule()
     
-    # أزرار التحكم - تم إضافة زر التنظيف هنا
+       # أزرار التحكم - تم إضافة زر التنظيف هنا
     col1, col2, col3, col4 = st.columns([7, 1, 1, 1])
     with col2:
         if st.button("🔄 تحديث", use_container_width=True):
@@ -741,9 +741,11 @@ def show_shifts():
         if st.button("🧹 تنظيف", use_container_width=True, type="secondary"):
             with st.spinner("جاري تنظيف البيانات القديمة..."):
                 try:
+                    # ✅ الحل: نجيب الخدمة داخل الزر
+                    cs, es, ss = _get_services()
                     result = ss.cleanup_all_shifts(month=month, year=year)
                     if result and result.get("deleted_assignments", 0) > 0:
-                        st.success(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين")
+                        st.success(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين و {result.get('deleted_shifts', 0)} مناوبة")
                         st.cache_data.clear()
                         st.rerun()
                     else:
