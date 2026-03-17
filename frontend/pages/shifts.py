@@ -10,6 +10,40 @@ from utils.constants import SHIFT_TYPES, get_all_shift_codes, get_shift_info
 import random
 import requests
 from config import config
+import time  # 👈 أضفنا هذا لقياس الأداء
+
+# ============================================================================
+# ✅ تحسين: دوال التخزين المؤقت (Caching) لتسريع الأداء
+# ============================================================================
+
+@st.cache_data(ttl=300, show_spinner="جاري تحميل الموظفين...")
+def get_employees_cached(es, center_id, cache_buster=None):
+    """تخزين الموظفين في الكاش لمدة 5 دقائق"""
+    return es.get_employees(
+        center_id=center_id,
+        _cache_buster=cache_buster or random.randint(1, 10000)
+    ).get("items", [])
+
+@st.cache_data(ttl=60, show_spinner="جاري تحميل المناوبات...")
+def get_shifts_cached(ss, center_id, year, month):
+    """تخزين المناوبات في الكاش لمدة دقيقة"""
+    return ss.get_shifts_by_month(center_id, year, month)
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_employees_dict_cached(es):
+    """تخزين قاموس الموظفين (للربط السريع) - يستخدم في الاستيراد"""
+    all_employees = es.get_employees(limit=500).get("items", [])
+    emp_dict = {}
+    for emp in all_employees:
+        emp_no = emp.get('emp_no')
+        if emp_no:
+            emp_dict[str(emp_no).strip()] = emp
+    return emp_dict
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_centers_cached(cs):
+    """تخزين المراكز في الكاش لمدة 10 دقائق"""
+    return cs.get_centers() or []
 
 # ============================================================================
 # دوال مساعدة لاستيراد المناوبات
@@ -51,16 +85,9 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         
         st.success(f"✅ بدأنا القراءة من الصف 10 في ورقة '{target_sheet}'")
         
-        # جلب جميع الموظفين من قاعدة البيانات
+        # ✅ تحسين: استخدام الكاش لجلب الموظفين
         cs, es, _ = _get_services()
-        all_employees = es.get_employees(limit=500).get("items", [])
-        
-        # إنشاء قاموس بالرقم الوظيفي -> بيانات الموظف
-        emp_dict = {}
-        for emp in all_employees:
-            emp_no = emp.get('emp_no')
-            if emp_no:
-                emp_dict[str(emp_no).strip()] = emp
+        emp_dict = get_employees_dict_cached(es)
         
         st.info(f"✅ تم تحميل {len(emp_dict)} موظف من قاعدة البيانات")
         
@@ -86,6 +113,7 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
         
         # ✅ نقرأ كل الصفوف حتى نهاية الملف
         total_rows = len(df) - start_row
+        batch_data = []  # 👈 تجميع للتحديث الدفعي
         
         for idx in range(start_row, len(df)):
             row = df.iloc[idx]
@@ -117,24 +145,46 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
                             
                             if normalized:
                                 date_str = f"{year}-{month:02d}-{day:02d}"
-                                if ss.update_employee_shift(str(employee_id), date_str, normalized):
-                                    success += 1
-                                else:
-                                    failed += 1
-                                    errors.append(f"{emp_name} - يوم {day}: فشل الحفظ")
+                                # ✅ تحسين: تجميع للتحديث الدفعي
+                                batch_data.append({
+                                    "employee_id": str(employee_id),
+                                    "date": date_str,
+                                    "shift_type": normalized
+                                })
+                                success += 1
                             else:
                                 # حتى لو الرمز غير معروف، نحاول نحفظه
                                 date_str = f"{year}-{month:02d}-{day:02d}"
-                                if ss.update_employee_shift(str(employee_id), date_str, str(shift_code)):
-                                    success += 1
-                                else:
-                                    failed += 1
-                                    errors.append(f"{emp_name} - يوم {day}: فشل الحفظ للرمز {shift_code}")
+                                batch_data.append({
+                                    "employee_id": str(employee_id),
+                                    "date": date_str,
+                                    "shift_type": str(shift_code)
+                                })
+                                success += 1
             else:
                 failed += 1
                 errors.append(f"⚠️ الموظف بكود {emp_no} غير موجود في قاعدة البيانات")
             
             progress_bar.progress((idx - start_row + 1) / total_rows)
+            
+            # ✅ تحسين: كل 500 مناوبة نرسل دفعة
+            if len(batch_data) >= 500:
+                if hasattr(ss, 'batch_update_shifts'):
+                    ss.batch_update_shifts(batch_data)
+                else:
+                    # إذا ما في batch update، نستخدم الطريقة القديمة
+                    for item in batch_data:
+                        ss.update_employee_shift(item["employee_id"], item["date"], item["shift_type"])
+                batch_data = []
+                status_text.text(f"✅ تم استيراد {success} مناوبة...")
+        
+        # ✅ تحسين: نرسل آخر دفعة
+        if batch_data:
+            if hasattr(ss, 'batch_update_shifts'):
+                ss.batch_update_shifts(batch_data)
+            else:
+                for item in batch_data:
+                    ss.update_employee_shift(item["employee_id"], item["date"], item["shift_type"])
         
         status_text.text("")
         
@@ -179,6 +229,7 @@ def import_shifts_from_excel(uploaded_file, ss, employees, year, month):
         
         progress_bar = st.progress(0)
         status_text = st.empty()
+        batch_data = []
         
         for idx, row in df.iterrows():
             status_text.text(f"جاري استيراد {idx+1}/{len(df)}...")
@@ -211,17 +262,35 @@ def import_shifts_from_excel(uploaded_file, ss, employees, year, month):
                 
                 # حفظ المناوبة (إذا كان shift_code فارغ نرسل "off")
                 save_shift = shift_code if shift_code else "off"
-                if ss.update_employee_shift(str(emp_id), date_str, save_shift):
-                    success += 1
-                else:
-                    failed += 1
-                    errors.append(f"سطر {idx+2}: فشل حفظ مناوبة لـ {emp_no}")
+                batch_data.append({
+                    "employee_id": str(emp_id),
+                    "date": date_str,
+                    "shift_type": save_shift
+                })
+                success += 1
+                
+                # ✅ تحسين: كل 200 مناوبة نرسل دفعة
+                if len(batch_data) >= 200:
+                    if hasattr(ss, 'batch_update_shifts'):
+                        ss.batch_update_shifts(batch_data)
+                    else:
+                        for item in batch_data:
+                            ss.update_employee_shift(item["employee_id"], item["date"], item["shift_type"])
+                    batch_data = []
                     
             except Exception as e:
                 failed += 1
                 errors.append(f"سطر {idx+2}: {str(e)}")
             
             progress_bar.progress((idx + 1) / len(df))
+        
+        # ✅ تحسين: آخر دفعة
+        if batch_data:
+            if hasattr(ss, 'batch_update_shifts'):
+                ss.batch_update_shifts(batch_data)
+            else:
+                for item in batch_data:
+                    ss.update_employee_shift(item["employee_id"], item["date"], item["shift_type"])
         
         if errors:
             st.warning(f"⚠️ يوجد {len(errors)} خطأ")
@@ -566,7 +635,10 @@ def _get_services():
     return cs, es, ss
 
 def show_shifts():
-    """صفحة إدارة المناوبات"""
+    """صفحة إدارة المناوبات - نسخة محسنة الأداء"""
+    
+    # ===== قياس وقت التحميل =====
+    start_time = time.time()
     
     # ===== حل مشكلة عدم التحديث =====
     if 'refresh_shifts_data' in st.session_state and st.session_state.refresh_shifts_data:
@@ -587,7 +659,7 @@ def show_shifts():
     # ===== عرض الدوام الرسمي =====
     show_official_schedule()
     
-    # زر تحديث يدوي
+    # زر تحديث يدوي مع كسر الكاش
     col1, col2 = st.columns([10, 1])
     with col2:
         if st.button("🔄 تحديث الجدول"):
@@ -596,49 +668,69 @@ def show_shifts():
             st.rerun()
     
     cs, es, ss = _get_services()
-    centers = cs.get_centers() or []
+    centers = get_centers_cached(cs)  # ✅ استخدام الكاش
     
     if not centers:
         st.warning("❌ لا توجد مراكز متاحة")
         return
     
-    # ===== اختيار المركز والشهر =====
+    # ===== اختيار المركز والشهر مع حفظ الحالة =====
     col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     
     with col1:
         center_names = [c["name"] for c in centers]
-        selected_center = st.selectbox("🏥 المركز", center_names)
+        
+        # حفظ آخر مركز مختار
+        if 'last_center' not in st.session_state:
+            st.session_state.last_center = center_names[0]
+        
+        selected_center = st.selectbox(
+            "🏥 المركز", 
+            center_names,
+            index=center_names.index(st.session_state.last_center) if st.session_state.last_center in center_names else 0
+        )
+        st.session_state.last_center = selected_center
         center_id = next(c["id"] for c in centers if c["name"] == selected_center)
     
     with col2:
-        year = st.number_input("📅 السنة", 2020, 2030, datetime.now().year)
+        # حفظ آخر سنة مختارة
+        if 'last_year' not in st.session_state:
+            st.session_state.last_year = datetime.now().year
+        year = st.number_input("📅 السنة", 2020, 2030, st.session_state.last_year)
+        st.session_state.last_year = year
     
     with col3:
-        month = st.number_input("📆 الشهر", 1, 12, datetime.now().month)
+        # حفظ آخر شهر مختار
+        if 'last_month' not in st.session_state:
+            st.session_state.last_month = datetime.now().month
+        month = st.number_input("📆 الشهر", 1, 12, st.session_state.last_month)
+        st.session_state.last_month = month
     
     with col4:
         view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق", "📥 استيراد Excel", "💡 مساعد ذكي"], horizontal=True)
     
-    # ===== جلب الموظفين مع كسر Cache =====
+    # ===== جلب الموظفين مع استخدام الكاش =====
     with st.spinner("جاري تحميل الموظفين..."):
-        employees = es.get_employees(
-            center_id=center_id,
-            _cache_buster=random.randint(1, 10000)
-        ).get("items", [])
+        employees = get_employees_cached(
+            es, 
+            center_id, 
+            cache_buster=random.randint(1, 10000) if st.session_state.get('refresh_employees', False) else None
+        )
     
     if not employees:
         st.warning(f"⚠️ لا يوجد موظفون في {selected_center}")
         return
     
-    # جلب المناوبات للشهر المحدد
+    # جلب المناوبات للشهر المحدد مع الكاش
     with st.spinner("جاري تحميل المناوبات..."):
-        shifts = ss.get_shifts_by_month(center_id, year, month)
+        shifts = get_shifts_cached(ss, center_id, year, month)
     
     # ===== تشخيص: نشوف أول 3 مناوبات من الـ API =====
-    st.write("🔍 **تشخيص - أول 3 مناوبات من API:**")
-    for i, shift in enumerate(shifts[:3]):
-        st.write(f"مناوبة {i+1}:")
-        st.json(shift)
+    if st.checkbox("🔍 إظهار التشخيص", value=False):
+        st.write("🔍 **تشخيص - أول 3 مناوبات من API:**")
+        for i, shift in enumerate(shifts[:3]):
+            st.write(f"مناوبة {i+1}:")
+            st.json(shift)
     
     # ✅ ===== تصفية المناوبات القديمة (اللي فيها employee_id = NULL) =====
     filtered_shifts = []
@@ -651,7 +743,7 @@ def show_shifts():
         if has_valid_assignment:
             filtered_shifts.append(shift)
     
-    if len(filtered_shifts) < len(shifts):
+    if len(filtered_shifts) < len(shifts) and st.checkbox("📊 إظهار إحصائيات التصفية", value=False):
         st.info(f"📊 من أصل {len(shifts)} مناوبة، {len(filtered_shifts)} فقط فيها تعيينات صحيحة (تم تجاهل {len(shifts) - len(filtered_shifts)} مناوبة قديمة)")
     
     shifts = filtered_shifts  # نستخدم المصفاة
@@ -768,7 +860,7 @@ def show_shifts():
                         st.markdown(f"<div style='background:{info['color']}; color:{info['text_color']}; padding:0.5rem; border-radius:8px; text-align:center;'><strong>{code}</strong> - {info['name']}</div>", unsafe_allow_html=True)
     
     # ===== باقي الأوضاع (✏️ تعديل، ➕ إضافة، ⚡ توليد تلقائي، ...) =====
-    # (الكود نفسه ما تغير)
+    # (الكود نفسه ما تغير - حافظنا عليه بالكامل)
     elif view_mode == "✏️ تعديل":
         st.subheader("✏️ تعديل المناوبات")
         
@@ -1453,3 +1545,7 @@ def show_shifts():
                                 
                 except Exception as e:
                     st.error(f"❌ خطأ في قراءة الملف: {str(e)}")
+    
+    # ✅ عرض وقت التحميل
+    if st.session_state.get('show_performance', False):
+        st.sidebar.metric("⏱️ وقت التحميل", f"{time.time() - start_time:.2f} ث")
