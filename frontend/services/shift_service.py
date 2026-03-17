@@ -84,13 +84,19 @@ class ShiftService:
             return []
     
     def get_employee_shifts_by_month(self, employee_id, year, month):
-        """جلب مناوبات موظف محدد لشهر كامل"""
+        """جلب مناوبات موظف محدد لشهر كامل - مع تشخيص"""
         try:
             start_date = f"{year}-{month:02d}-01"
             if month == 12:
                 end_date = f"{year+1}-01-01"
             else:
                 end_date = f"{year}-{month+1:02d}-01"
+            
+            # 🔍 تشخيص
+            print(f"\n{'='*60}")
+            print(f"🔍 جلب مناوبات للموظف: {employee_id}")
+            print(f"   التاريخ: {start_date} إلى {end_date}")
+            print(f"   الرابط: {self.base_url}/by_employee")
             
             response = requests.get(
                 f"{self.base_url}/by_employee",
@@ -103,11 +109,24 @@ class ShiftService:
                 },
                 timeout=10
             )
+            
+            print(f"   الحالة: {response.status_code}")
+            
             if response.status_code == 200:
-                return response.json().get("items", [])
-            return []
+                data = response.json()
+                items = data.get("items", [])
+                print(f"   ✅ عدد المناوبات: {len(items)}")
+                
+                if items:
+                    print(f"   🆔 أول مناوبة: {items[0].get('id')} - {items[0].get('date')} - {items[0].get('shift_type')}")
+                
+                return items
+            else:
+                print(f"   ❌ خطأ: {response.text}")
+                return []
+                
         except Exception as e:
-            print(f"خطأ في get_employee_shifts_by_month: {e}")
+            print(f"❌ خطأ في get_employee_shifts_by_month: {e}")
             return []
     
     # ===== دالة جديدة: تجلب كل التعيينات للشهر =====
@@ -276,3 +295,68 @@ class ShiftService:
             print(f"❌ خطأ في batch_update_shifts: {str(e)}")
             st.error(f"❌ فشل التحديث الدفعي: {str(e)}")
             return 0
+    
+    # ===== 🔬 دالة تشخيص متقدمة =====
+    def debug_employee_shifts(self, employee_id, year, month):
+        """تشخيص متقدم لمناوبات موظف محدد"""
+        try:
+            start_date = f"{year}-{month:02d}-01"
+            if month == 12:
+                end_date = f"{year+1}-01-01"
+            else:
+                end_date = f"{year}-{month+1:02d}-01"
+            
+            print("\n" + "="*70)
+            print(f"🔬 تشخيص متقدم للموظف: {employee_id}")
+            print("="*70)
+            print(f"📅 الفترة: {start_date} إلى {end_date}")
+            print(f"🔗 الرابط الكامل: {self.base_url}/by_employee?employee_id={employee_id}&start_date={start_date}&end_date={end_date}&limit=40")
+            
+            response = requests.get(
+                f"{self.base_url}/by_employee",
+                headers=self.auth.get_headers(),
+                params={
+                    "employee_id": employee_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "limit": 40
+                },
+                timeout=10
+            )
+            
+            print(f"\n📥 حالة الاستجابة: {response.status_code}")
+            print(f"📦 Headers: {dict(response.headers)}")
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    items = data.get("items", [])
+                    print(f"\n✅ تم استلام البيانات بنجاح")
+                    print(f"📊 عدد المناوبات: {len(items)}")
+                    
+                    if items:
+                        print(f"\n📋 أول 5 مناوبات:")
+                        for i, shift in enumerate(items[:5]):
+                            print(f"\n   مناوبة {i+1}:")
+                            print(f"      ID: {shift.get('id')}")
+                            print(f"      التاريخ: {shift.get('date')}")
+                            print(f"      النوع: {shift.get('shift_type')}")
+                            print(f"      المركز: {shift.get('center_id')}")
+                            print(f"      التعيينات: {len(shift.get('assignments', []))}")
+                    else:
+                        print(f"\n❌ المصفوفة items فارغة!")
+                    
+                    return items
+                    
+                except Exception as e:
+                    print(f"\n❌ خطأ في تحليل JSON: {e}")
+                    print(f"   النص المستلم: {response.text[:200]}")
+                    return []
+            else:
+                print(f"\n❌ فشل الطلب: {response.status_code}")
+                print(f"   النص: {response.text}")
+                return []
+                
+        except Exception as e:
+            print(f"\n❌ خطأ في debug_employee_shifts: {e}")
+            return []
