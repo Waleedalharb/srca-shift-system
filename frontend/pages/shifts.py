@@ -649,64 +649,7 @@ def show_shifts():
     page_header("📅 إدارة المناوبات", "عرض، إضافة، تعديل، توليد تلقائي للمناوبات", "⏰")
     show_official_schedule()
     
-        # ===== أزرار التحكم مع زر حذف الشهر الجديد =====
-    col1, col2, col3, col4, col5 = st.columns([6, 1, 1, 1, 1])
-    with col2:
-        if st.button("🔄 تحديث", use_container_width=True):
-            st.cache_data.clear()
-            st.session_state.shift_service = None
-            st.rerun()
-    with col3:
-        if st.button("🗑️ مسح", use_container_width=True):
-            st.cache_data.clear()
-            st.cache_resource.clear()
-            st.session_state.clear()
-            st.rerun()
-    with col4:
-        if st.button("🧹 تنظيف", use_container_width=True, type="secondary"):
-            with st.popover("🧹 خيارات التنظيف"):
-                st.markdown("### اختر نطاق التنظيف")
-                option = st.radio(
-                    "نطاق التنظيف:",
-                    ["الشهر الحالي فقط", "كل البيانات (مسح شامل)"],
-                    key="cleanup_option"
-                )
-                
-                if st.button("✅ تأكيد وتنفيذ", use_container_width=True, type="primary"):
-                    with st.spinner("🧹 جاري تنظيف البيانات..."):
-                        cs, es, ss = _get_services()
-                        if option == "كل البيانات (مسح شامل)":
-                            result = ss.cleanup_all_shifts(delete_all=True)
-                        else:
-                            result = ss.cleanup_all_shifts(
-                                month=st.session_state.current_month,
-                                year=st.session_state.current_year
-                            )
-                        if result and result.get("deleted_assignments", 0) > 0:
-                            st.success(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين")
-                            st.cache_data.clear()
-                            st.rerun()
-    with col5:
-        if st.button("🔥 حذف الشهر", use_container_width=True, type="primary"):
-            with st.spinner(f"جاري حذف مناوبات {month}/{year}..."):
-                try:
-                    cs, es, ss = _get_services()
-                    response = requests.delete(
-                        f"{config.API_URL}/shifts/cleanup-simple",
-                        headers=ss.auth.get_headers(),
-                        params={"month": month, "year": year},
-                        timeout=10
-                    )
-                    if response.status_code == 200:
-                        result = response.json()
-                        st.success(f"✅ {result.get('message', 'تم الحذف')}")
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error(f"❌ فشل الحذف: {response.text}")
-                except Exception as e:
-                    st.error(f"❌ خطأ: {str(e)}")
-    
+    # ===== جلب الخدمات والمراكز أولاً =====
     cs, es, ss = _get_services()
     centers = get_centers_cached(cs)
     
@@ -714,6 +657,7 @@ def show_shifts():
         st.warning("❌ لا توجد مراكز متاحة")
         return
     
+    # ===== اختيار المركز والشهر مع حفظ الحالة =====
     col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     
     with col1:
@@ -746,6 +690,65 @@ def show_shifts():
     with col4:
         view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق", "📥 استيراد Excel", "💡 مساعد ذكي"], horizontal=True)
     
+    # ===== الآن أضف أزرار التحكم (بعد تعريف month و year) =====
+    col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns([6, 1, 1, 1, 1])
+    with col_btn2:
+        if st.button("🔄 تحديث", use_container_width=True):
+            st.cache_data.clear()
+            st.session_state.shift_service = None
+            st.rerun()
+    with col_btn3:
+        if st.button("🗑️ مسح", use_container_width=True):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.session_state.clear()
+            st.rerun()
+    with col_btn4:
+        if st.button("🧹 تنظيف", use_container_width=True, type="secondary"):
+            with st.popover("🧹 خيارات التنظيف"):
+                st.markdown("### اختر نطاق التنظيف")
+                option = st.radio(
+                    "نطاق التنظيف:",
+                    ["الشهر الحالي فقط", "كل البيانات (مسح شامل)"],
+                    key="cleanup_option"
+                )
+                
+                if st.button("✅ تأكيد وتنفيذ", use_container_width=True, type="primary"):
+                    with st.spinner("🧹 جاري تنظيف البيانات..."):
+                        cs, es, ss = _get_services()
+                        if option == "كل البيانات (مسح شامل)":
+                            result = ss.cleanup_all_shifts(delete_all=True)
+                        else:
+                            result = ss.cleanup_all_shifts(
+                                month=st.session_state.current_month,
+                                year=st.session_state.current_year
+                            )
+                        if result and result.get("deleted_assignments", 0) > 0:
+                            st.success(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين")
+                            st.cache_data.clear()
+                            st.rerun()
+    with col_btn5:
+        if st.button("🔥 حذف الشهر", use_container_width=True, type="primary"):
+            with st.spinner(f"جاري حذف مناوبات {month}/{year}..."):
+                try:
+                    cs, es, ss = _get_services()
+                    response = requests.delete(
+                        f"{config.API_URL}/shifts/cleanup-simple",
+                        headers=ss.auth.get_headers(),
+                        params={"month": month, "year": year},
+                        timeout=10
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        st.success(f"✅ {result.get('message', 'تم الحذف')}")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"❌ فشل الحذف: {response.text}")
+                except Exception as e:
+                    st.error(f"❌ خطأ: {str(e)}")
+    
+    # ===== جلب الموظفين والمناوبات =====
     with st.spinner("جاري تحميل الموظفين..."):
         employees = get_employees_cached(
             es, 
