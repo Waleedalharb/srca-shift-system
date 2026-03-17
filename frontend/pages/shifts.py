@@ -24,9 +24,9 @@ def get_employees_cached(_es, center_id, cache_buster=None):
         _cache_buster=cache_buster or random.randint(1, 10000)
     ).get("items", [])
 
-@st.cache_data(ttl=60, show_spinner="جاري تحميل المناوبات...")
+@st.cache_data(ttl=0, show_spinner="جاري تحميل المناوبات...")  # 👈 ttl=0 يعني بدون كاش مؤقتاً
 def get_shifts_cached(_ss, center_id, year, month):
-    """تخزين المناوبات في الكاش لمدة دقيقة"""
+    """تخزين المناوبات في الكاش - مؤقتاً بدون كاش للاختبار"""
     return _ss.get_shifts_by_month(center_id, year, month)
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -654,7 +654,10 @@ def _get_services():
     return cs, es, ss
 
 def show_shifts():
-    """صفحة إدارة المناوبات - نسخة محسنة الأداء"""
+    """صفحة إدارة المناوبات - نسخة محسنة الأداء مع تشخيص"""
+    
+    # ===== قياس وقت التحميل =====
+    start_time = time.time()
     
     # ===== 🔥 حل نهائي: التحقق من باراميتر import_success =====
     if st.query_params.get("import_success"):
@@ -676,8 +679,31 @@ def show_shifts():
         st.rerun()
     # ========================================================
     
-    # ===== قياس وقت التحميل =====
-    start_time = time.time()
+    # ===== 🔍 تشخيص مشعل الحجيلي (6182) =====
+    with st.sidebar:
+        st.markdown("### 🔍 تشخيص")
+        if st.button("🔍 تشخيص مشعل", use_container_width=True, type="primary"):
+            cs, es, ss = _get_services()
+            # نجيب كل الموظفين
+            all_emps = es.get_employees(limit=500).get("items", [])
+            mishal = next((e for e in all_emps if e.get('emp_no') == '6182'), None)
+            
+            if mishal:
+                st.success(f"👤 {mishal['full_name']} (كود: {mishal.get('emp_no')})")
+                
+                # نجيب مناوباته لشهر مارس 2026
+                shifts = ss.get_employee_shifts_by_month(mishal['id'], 2026, 3)
+                st.write(f"📊 **عدد المناوبات في مارس:** {len(shifts)}")
+                
+                if shifts:
+                    st.write("**أول 3 مناوبات:**")
+                    for i, shift in enumerate(shifts[:3]):
+                        st.write(f"{i+1}. تاريخ: {shift.get('date')} - نوع: {shift.get('shift_type')}")
+                else:
+                    st.error("❌ لا يوجد مناوبات لهذا الموظف في مارس!")
+            else:
+                st.error("❌ مشعل غير موجود في قاعدة البيانات!")
+    # ====================================================
     
     # ===== حل مشكلة عدم التحديث =====
     if 'refresh_shifts_data' in st.session_state and st.session_state.refresh_shifts_data:
@@ -698,12 +724,18 @@ def show_shifts():
     # ===== عرض الدوام الرسمي =====
     show_official_schedule()
     
-    # زر تحديث يدوي مع كسر الكاش
-    col1, col2 = st.columns([10, 1])
+    # أزرار التحكم
+    col1, col2, col3 = st.columns([8, 1, 1])
     with col2:
-        if st.button("🔄 تحديث الجدول"):
+        if st.button("🔄 تحديث", use_container_width=True):
             st.cache_data.clear()
             st.session_state.shift_service = None
+            st.rerun()
+    with col3:
+        if st.button("🗑️ مسح", use_container_width=True):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.session_state.clear()
             st.rerun()
     
     cs, es, ss = _get_services()
@@ -760,7 +792,7 @@ def show_shifts():
         st.warning(f"⚠️ لا يوجد موظفون في {selected_center}")
         return
     
-    # جلب المناوبات للشهر المحدد مع الكاش
+    # جلب المناوبات للشهر المحدد مع الكاش (ttl=0 للاختبار)
     with st.spinner("جاري تحميل المناوبات..."):
         shifts = get_shifts_cached(ss, center_id, year, month)
     
@@ -795,6 +827,10 @@ def show_shifts():
     for emp in employees:
         emp_id = str(emp["id"])
         emp_shifts_list = ss.get_employee_shifts_by_month(emp_id, year, month)
+        
+        # ✅ تشخيص لمشعل (6182)
+        if emp.get('emp_no') == '6182':
+            st.sidebar.info(f"🔍 مشعل: جلبنا {len(emp_shifts_list)} مناوبة من API")
         
         # نحول القائمة إلى قاموس {day: shift_type}
         emp_shifts_dict = {}
