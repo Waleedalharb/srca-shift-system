@@ -193,7 +193,7 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
                 for err in errors[:30]:
                     st.warning(err)
         
-        # 🔥🔥🔥 الحل النهائي لمشكلة انعكاس الجدول 🔥🔥🔥
+               # 🔥🔥🔥 الحل النهائي لمشكلة انعكاس الجدول 🔥🔥🔥
         if success > 0:
             # 1. مسح كل أنواع الكاش
             st.cache_data.clear()
@@ -203,6 +203,8 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
             st.session_state.reload_shifts = True
             st.session_state.refresh_shifts_data = True
             st.session_state.shift_service = None
+            st.session_state.import_completed = True  # 👈 أضفنا هذا
+            st.session_state.import_count = success    # 👈 أضفنا هذا
             
             # 3. مسح المتغيرات المخزنة في Session State
             keys_to_clear = []
@@ -212,14 +214,13 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
             for key in keys_to_clear:
                 del st.session_state[key]
             
-            # 4. إضافة باراميتر للرابط لإجبار إعادة التحميل
-            st.query_params["import_success"] = "1"
-            
+            # 4. 👈 نحذف st.rerun() ونخلي المستخدم يضغط بنفسه
             st.success(f"✅ تم استيراد {success} مناوبة بنجاح!")
             st.balloons()
-            st.rerun()  # إعادة تحميل الصفحة
-        
-        return success, failed
+            st.info("👆 اضغط على زر '🔄 تحديث الجدول' في أعلى الصفحة لمشاهدة البيانات الجديدة")
+            
+            # 5. نرجع النتيجة بدون rerun
+            return success, failed
         
     except Exception as e:
         st.error(f"❌ خطأ في معالجة الملف: {str(e)}")
