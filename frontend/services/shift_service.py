@@ -361,16 +361,32 @@ class ShiftService:
             print(f"\n❌ خطأ في debug_employee_shifts: {e}")
             return []
     
-    # ===== 🧹 دالة تنظيف البيانات (جديدة) =====
-    def cleanup_all_shifts(self, month=None, year=None):
-        """مسح كل البيانات القديمة"""
+    # ===== 🧹 دالة تنظيف البيانات (محدثة - تدعم delete_all) =====
+    def cleanup_all_shifts(self, month=None, year=None, delete_all=False):
+        """
+        مسح البيانات القديمة
+        - delete_all=True: يمسح كل البيانات
+        - delete_all=False: يمسح بيانات الشهر والسنة المحددة
+        """
         try:
             params = {"confirm": True}
-            if month and year:
-                params["month"] = month
-                params["year"] = year
             
-            print(f"🧹 طلب تنظيف البيانات: {params}")
+            if delete_all:
+                # إذا تبغى تمسح كل شي
+                print("🧹 طلب تنظيف كل البيانات...")
+                # ما نضيف month و year عشان الباكند يفهم انه يمسح كل شي
+            else:
+                # إذا تبغى تمسح شهر وسنة محددين
+                if month and year:
+                    params["month"] = month
+                    params["year"] = year
+                    print(f"🧹 طلب تنظيف بيانات شهر {month}/{year}")
+                else:
+                    # إذا ما حددت، ناخذ الشهر الحالي
+                    current_date = datetime.now()
+                    params["month"] = current_date.month
+                    params["year"] = current_date.year
+                    print(f"🧹 طلب تنظيف بيانات الشهر الحالي {current_date.month}/{current_date.year}")
             
             response = requests.delete(
                 f"{self.base_url}/cleanup-all",
