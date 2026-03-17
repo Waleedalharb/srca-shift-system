@@ -472,3 +472,86 @@ def clear_cache(
         "cache_clear": True,
         "timestamp": datetime.now().isoformat()
     }
+
+
+# ===== 🧹 دالة تنظيف قاعدة البيانات بالكامل (جديدة) =====
+@router.delete("/cleanup-all")
+def cleanup_all_shifts(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+    confirm: bool = Query(False, description="تأكيد الحذف"),
+    month: Optional[int] = Query(None, description="شهر محدد (1-12)"),
+    year: Optional[int] = Query(None, description="سنة محددة"),
+):
+    """
+    تنظيف قاعدة البيانات من البيانات القديمة والمكررة
+    - بدون تأكيد ما يشتغل (حماية)
+    - يقدر يحذف شهر/سنة محددة أو كل شي
+    """
+    if current_user.role not in ["admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="❌ هذه العملية تحتاج صلاحية Admin فقط"
+        )
+    
+    if not confirm:
+        return {
+            "warning": "⚠️ هذا الإجراء سوف يحذف بيانات المناوبات!",
+            "message": "أضف ?confirm=true في الرابط لتأكيد الحذف"
+        }
+    
+    try:
+        deleted_assignments = 0
+        deleted_shifts = 0
+        
+        # بناء شرط الحذف
+        assignment_filter = []
+        shift_filter = []
+        
+        if year and month:
+            start_date = datetime(year, month, 1).date()
+            if month == 12:
+                end_date = datetime(year+1, 1, 1).date()
+            else:
+                end_date = datetime(year, month+1, 1).date()
+            
+            print(f"📅 حذف بيانات شهر {month}/{year}")
+            
+            # نجيب الـ shifts اللي في هذا الشهر
+            shifts_in_month = db.query(Shift).filter(
+                Shift.date >= start_date,
+                Shift.date < end_date
+            ).all()
+            
+            shift_ids = [s.id for s in shifts_in_month]
+            
+            # حذف تعيينات هذه الـ shifts
+            if shift_ids:
+                deleted_assignments = db.query(ShiftAssignment).filter(
+                    ShiftAssignment.shift_id.in_(shift_ids)
+                ).delete(synchronize_session=False)
+                
+                # حذف الـ shifts نفسها
+                deleted_shifts = db.query(Shift).filter(
+                    Shift.id.in_(shift_ids)
+                ).delete(synchronize_session=False)
+        
+        else:
+            # حذف كل شي (إذا ما حدد شهر وسنة)
+            print("🧹 حذف كل البيانات...")
+            deleted_assignments = db.query(ShiftAssignment).delete(synchronize_session=False)
+            deleted_shifts = db.query(Shift).delete(synchronize_session=False)
+        
+        db.commit()
+        
+        return {
+            "message": "✅ تم التنظيف بنجاح",
+            "deleted_assignments": deleted_assignments,
+            "deleted_shifts": deleted_shifts,
+            "month": month,
+            "year": year
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

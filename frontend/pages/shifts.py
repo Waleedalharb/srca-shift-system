@@ -24,9 +24,9 @@ def get_employees_cached(_es, center_id, cache_buster=None):
         _cache_buster=cache_buster or random.randint(1, 10000)
     ).get("items", [])
 
-@st.cache_data(ttl=0, show_spinner="جاري تحميل المناوبات...")  # 👈 ttl=0 يعني بدون كاش مؤقتاً
+@st.cache_data(ttl=60, show_spinner="جاري تحميل المناوبات...")  # 👈 رجعناها 60 ثانية
 def get_shifts_cached(_ss, center_id, year, month):
-    """تخزين المناوبات في الكاش - مؤقتاً بدون كاش للاختبار"""
+    """تخزين المناوبات في الكاش لمدة دقيقة"""
     return _ss.get_shifts_by_month(center_id, year, month)
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -724,8 +724,8 @@ def show_shifts():
     # ===== عرض الدوام الرسمي =====
     show_official_schedule()
     
-    # أزرار التحكم
-    col1, col2, col3 = st.columns([8, 1, 1])
+    # أزرار التحكم - تم إضافة زر التنظيف هنا
+    col1, col2, col3, col4 = st.columns([7, 1, 1, 1])
     with col2:
         if st.button("🔄 تحديث", use_container_width=True):
             st.cache_data.clear()
@@ -737,6 +737,19 @@ def show_shifts():
             st.cache_resource.clear()
             st.session_state.clear()
             st.rerun()
+    with col4:
+        if st.button("🧹 تنظيف", use_container_width=True, type="secondary"):
+            with st.spinner("جاري تنظيف البيانات القديمة..."):
+                try:
+                    result = ss.cleanup_all_shifts(month=month, year=year)
+                    if result and result.get("deleted_assignments", 0) > 0:
+                        st.success(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.info("لا توجد بيانات قديمة للحذف")
+                except Exception as e:
+                    st.error(f"❌ فشل التنظيف: {str(e)}")
     
     cs, es, ss = _get_services()
     centers = get_centers_cached(cs)  # ✅ استخدام الكاش
@@ -792,7 +805,7 @@ def show_shifts():
         st.warning(f"⚠️ لا يوجد موظفون في {selected_center}")
         return
     
-    # جلب المناوبات للشهر المحدد مع الكاش (ttl=0 للاختبار)
+    # جلب المناوبات للشهر المحدد مع الكاش (ttl=60)
     with st.spinner("جاري تحميل المناوبات..."):
         shifts = get_shifts_cached(ss, center_id, year, month)
     
