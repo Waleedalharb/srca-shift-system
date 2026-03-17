@@ -89,6 +89,59 @@ def get_shifts_by_month(
     
     return {"items": result}
 
+# ===== ✅ دالة جديدة: جلب مناوبات موظف محدد =====
+@router.get("/by_employee")
+def get_shifts_by_employee(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+    employee_id: UUID = Query(..., description="معرف الموظف"),
+    start_date: Optional[date] = Query(None, description="تاريخ البداية (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="تاريخ النهاية (YYYY-MM-DD)"),
+    limit: int = Query(100, description="الحد الأقصى للنتائج"),
+) -> dict:
+    """
+    جلب مناوبات موظف محدد في فترة زمنية
+    """
+    # بناء الاستعلام
+    query = db.query(Shift).join(
+        ShiftAssignment, Shift.id == ShiftAssignment.shift_id
+    ).filter(
+        ShiftAssignment.employee_id == employee_id
+    )
+    
+    if start_date:
+        query = query.filter(Shift.date >= start_date)
+    if end_date:
+        query = query.filter(Shift.date < end_date)
+    
+    # تنفيذ الاستعلام
+    shifts = query.order_by(Shift.date.desc()).limit(limit).all()
+    
+    # تحويل النتيجة
+    result = []
+    for shift in shifts:
+        # نجيب الموظف المعني فقط
+        assignment = next(
+            (a for a in shift.assignments if a.employee_id == employee_id), 
+            None
+        )
+        
+        if assignment:
+            employee = db.query(Employee).filter(Employee.id == employee_id).first()
+            shift_data = {
+                "id": str(shift.id),
+                "date": shift.date.isoformat(),
+                "shift_type": shift.shift_type,
+                "center_id": str(shift.center_id) if shift.center_id else None,
+                "assignments": [{
+                    "employee_id": str(assignment.employee_id),
+                    "employee_name": employee.full_name if employee else "غير معروف"
+                }]
+            }
+            result.append(shift_data)
+    
+    return {"items": result}
+
 @router.post("/", response_model=ShiftSchema, status_code=status.HTTP_201_CREATED)
 def create_shift(
     shift_in: ShiftCreate,
