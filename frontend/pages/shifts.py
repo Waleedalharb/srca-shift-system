@@ -664,34 +664,47 @@ def show_shifts():
             st.rerun()
     with col4:
         if st.button("🧹 تنظيف", use_container_width=True, type="secondary"):
-            with st.spinner("جاري تنظيف البيانات القديمة..."):
-                try:
-                    # خيارات التنظيف
-                    option = st.radio(
-                        "اختر نطاق التنظيف:",
-                        ["الشهر الحالي فقط", "كل البيانات (مسح شامل)"],
-                        horizontal=True,
-                        key="cleanup_option",
-                        label_visibility="collapsed"
-                    )
-                    
-                    cs, es, ss = _get_services()
-                    
-                    if option == "كل البيانات (مسح شامل)":
-                        result = ss.cleanup_all_shifts(delete_all=True)
-                    else:
-                        cleanup_month = st.session_state.get('current_month', datetime.now().month)
-                        cleanup_year = st.session_state.get('current_year', datetime.now().year)
-                        result = ss.cleanup_all_shifts(month=cleanup_month, year=cleanup_year)
-                    
-                    if result and result.get("deleted_assignments", 0) > 0:
-                        st.success(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين و {result.get('deleted_shifts', 0)} مناوبة")
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.info("⚠️ لا توجد بيانات قديمة للحذف في النطاق المحدد")
-                except Exception as e:
-                    st.error(f"❌ فشل التنظيف: {str(e)}")
+            # نافذة منبثقة للخيارات
+            with st.popover("🧹 خيارات التنظيف"):
+                st.markdown("### اختر نطاق التنظيف")
+                option = st.radio(
+                    "نطاق التنظيف:",
+                    ["الشهر الحالي فقط", "كل البيانات (مسح شامل)"],
+                    key="cleanup_option"
+                )
+                
+                if st.button("✅ تأكيد وتنفيذ", use_container_width=True, type="primary"):
+                    with st.spinner("🧹 جاري تنظيف البيانات... قد يستغرق دقيقة"):
+                        try:
+                            cs, es, ss = _get_services()
+                            
+                            if option == "كل البيانات (مسح شامل)":
+                                result = ss.cleanup_all_shifts(delete_all=True)
+                                st.info("🧨 طلب مسح كل البيانات...")
+                            else:
+                                cleanup_month = st.session_state.get('current_month', datetime.now().month)
+                                cleanup_year = st.session_state.get('current_year', datetime.now().year)
+                                result = ss.cleanup_all_shifts(month=cleanup_month, year=cleanup_year)
+                                st.info(f"📅 طلب مسح شهر {cleanup_month}/{cleanup_year}...")
+                            
+                            if result:
+                                deleted_assignments = result.get("deleted_assignments", 0)
+                                deleted_shifts = result.get("deleted_shifts", 0)
+                                
+                                if deleted_assignments > 0 or deleted_shifts > 0:
+                                    st.success(f"✅ تم حذف {deleted_assignments} تعيين و {deleted_shifts} مناوبة")
+                                    st.cache_data.clear()
+                                    
+                                    # زر تحديث الصفحة
+                                    if st.button("🔄 تحديث الصفحة", use_container_width=True):
+                                        st.rerun()
+                                else:
+                                    st.warning("⚠️ لم يتم حذف أي بيانات")
+                            else:
+                                st.error("❌ فشل التنظيف - لم يتم استلام رد من الخادم")
+                                
+                        except Exception as e:
+                            st.error(f"❌ خطأ في التنظيف: {str(e)}")
     
     cs, es, ss = _get_services()
     centers = get_centers_cached(cs)

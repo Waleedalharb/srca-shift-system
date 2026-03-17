@@ -372,37 +372,44 @@ class ShiftService:
             params = {"confirm": True}
             
             if delete_all:
-                # إذا تبغى تمسح كل شي
-                print("🧹 طلب تنظيف كل البيانات...")
-                # ما نضيف month و year عشان الباكند يفهم انه يمسح كل شي
+                # ✅ إضافة delete_all إلى الباراميترات
+                params["delete_all"] = True
+                print("🧨 طلب تنظيف كل البيانات...")
             else:
-                # إذا تبغى تمسح شهر وسنة محددين
                 if month and year:
                     params["month"] = month
                     params["year"] = year
-                    print(f"🧹 طلب تنظيف بيانات شهر {month}/{year}")
+                    print(f"📅 طلب تنظيف بيانات شهر {month}/{year}")
                 else:
-                    # إذا ما حددت، ناخذ الشهر الحالي
                     current_date = datetime.now()
                     params["month"] = current_date.month
                     params["year"] = current_date.year
-                    print(f"🧹 طلب تنظيف بيانات الشهر الحالي {current_date.month}/{current_date.year}")
+                    print(f"📅 طلب تنظيف بيانات الشهر الحالي {current_date.month}/{current_date.year}")
+            
+            print(f"📤 إرسال طلب: {params}")
             
             response = requests.delete(
                 f"{self.base_url}/cleanup-all",
                 headers=self.auth.get_headers(),
                 params=params,
-                timeout=30
+                timeout=60  # زيادة الوقت للتنظيف الكبير
             )
+            
+            print(f"📥 الحالة: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
-                print(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين")
+                print(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين و {result.get('deleted_shifts', 0)} مناوبة")
                 return result
             else:
                 print(f"❌ فشل التنظيف: {response.status_code} - {response.text}")
                 return None
                 
+        except requests.exceptions.Timeout:
+            print("❌ Timeout في التنظيف")
+            st.error("❌ استغرق التنظيف وقتاً طويلاً")
+            return None
+            
         except Exception as e:
             print(f"❌ خطأ في cleanup_all_shifts: {e}")
             return None
