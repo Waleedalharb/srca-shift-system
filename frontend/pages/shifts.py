@@ -10,29 +10,29 @@ from utils.constants import SHIFT_TYPES, get_all_shift_codes, get_shift_info
 import random
 import requests
 from config import config
-import time  # 👈 أضفنا هذا لقياس الأداء
+import time  # 👈 لقياس الأداء
 
 # ============================================================================
-# ✅ تحسين: دوال التخزين المؤقت (Caching) لتسريع الأداء
+# ✅ تحسين: دوال التخزين المؤقت (Caching) - مع underscore للمعاملات
 # ============================================================================
 
 @st.cache_data(ttl=300, show_spinner="جاري تحميل الموظفين...")
-def get_employees_cached(es, center_id, cache_buster=None):
+def get_employees_cached(_es, center_id, cache_buster=None):
     """تخزين الموظفين في الكاش لمدة 5 دقائق"""
-    return es.get_employees(
+    return _es.get_employees(
         center_id=center_id,
         _cache_buster=cache_buster or random.randint(1, 10000)
     ).get("items", [])
 
 @st.cache_data(ttl=60, show_spinner="جاري تحميل المناوبات...")
-def get_shifts_cached(ss, center_id, year, month):
+def get_shifts_cached(_ss, center_id, year, month):
     """تخزين المناوبات في الكاش لمدة دقيقة"""
-    return ss.get_shifts_by_month(center_id, year, month)
+    return _ss.get_shifts_by_month(center_id, year, month)
 
 @st.cache_data(ttl=300, show_spinner=False)
-def get_employees_dict_cached(es):
+def get_employees_dict_cached(_es):
     """تخزين قاموس الموظفين (للربط السريع) - يستخدم في الاستيراد"""
-    all_employees = es.get_employees(limit=500).get("items", [])
+    all_employees = _es.get_employees(limit=500).get("items", [])
     emp_dict = {}
     for emp in all_employees:
         emp_no = emp.get('emp_no')
@@ -41,9 +41,9 @@ def get_employees_dict_cached(es):
     return emp_dict
 
 @st.cache_data(ttl=600, show_spinner=False)
-def get_centers_cached(cs):
+def get_centers_cached(_cs):
     """تخزين المراكز في الكاش لمدة 10 دقائق"""
-    return cs.get_centers() or []
+    return _cs.get_centers() or []
 
 # ============================================================================
 # دوال مساعدة لاستيراد المناوبات
