@@ -193,13 +193,31 @@ def import_shifts_from_master_sheet(uploaded_file, ss, year, month):
                 for err in errors[:30]:
                     st.warning(err)
         
-        # ✅ كسر الكاش بعد الاستيراد الناجح
+        # 🔥🔥🔥 الحل النهائي لمشكلة انعكاس الجدول 🔥🔥🔥
         if success > 0:
+            # 1. مسح كل أنواع الكاش
             st.cache_data.clear()
+            st.cache_resource.clear()
+            
+            # 2. إعادة تعيين الـ Session State
             st.session_state.reload_shifts = True
             st.session_state.refresh_shifts_data = True
+            st.session_state.shift_service = None
+            
+            # 3. مسح المتغيرات المخزنة في Session State
+            keys_to_clear = []
+            for key in st.session_state.keys():
+                if key.startswith('get_') or 'shifts' in key or 'employees' in key or 'centers' in key:
+                    keys_to_clear.append(key)
+            for key in keys_to_clear:
+                del st.session_state[key]
+            
+            # 4. إضافة باراميتر للرابط لإجبار إعادة التحميل
+            st.query_params["import_success"] = "1"
+            
             st.success(f"✅ تم استيراد {success} مناوبة بنجاح!")
             st.balloons()
+            st.rerun()  # إعادة تحميل الصفحة
         
         return success, failed
         
@@ -637,6 +655,26 @@ def _get_services():
 def show_shifts():
     """صفحة إدارة المناوبات - نسخة محسنة الأداء"""
     
+    # ===== 🔥 حل نهائي: التحقق من باراميتر import_success =====
+    if st.query_params.get("import_success"):
+        # مسح كل الكاش
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.session_state.shift_service = None
+        
+        # مسح المتغيرات المخزنة
+        keys_to_clear = []
+        for key in st.session_state.keys():
+            if key.startswith('get_') or 'shifts' in key or 'employees' in key or 'centers' in key:
+                keys_to_clear.append(key)
+        for key in keys_to_clear:
+            del st.session_state[key]
+        
+        # إزالة الباراميتر من الرابط
+        st.query_params.clear()
+        st.rerun()
+    # ========================================================
+    
     # ===== قياس وقت التحميل =====
     start_time = time.time()
     
@@ -860,7 +898,6 @@ def show_shifts():
                         st.markdown(f"<div style='background:{info['color']}; color:{info['text_color']}; padding:0.5rem; border-radius:8px; text-align:center;'><strong>{code}</strong> - {info['name']}</div>", unsafe_allow_html=True)
     
     # ===== باقي الأوضاع (✏️ تعديل، ➕ إضافة، ⚡ توليد تلقائي، ...) =====
-    # (الكود نفسه ما تغير - حافظنا عليه بالكامل)
     elif view_mode == "✏️ تعديل":
         st.subheader("✏️ تعديل المناوبات")
         
