@@ -403,3 +403,19 @@ def cleanup_old_shifts(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===== 🔥 دالة جديدة: clear-cache (لإشارة الفرونتند بتحديث الكاش) =====
+@router.post("/clear-cache")
+def clear_cache(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+):
+    """مسح الكاش من قاعدة البيانات (للتطوير)"""
+    # هذه الدالة مخصصة للإشارة للفرونتند بأنه يجب مسح الكاش
+    print(f"🧹 تم طلب مسح الكاش بواسطة المستخدم: {current_user.username}")
+    return {
+        "message": "تم مسح الكاش بنجاح",
+        "cache_clear": True,
+        "timestamp": datetime.now().isoformat()
+    }
