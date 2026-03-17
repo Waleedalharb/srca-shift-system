@@ -560,3 +560,76 @@ def cleanup_all_shifts(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===== 🗑️ دالة حذف بسيطة مثل الموظفين (جديدة) =====
+@router.delete("/cleanup-simple")
+def cleanup_shifts_simple(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+    month: int = Query(..., description="الشهر (1-12)"),
+    year: int = Query(..., description="السنة"),
+):
+    """
+    حذف مناوبات شهر محدد - مثل نظام حذف الموظفين تماماً
+    - ما يحتاج confirm
+    - يحذف مباشرة
+    - يرجع عدد المناوبات المحذوفة
+    """
+    if current_user.role not in ["admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="❌ هذه العملية تحتاج صلاحية Admin فقط"
+        )
+    
+    try:
+        # حساب تاريخ البداية والنهاية للشهر
+        start_date = datetime(year, month, 1).date()
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1).date()
+        else:
+            end_date = datetime(year, month + 1, 1).date()
+        
+        print(f"🗑️ حذف مناوبات شهر {month}/{year} (من {start_date} إلى {end_date})")
+        
+        # 1. نجيب كل المناوبات في هذا الشهر
+        shifts = db.query(Shift).filter(
+            Shift.date >= start_date,
+            Shift.date < end_date
+        ).all()
+        
+        deleted_count = 0
+        shift_ids = []
+        
+        # 2. نجمع الـ IDs
+        for shift in shifts:
+            shift_ids.append(shift.id)
+        
+        # 3. إذا فيه مناوبات، نحذف التعيينات أولاً ثم المناوبات
+        if shift_ids:
+            # حذف التعيينات المرتبطة بهذه المناوبات
+            deleted_assignments = db.query(ShiftAssignment).filter(
+                ShiftAssignment.shift_id.in_(shift_ids)
+            ).delete(synchronize_session=False)
+            
+            # حذف المناوبات نفسها
+            deleted_shifts = db.query(Shift).filter(
+                Shift.id.in_(shift_ids)
+            ).delete(synchronize_session=False)
+            
+            deleted_count = deleted_shifts
+            print(f"✅ تم حذف {deleted_assignments} تعيين و {deleted_shifts} مناوبة")
+        
+        db.commit()
+        
+        return {
+            "message": f"✅ تم حذف {deleted_count} مناوبة لشهر {month}/{year}",
+            "deleted_count": deleted_count,
+            "month": month,
+            "year": year
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ خطأ في الحذف: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
