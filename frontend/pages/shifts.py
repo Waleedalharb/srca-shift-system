@@ -24,7 +24,7 @@ def get_employees_cached(_es, center_id, cache_buster=None):
         _cache_buster=cache_buster or random.randint(1, 10000)
     ).get("items", [])
 
-@st.cache_data(ttl=60, show_spinner="جاري تحميل المناوبات...")  # 👈 رجعناها 60 ثانية
+@st.cache_data(ttl=60, show_spinner="جاري تحميل المناوبات...")
 def get_shifts_cached(_ss, center_id, year, month):
     """تخزين المناوبات في الكاش لمدة دقيقة"""
     return _ss.get_shifts_by_month(center_id, year, month)
@@ -724,7 +724,7 @@ def show_shifts():
     # ===== عرض الدوام الرسمي =====
     show_official_schedule()
     
-       # أزرار التحكم - تم إضافة زر التنظيف هنا
+    # أزرار التحكم - مع زر التنظيف
     col1, col2, col3, col4 = st.columns([7, 1, 1, 1])
     with col2:
         if st.button("🔄 تحديث", use_container_width=True):
@@ -741,9 +741,14 @@ def show_shifts():
         if st.button("🧹 تنظيف", use_container_width=True, type="secondary"):
             with st.spinner("جاري تنظيف البيانات القديمة..."):
                 try:
-                    # ✅ الحل: نجيب الخدمة داخل الزر
+                    # ✅ نجيب الشهر والسنة من Session State
+                    cleanup_month = st.session_state.get('current_month', datetime.now().month)
+                    cleanup_year = st.session_state.get('current_year', datetime.now().year)
+                    
+                    # ✅ نجيب الخدمة داخل الزر
                     cs, es, ss = _get_services()
-                    result = ss.cleanup_all_shifts(month=month, year=year)
+                    result = ss.cleanup_all_shifts(month=cleanup_month, year=cleanup_year)
+                    
                     if result and result.get("deleted_assignments", 0) > 0:
                         st.success(f"✅ تم حذف {result.get('deleted_assignments', 0)} تعيين و {result.get('deleted_shifts', 0)} مناوبة")
                         st.cache_data.clear()
@@ -784,6 +789,7 @@ def show_shifts():
             st.session_state.last_year = datetime.now().year
         year = st.number_input("📅 السنة", 2020, 2030, st.session_state.last_year)
         st.session_state.last_year = year
+        st.session_state.current_year = year  # 👈 أضف هذا
     
     with col3:
         # حفظ آخر شهر مختار
@@ -791,6 +797,7 @@ def show_shifts():
             st.session_state.last_month = datetime.now().month
         month = st.number_input("📆 الشهر", 1, 12, st.session_state.last_month)
         st.session_state.last_month = month
+        st.session_state.current_month = month  # 👈 أضف هذا
     
     with col4:
         view_mode = st.radio("عرض", ["📋 الجدول", "✏️ تعديل", "➕ إضافة", "⚡ توليد تلقائي", "🔄 تكميل الفرق", "📥 استيراد Excel", "💡 مساعد ذكي"], horizontal=True)
