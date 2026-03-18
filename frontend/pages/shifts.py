@@ -866,7 +866,8 @@ def show_shifts():
     
     days_in_month = calendar.monthrange(year, month)[1]
     
-        if view_mode == "📋 الجدول":
+    # ✅ عرض الجدول (تم إصلاح Indentation هنا)
+    if view_mode == "📋 الجدول":
         st.subheader(f"📋 جدول مناوبات {selected_center} - {month}/{year}")
         
         # ===== زر طباعة كل المراكز =====
