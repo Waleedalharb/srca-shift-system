@@ -866,9 +866,18 @@ def show_shifts():
     
     days_in_month = calendar.monthrange(year, month)[1]
     
-    if view_mode == "📋 الجدول":
+        if view_mode == "📋 الجدول":
         st.subheader(f"📋 جدول مناوبات {selected_center} - {month}/{year}")
         
+        # ===== زر طباعة كل المراكز =====
+        col1, col2 = st.columns([8, 2])
+        with col2:
+            if st.button("🖨️ طباعة كل المراكز", use_container_width=True, type="secondary"):
+                st.session_state.print_all_centers = True
+                st.session_state.print_year = year
+                st.session_state.print_month = month
+                st.switch_page("pages/print_all_centers.py")
+      
         table_data = []
         total_hours_all = 0
         
