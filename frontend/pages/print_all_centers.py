@@ -7,6 +7,9 @@ from utils.constants import SHIFT_TYPES
 from services.center_service import CenterService
 from services.employee_service import EmployeeService
 from services.shift_service import ShiftService
+import io
+import tempfile
+from fpdf import FPDF
 
 st.set_page_config(page_title="طباعة جميع المراكز", layout="wide")
 
@@ -141,6 +144,82 @@ def get_center_data(center_id, year, month):
     
     return employees, shifts_map
 
+def generate_pdf_report(centers, year, month, total_employees_all, total_shifts_all):
+    """توليد تقرير PDF"""
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # عنوان التقرير
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, "هيئة الهلال الأحمر السعودي", ln=1, align='C')
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, f"تقرير مناوبات جميع المراكز - {calendar.month_name[month]} {year}", ln=1, align='C')
+    pdf.ln(10)
+    
+    # معلومات التقرير
+    pdf.set_font("Arial", '', 11)
+    pdf.cell(0, 8, f"تاريخ التقرير: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=1, align='R')
+    pdf.ln(5)
+    
+    # ملخص عام
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, f"📊 الملخص العام", ln=1, align='R')
+    pdf.set_font("Arial", '', 11)
+    pdf.cell(0, 8, f"🏥 إجمالي المراكز: {len(centers)}", ln=1, align='R')
+    pdf.cell(0, 8, f"👥 إجمالي الموظفين: {total_employees_all}", ln=1, align='R')
+    pdf.cell(0, 8, f"📅 إجمالي المناوبات: {total_shifts_all}", ln=1, align='R')
+    pdf.ln(10)
+    
+    # تفاصيل المراكز
+    for center in centers:
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, f"🏥 {center['name']}", ln=1, align='R')
+        
+        employees, shifts_map = get_center_data(center["id"], year, month)
+        if employees:
+            # رأس الجدول
+            pdf.set_font("Arial", 'B', 9)
+            pdf.cell(70, 8, "الموظف", 1, 0, 'C')
+            pdf.cell(30, 8, "الرقم الوظيفي", 1, 0, 'C')
+            pdf.cell(30, 8, "إجمالي الساعات", 1, 1, 'C')
+            
+            # بيانات الموظفين
+            pdf.set_font("Arial", '', 9)
+            for emp in employees[:10]:  # أول 10 موظفين فقط للاختصار
+                emp_id = str(emp["id"])
+                emp_shifts = shifts_map.get(emp_id, {})
+                
+                total_hours = 0
+                for day in range(1, 32):
+                    shift_type = emp_shifts.get(day)
+                    if shift_type and shift_type in SHIFT_TYPES:
+                        if shift_type in ['D12', 'N12', 'O12']:
+                            total_hours += 12
+                        elif shift_type == 'V':
+                            total_hours += 0
+                        else:
+                            total_hours += SHIFT_TYPES[shift_type]["hours"]
+                
+                # اختصار الاسم الطويل
+                name = emp['full_name'][:20] + "..." if len(emp['full_name']) > 20 else emp['full_name']
+                pdf.cell(70, 7, name, 1, 0, 'C')
+                pdf.cell(30, 7, emp.get('emp_no', ''), 1, 0, 'C')
+                pdf.cell(30, 7, str(total_hours), 1, 1, 'C')
+            
+            if len(employees) > 10:
+                pdf.set_font("Arial", 'I', 8)
+                pdf.cell(0, 5, f"... و {len(employees)-10} موظف آخر", ln=1, align='R')
+            
+            pdf.ln(5)
+    
+    # تذييل PDF
+    pdf.set_y(-30)
+    pdf.set_font("Arial", 'I', 8)
+    pdf.cell(0, 5, f"تم الإنشاء بواسطة نظام إدارة المراكز الإسعافية - هيئة الهلال الأحمر السعودي", ln=1, align='C')
+    pdf.cell(0, 5, f"صفحة {pdf.page_no()}", ln=1, align='C')
+    
+    return pdf
+
 def main():
     # التحقق من وجود البيانات
     if 'print_all_centers' not in st.session_state:
@@ -166,7 +245,7 @@ def main():
     <div class="info-box">
         <div><strong>تاريخ التقرير:</strong> {datetime.now().strftime('%Y-%m-%d')}</div>
         <div><strong>وقت الطباعة:</strong> {datetime.now().strftime('%H:%M')}</div>
-        <div><strong>إجمالي المراكز:</strong> 13 مركز</div>
+        <div><strong>إجمالي المراكز:</strong> (سيتم احتسابها)</div>
     </div>
     """, unsafe_allow_html=True)
     
@@ -176,7 +255,6 @@ def main():
     centers = cs.get_centers() or []
     
     days_in_month = calendar.monthrange(year, month)[1]
-    weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
     total_employees_all = 0
     total_shifts_all = 0
@@ -255,17 +333,33 @@ def main():
         st.metric("📅 إجمالي المناوبات", total_shifts_all)
     
     # أزرار التحكم
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
     with col2:
-        if st.button("🖨️ طباعة التقرير", use_container_width=True, type="primary"):
+        if st.button("🖨️ طباعة", use_container_width=True, type="secondary"):
             st.write("""
             <script>
             window.print();
             </script>
             """, unsafe_allow_html=True)
-    
     with col3:
-        if st.button("🔙 العودة للمناوبات", use_container_width=True):
+        if st.button("📥 PDF", use_container_width=True, type="primary"):
+            with st.spinner("جاري إنشاء ملف PDF..."):
+                pdf = generate_pdf_report(centers, year, month, total_employees_all, total_shifts_all)
+                
+                # حفظ PDF في ذاكرة مؤقتة
+                pdf_output = io.BytesIO()
+                pdf.output(pdf_output)
+                pdf_bytes = pdf_output.getvalue()
+                
+                st.download_button(
+                    label="📥 تحميل PDF",
+                    data=pdf_bytes,
+                    file_name=f"تقرير_المراكز_{month}_{year}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+    with col4:
+        if st.button("🔙 عودة", use_container_width=True):
             del st.session_state.print_all_centers
             st.switch_page("pages/shifts.py")
 
