@@ -90,47 +90,50 @@ def show_login_page():
                     login_success = st.session_state.auth_service.login(username, password)
                     
                     if login_success:
-                        # الحصول على token من session_state (بعد تسجيل الدخول)
-                        token = st.session_state.get("token")
-                        
-                        if not token:
-                            st.error("❌ لم يتم استلام رمز المصادقة")
-                            st.stop()
-                        
-                        # جلب بيانات المستخدم الكاملة من API
-                        try:
-                            headers = {"Authorization": f"Bearer {token}"}
-                            user_response = requests.get(
-                                f"{config.API_URL}/users/me",
-                                headers=headers,
-                                timeout=5
-                            )
+                        # 🔥 إصلاح مؤقت للموظف 8736
+                        if username == "8736":
+                            # اجبر الدور على PARAMEDIC
+                            st.session_state.user_role = "PARAMEDIC"
+                            st.session_state.user_employee_id = st.session_state.get("user_employee_id")
+                            st.session_state.user_full_name = "زياد عبدالله ابراهيم الرشيد"
+                            st.session_state.username = username
+                            st.session_state.authenticated = True
                             
-                            if user_response.status_code == 200:
-                                user_data = user_response.json()
-                                # تخزين كل البيانات في session_state
-                                st.session_state.user = user_data
-                                st.session_state.user_role = user_data.get("role", "").upper()
-                                st.session_state.user_employee_id = user_data.get("employee_id")
-                                st.session_state.user_full_name = user_data.get("full_name", username)
-                                st.session_state.username = username
-                                
-                                # تشخيص
-                                st.write(f"🔍 الدور المستلم من API: {st.session_state.user_role}")
-                                st.success("✅ تم تسجيل الدخول بنجاح")
-                                
-                            else:
-                                # إذا فشل جلب البيانات، استخدم البيانات الأساسية
-                                st.session_state.user = {"username": username, "role": "admin"}
-                                st.session_state.user_role = "admin"
-                                st.session_state.username = username
-                                st.warning(f"⚠️ لم نتمكن من جلب بيانات المستخدم: {user_response.status_code}")
+                            st.success("✅ تم تسجيل الدخول بنجاح (كموظف)")
+                            st.rerun()
+                        else:
+                            # باقي المستخدمين: جلب البيانات من API كالمعتاد
+                            token = st.session_state.get("token")
                             
-                        except Exception as e:
-                            st.error(f"❌ خطأ في جلب بيانات المستخدم: {str(e)}")
-                            st.stop()
-                        
-                        st.session_state.authenticated = True
-                        st.rerun()
+                            if not token:
+                                st.error("❌ لم يتم استلام رمز المصادقة")
+                                st.stop()
+                            
+                            try:
+                                headers = {"Authorization": f"Bearer {token}"}
+                                user_response = requests.get(
+                                    f"{config.API_URL}/users/me",
+                                    headers=headers,
+                                    timeout=5
+                                )
+                                
+                                if user_response.status_code == 200:
+                                    user_data = user_response.json()
+                                    st.session_state.user = user_data
+                                    st.session_state.user_role = user_data.get("role", "").upper()
+                                    st.session_state.user_employee_id = user_data.get("employee_id")
+                                    st.session_state.user_full_name = user_data.get("full_name", username)
+                                    st.session_state.username = username
+                                    st.success("✅ تم تسجيل الدخول بنجاح")
+                                else:
+                                    st.error(f"❌ فشل جلب بيانات المستخدم: {user_response.status_code}")
+                                    st.stop()
+                                    
+                            except Exception as e:
+                                st.error(f"❌ خطأ في جلب بيانات المستخدم: {str(e)}")
+                                st.stop()
+                            
+                            st.session_state.authenticated = True
+                            st.rerun()
                     else:
                         st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
