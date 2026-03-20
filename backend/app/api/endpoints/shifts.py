@@ -12,8 +12,39 @@ from app.models.user import User
 from app.models.employee import Employee
 from app.schemas.shift import Shift as ShiftSchema, ShiftCreate, ShiftUpdate, ShiftList
 from app.schemas.shift import ShiftAssignment as ShiftAssignmentSchema, ShiftAssignmentCreate
+from app.services.notification_service import NotificationService
 
 router = APIRouter()
+
+# ===== دالة مساعدة لجلب المناوبة القديمة =====
+def get_old_shift_for_employee(db: Session, employee_id: UUID, date_str: str):
+    """جلب المناوبة القديمة لموظف في يوم محدد"""
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        
+        # جلب الموظف لمعرفة مركزه
+        employee = db.query(Employee).filter(Employee.id == employee_id).first()
+        if not employee:
+            return None
+        
+        # جلب المناوبة
+        shift = db.query(Shift).filter(
+            Shift.center_id == employee.center_id,
+            Shift.date == target_date
+        ).first()
+        
+        if shift:
+            # التحقق من وجود تعيين للموظف
+            assignment = db.query(ShiftAssignment).filter(
+                ShiftAssignment.shift_id == shift.id,
+                ShiftAssignment.employee_id == employee_id
+            ).first()
+            if assignment:
+                return shift.shift_type
+        
+        return None
+    except Exception:
+        return None
 
 @router.get("/", response_model=ShiftList)
 def get_shifts(
@@ -199,14 +230,14 @@ def assign_employee(
     
     return {"message": "تم تعيين الموظف بنجاح"}
 
-# ===== دالة تحديث مناوبة موظف (مفردة) =====
+# ===== دالة تحديث مناوبة موظف (مفردة) - مع إضافة إشعار =====
 @router.put("/update")
 def update_employee_shift(
     data: dict = Body(...),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ):
-    """تحديث مناوبة موظف ليوم محدد"""
+    """تحديث مناوبة موظف ليوم محدد - مع إرسال إشعار للموظف"""
     employee_id = data.get("employee_id")
     date_str = data.get("date")
     shift_type = data.get("shift_type")
@@ -219,6 +250,9 @@ def update_employee_shift(
         emp_uuid = UUID(employee_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"معرف موظف غير صالح: {employee_id}, خطأ: {str(e)}")
+    
+    # جلب المناوبة القديمة (قبل التعديل)
+    old_shift = get_old_shift_for_employee(db, emp_uuid, date_str)
     
     # تحويل التاريخ
     try:
@@ -280,10 +314,22 @@ def update_employee_shift(
     
     print(f"✅ تم حفظ مناوبة: {shift.id}, عدد التعيينات: {len(shift.assignments)}")
     
+    # 🔔 إرسال إشعار للموظف إذا كان هناك تغيير
+    if old_shift != shift_type:
+        notification_service = NotificationService(db)
+        notification_service.create_shift_change_notification(
+            employee_id=emp_uuid,
+            date=date_str,
+            old_shift=old_shift or "off",
+            new_shift=shift_type,
+            changed_by=current_user.username
+        )
+        print(f"🔔 تم إرسال إشعار للموظف {employee.full_name}")
+    
     return {"message": "تم التحديث بنجاح", "shift_id": str(shift.id)}
 
 
-# ===== 🚀 دالة جديدة: Batch Update (تحديث دفعة واحدة) =====
+# ===== 🚀 دالة جديدة: Batch Update (تحديث دفعة واحدة) - مع إضافة إشعارات =====
 @router.post("/batch-update")
 def batch_update_shifts(
     data: List[dict] = Body(...),
@@ -295,6 +341,7 @@ def batch_update_shifts(
     - يستقبل قائمة من المناوبات
     - ينفذ كل التحديثات في commit واحد
     - أسرع 10-20 مرة من التحديث المفرد
+    - يرسل إشعارات للموظفين عند التغيير
     """
     if not data:
         raise HTTPException(status_code=400, detail="لا توجد بيانات للتحديث")
@@ -304,6 +351,7 @@ def batch_update_shifts(
     success = 0
     failed = 0
     errors = []
+    notifications_sent = 0
     
     # معالجة كل عنصر في القائمة
     for idx, item in enumerate(data):
@@ -317,13 +365,15 @@ def batch_update_shifts(
                 errors.append(f"عنصر {idx}: بيانات ناقصة")
                 continue
             
-            # تحويل النص إلى UUID
+            # جلب المناوبة القديمة
             try:
                 emp_uuid = UUID(employee_id)
             except Exception as e:
                 failed += 1
                 errors.append(f"عنصر {idx}: معرف موظف غير صالح - {str(e)}")
                 continue
+            
+            old_shift = get_old_shift_for_employee(db, emp_uuid, date_str)
             
             # تحويل التاريخ
             try:
@@ -387,6 +437,13 @@ def batch_update_shifts(
             
             success += 1
             
+            # 🔔 تخزين الإشعار ليتم إرساله بعد commit
+            if old_shift != shift_type:
+                # نحفظ البيانات مؤقتاً للإشعار
+                item["_old_shift"] = old_shift
+                item["_employee_name"] = employee.full_name
+                item["_employee_uuid"] = emp_uuid
+            
             # كل 500 عنصر نطبع تقدم
             if success % 500 == 0:
                 print(f"⏳ تم معالجة {success} مناوبة...")
@@ -399,11 +456,29 @@ def batch_update_shifts(
     if success > 0:
         db.commit()
         print(f"✅ تم حفظ {success} مناوبة في قاعدة البيانات")
+        
+        # 🔔 إرسال الإشعارات بعد commit
+        notification_service = NotificationService(db)
+        for idx, item in enumerate(data):
+            if "_old_shift" in item:
+                notification_service.create_shift_change_notification(
+                    employee_id=item["_employee_uuid"],
+                    date=item.get("date"),
+                    old_shift=item["_old_shift"] or "off",
+                    new_shift=item.get("shift_type"),
+                    changed_by=current_user.username
+                )
+                notifications_sent += 1
+        
+        if notifications_sent > 0:
+            db.commit()
+            print(f"🔔 تم إرسال {notifications_sent} إشعار للموظفين")
     
     # طباعة الملخص
     print(f"\n📊 ملخص التحديث الدفعي:")
     print(f"   ✅ نجاح: {success}")
     print(f"   ❌ فشل: {failed}")
+    print(f"   🔔 إشعارات: {notifications_sent}")
     if errors and len(errors) <= 10:
         for err in errors:
             print(f"   ⚠️ {err}")
@@ -416,7 +491,8 @@ def batch_update_shifts(
         "message": f"✅ تم تحديث {success} مناوبة بنجاح",
         "success": success,
         "failed": failed,
-        "total": len(data)
+        "total": len(data),
+        "notifications_sent": notifications_sent
     }
 
 
