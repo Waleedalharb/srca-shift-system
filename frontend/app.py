@@ -281,162 +281,155 @@ if "token" not in st.session_state:
 if "user_full_name" not in st.session_state:
     st.session_state.user_full_name = None
 
-# ===== التحكم في عرض الصفحة =====
+# إذا لم يكن مسجل دخول
 if not st.session_state.authenticated:
-    # عرض صفحة تسجيل الدخول فقط
     from pages.login import show_login_page
     show_login_page()
     footer()
-else:
-    # ===== بعد تسجيل الدخول =====
-    # تأكد من وجود current_page الصحيح
-    if 'current_page' not in st.session_state or not st.session_state.current_page:
-        user_role = st.session_state.get('user_role', '').upper()
-        if user_role == 'PARAMEDIC':
-            st.session_state.current_page = "my_shifts"
-        elif user_role in ['ADMIN', 'CHIEF_PARAMEDIC']:
-            st.session_state.current_page = "dashboard"
-        else:
-            st.session_state.current_page = "shifts"
+    st.stop()
+
+# إنشاء جلسة فريدة للمستخدم
+if st.session_state.session_id is None:
+    st.session_state.session_id = st.session_state.session_manager.create_session(
+        st.session_state.get("username", "guest")
+    )
+
+# ===== الشريط الجانبي =====
+with st.sidebar:
+    st.markdown("""
+    <div class="sidebar-logo">
+        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6W6KLMYsA2ztLnTnKcsENtV9SOBCeYHV17g&s" 
+             style="width: 60px; height: auto;">
+        <div class="sidebar-title">الهلال الأحمر السعودي</div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # إنشاء جلسة فريدة للمستخدم
-    if st.session_state.session_id is None:
-        st.session_state.session_id = st.session_state.session_manager.create_session(
-            st.session_state.get("username", "guest")
-        )
-    
-    # ===== الشريط الجانبي =====
-    with st.sidebar:
-        st.markdown("""
-        <div class="sidebar-logo">
-            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6W6KLMYsA2ztLnTnKcsENtV9SOBCeYHV17g&s" 
-                 style="width: 60px; height: auto;">
-            <div class="sidebar-title">الهلال الأحمر السعودي</div>
+    # معلومات المستخدم
+    user_name = st.session_state.get('user_full_name') or st.session_state.get('username', '')
+    st.markdown(f"""
+    <div class="user-info">
+        <div class="user-name">{user_name}</div>
+        <div class="user-status">
+            <span>🟢</span> متصل
         </div>
-        """, unsafe_allow_html=True)
-        
-        # معلومات المستخدم
-        user_name = st.session_state.get('user_full_name') or st.session_state.get('username', '')
-        st.markdown(f"""
-        <div class="user-info">
-            <div class="user-name">{user_name}</div>
-            <div class="user-status">
-                <span>🟢</span> متصل
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="south-sector-badge">
-            قطاع الجنوب - الرياض
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.divider()
-        
-        # تشخيص مؤقت
-        user_role_raw = st.session_state.get('user_role', 'غير محدد')
-        user_role = user_role_raw.lower()
-        st.info(f"🔍 **تشخيص:** دور المستخدم الحالي = `{user_role_raw}`")
-        
-        # قائمة الصفحات حسب الصلاحية
-        is_employee = user_role in ['paramedic', 'emt']
-        is_supervisor = user_role in ['field_leader', 'operations_supervisor']
-        is_admin = user_role in ['chief_paramedic', 'admin']
-        
-        if is_employee:
-            pages = {
-                "📅 مناوباتي": "my_shifts",
-                "🔔 إشعاراتي": "my_notifications",
-            }
-            st.success("✅ وضع الموظف العادي - قوائم محدودة")
-        elif is_supervisor:
-            pages = {
-                "📅 المناوبات": "shifts",
-                "👥 الموظفين": "employees",
-                "🏥 المراكز": "centers",
-                "🔔 الإشعارات": "notifications",
-            }
-            st.info("👥 وضع المشرف - قوائم محدودة")
-        else:
-            pages = {
-                "🏠 لوحة المعلومات": "dashboard",
-                "👥 الموظفين": "employees",
-                "🏥 المراكز": "centers",
-                "📅 المناوبات": "shifts",
-                "🚨 البلاغات": "incidents",
-                "📱 التكميل": "attendance",
-                "🔮 التنبؤ": "prediction",
-                "📊 التقارير": "reports",
-                "🔔 الإشعارات": "notifications",
-                "⚙️ الإعدادات": "settings",
-            }
-            st.warning("👑 وضع الإدارة العليا - كل القوائم")
-        
-        labels = list(pages.keys())
-        current_label = next((l for l, k in pages.items() if k == st.session_state.current_page), labels[0])
-        
-        selected = st.radio(
-            "",
-            labels,
-            index=labels.index(current_label),
-            label_visibility="collapsed",
-            key="sidebar_menu"
-        )
-        
-        if pages[selected] != st.session_state.current_page:
-            st.session_state.current_page = pages[selected]
-            st.rerun()
-        
-        st.divider()
-        
-        if st.button("🚪 تسجيل خروج", use_container_width=True):
-            st.session_state.auth_service.logout()
-            st.session_state.authenticated = False
-            st.session_state.session_id = None
-            st.session_state.token = None
-            for key in ["employee_service", "center_service", "shift_service", "incident_service", "current_page", "user_role", "user_employee_id", "user_full_name"]:
-                st.session_state.pop(key, None)
-            st.rerun()
+    </div>
+    """, unsafe_allow_html=True)
     
-    # ===== توجيه الصفحات =====
-    page = st.session_state.get("current_page", "dashboard")
+    st.markdown("""
+    <div class="south-sector-badge">
+        قطاع الجنوب - الرياض
+    </div>
+    """, unsafe_allow_html=True)
     
-    if page == "dashboard":
-        from pages.dashboard import show_dashboard
-        show_dashboard()
-    elif page == "employees":
-        from pages.employees import show_employees
-        show_employees()
-    elif page == "centers":
-        from pages.centers import show_centers
-        show_centers()
-    elif page == "shifts":
-        from pages.shifts import show_shifts
-        show_shifts()
-    elif page == "my_shifts":
-        from pages.my_shifts import show_my_shifts
-        show_my_shifts()
-    elif page == "incidents":
-        from pages.incidents import show_incidents
-        show_incidents()
-    elif page == "attendance":
-        from pages.attendance import show_attendance
-        show_attendance()
-    elif page == "prediction":
-        from pages.prediction import show_prediction
-        show_prediction()
-    elif page == "reports":
-        from pages.reports import show_reports
-        show_reports()
-    elif page == "notifications":
-        from pages.notifications import show_notifications
-        show_notifications()
-    elif page == "my_notifications":
-        from pages.my_notifications import show_my_notifications
-        show_my_notifications()
-    elif page == "settings":
-        from pages.settings import show_settings
-        show_settings()
+    st.divider()
     
-    footer()
+    # ===== تشخيص مؤقت (سيظهر user_role الحالي) =====
+    user_role_raw = st.session_state.get('user_role', 'غير محدد')
+    user_role = user_role_raw.lower()  # 👈 تحويل إلى حروف صغيرة للمقارنة
+    st.info(f"🔍 **تشخيص:** دور المستخدم الحالي = `{user_role_raw}`")
+    
+    # ===== قائمة الصفحات حسب الصلاحية =====
+    is_employee = user_role in ['paramedic', 'emt']
+    is_supervisor = user_role in ['field_leader', 'operations_supervisor']
+    is_admin = user_role in ['chief_paramedic', 'admin']
+    
+    # تعريف الصفحات لكل دور
+    if is_employee:
+        # الموظف العادي: فقط مناوباته وإشعاراته
+        pages = {
+            "📅 مناوباتي": "my_shifts",
+            "🔔 إشعاراتي": "my_notifications",
+        }
+        st.success("✅ وضع الموظف العادي - قوائم محدودة")
+    elif is_supervisor:
+        # المشرف: قوائم محدودة
+        pages = {
+            "📅 المناوبات": "shifts",
+            "👥 الموظفين": "employees",
+            "🏥 المراكز": "centers",
+            "🔔 الإشعارات": "notifications",
+        }
+        st.info("👥 وضع المشرف - قوائم محدودة")
+    else:
+        # الإدارة العليا: كل القوائم
+        pages = {
+            "🏠 لوحة المعلومات": "dashboard",
+            "👥 الموظفين": "employees",
+            "🏥 المراكز": "centers",
+            "📅 المناوبات": "shifts",
+            "🚨 البلاغات": "incidents",
+            "📱 التكميل": "attendance",
+            "🔮 التنبؤ": "prediction",
+            "📊 التقارير": "reports",
+            "🔔 الإشعارات": "notifications",
+            "⚙️ الإعدادات": "settings",
+        }
+        st.warning("👑 وضع الإدارة العليا - كل القوائم")
+    
+    labels = list(pages.keys())
+    current_label = next((l for l, k in pages.items() if k == st.session_state.current_page), labels[0])
+    
+    selected = st.radio(
+        "",
+        labels,
+        index=labels.index(current_label),
+        label_visibility="collapsed",
+        key="sidebar_menu"
+    )
+    
+    if pages[selected] != st.session_state.current_page:
+        st.session_state.current_page = pages[selected]
+        st.rerun()
+    
+    st.divider()
+    
+    if st.button("🚪 تسجيل خروج", use_container_width=True):
+        st.session_state.auth_service.logout()
+        st.session_state.authenticated = False
+        st.session_state.session_id = None
+        st.session_state.token = None
+        for key in ["employee_service", "center_service", "shift_service", "incident_service", "current_page", "user_role", "user_employee_id", "user_full_name"]:
+            st.session_state.pop(key, None)
+        st.rerun()
+
+# ===== توجيه الصفحات =====
+page = st.session_state.get("current_page", "dashboard")
+
+if page == "dashboard":
+    from pages.dashboard import show_dashboard
+    show_dashboard()
+elif page == "employees":
+    from pages.employees import show_employees
+    show_employees()
+elif page == "centers":
+    from pages.centers import show_centers
+    show_centers()
+elif page == "shifts":
+    from pages.shifts import show_shifts
+    show_shifts()
+elif page == "my_shifts":
+    from pages.my_shifts import show_my_shifts
+    show_my_shifts()
+elif page == "incidents":
+    from pages.incidents import show_incidents
+    show_incidents()
+elif page == "attendance":
+    from pages.attendance import show_attendance
+    show_attendance()
+elif page == "prediction":
+    from pages.prediction import show_prediction
+    show_prediction()
+elif page == "reports":
+    from pages.reports import show_reports
+    show_reports()
+elif page == "notifications":
+    from pages.notifications import show_notifications
+    show_notifications()
+elif page == "my_notifications":
+    from pages.my_notifications import show_my_notifications
+    show_my_notifications()
+elif page == "settings":
+    from pages.settings import show_settings
+    show_settings()
+
+footer()
