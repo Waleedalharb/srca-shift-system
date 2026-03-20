@@ -288,6 +288,16 @@ if not st.session_state.authenticated:
     footer()
     st.stop()
 
+# ===== بعد تسجيل الدخول، تأكد من وجود current_page الصحيح =====
+if 'current_page' not in st.session_state or not st.session_state.current_page:
+    user_role = st.session_state.get('user_role', '').upper()
+    if user_role == 'PARAMEDIC':
+        st.session_state.current_page = "my_shifts"
+    elif user_role in ['ADMIN', 'CHIEF_PARAMEDIC']:
+        st.session_state.current_page = "dashboard"
+    else:
+        st.session_state.current_page = "shifts"
+
 # إنشاء جلسة فريدة للمستخدم
 if st.session_state.session_id is None:
     st.session_state.session_id = st.session_state.session_manager.create_session(
@@ -325,7 +335,7 @@ with st.sidebar:
     
     # ===== تشخيص مؤقت (سيظهر user_role الحالي) =====
     user_role_raw = st.session_state.get('user_role', 'غير محدد')
-    user_role = user_role_raw.lower()  # 👈 تحويل إلى حروف صغيرة للمقارنة
+    user_role = user_role_raw.lower()
     st.info(f"🔍 **تشخيص:** دور المستخدم الحالي = `{user_role_raw}`")
     
     # ===== قائمة الصفحات حسب الصلاحية =====
@@ -335,14 +345,12 @@ with st.sidebar:
     
     # تعريف الصفحات لكل دور
     if is_employee:
-        # الموظف العادي: فقط مناوباته وإشعاراته
         pages = {
             "📅 مناوباتي": "my_shifts",
             "🔔 إشعاراتي": "my_notifications",
         }
         st.success("✅ وضع الموظف العادي - قوائم محدودة")
     elif is_supervisor:
-        # المشرف: قوائم محدودة
         pages = {
             "📅 المناوبات": "shifts",
             "👥 الموظفين": "employees",
@@ -351,7 +359,6 @@ with st.sidebar:
         }
         st.info("👥 وضع المشرف - قوائم محدودة")
     else:
-        # الإدارة العليا: كل القوائم
         pages = {
             "🏠 لوحة المعلومات": "dashboard",
             "👥 الموظفين": "employees",
