@@ -8,7 +8,6 @@ from services.shift_service import ShiftService
 import time
 
 def calculate_employee_hours(emp_shifts, days_in_month):
-    """حساب إجمالي ساعات الموظف"""
     total = 0
     for day in range(1, days_in_month + 1):
         shift_type = emp_shifts.get(day)
@@ -22,9 +21,6 @@ def calculate_employee_hours(emp_shifts, days_in_month):
     return total
 
 def show_my_shifts():
-    """عرض مناوبات الموظف الحالي فقط"""
-    
-    # التحقق من وجود المستخدم
     if 'user' not in st.session_state:
         st.switch_page("pages/login.py")
         return
@@ -40,18 +36,15 @@ def show_my_shifts():
         st.error("❌ لا يوجد موظف مرتبط بهذا الحساب")
         return
     
-    # اختيار الشهر والسنة
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
         year = st.number_input("📅 السنة", 2020, 2030, datetime.now().year)
     with col2:
         month = st.number_input("📆 الشهر", 1, 12, datetime.now().month)
-    
     with col3:
         if st.button("🔄 تحديث", use_container_width=True):
             st.rerun()
     
-    # جلب مناوبات الموظف
     ss = ShiftService(st.session_state.auth_service)
     
     with st.spinner("جاري تحميل مناوباتك..."):
@@ -61,10 +54,8 @@ def show_my_shifts():
         st.info(f"📭 لا توجد مناوبات مسجلة لك في {calendar.month_name[month]} {year}")
         return
     
-    # تحويل البيانات إلى جدول
     days_in_month = calendar.monthrange(year, month)[1]
     
-    # بناء قاموس المناوبات
     shifts_dict = {}
     for shift in shifts:
         shift_date = shift.get("date", "").split("T")[0]
@@ -76,7 +67,6 @@ def show_my_shifts():
         except:
             continue
     
-    # عرض إحصائيات سريعة
     total_hours = calculate_employee_hours(shifts_dict, days_in_month)
     required_hours = 192
     completion_rate = int((total_hours / required_hours) * 100) if required_hours > 0 else 0
@@ -93,14 +83,8 @@ def show_my_shifts():
         st.metric("📊 نسبة الإنجاز", f"{completion_rate}%")
     
     st.divider()
-    
-    # عرض جدول المناوبات
     st.subheader(f"📋 جدول مناوباتي - {calendar.month_name[month]} {year}")
     
-    # إنشاء صفوف الجدول (عرض أفقي)
-    table_data = []
-    
-    # نعرض جدول بصف واحد للموظف
     row = {
         "الموظف": employee_name,
         "الرقم الوظيفي": user.get("username", ""),
@@ -113,11 +97,8 @@ def show_my_shifts():
         shift_display = shift_type if shift_type else ""
         row[f"يوم {day}"] = shift_display
     
-    table_data.append(row)
+    df = pd.DataFrame([row])
     
-    df = pd.DataFrame(table_data)
-    
-    # إعداد الأعمدة
     display_cols = ["الموظف", "الرقم الوظيفي", "إجمالي الساعات", "نسبة الإنجاز"] + [f"يوم {d}" for d in range(1, days_in_month + 1)]
     
     column_config = {}
@@ -130,7 +111,6 @@ def show_my_shifts():
     
     st.dataframe(df[display_cols], use_container_width=True, hide_index=True, column_config=column_config)
     
-    # دليل الرموز
     with st.expander("🔑 دليل الرموز"):
         cols = st.columns(5)
         codes_to_show = ["D12", "N12", "O12", "V", "CP8", "CP24", "LN8"]
@@ -144,7 +124,6 @@ def show_my_shifts():
                     </div>
                     """, unsafe_allow_html=True)
     
-    # ملاحظة للموظف
     st.info("📌 **ملاحظة:** هذا الجدول يعرض مناوباتك فقط. أي تغيير من قبل المشرف سيظهر لك إشعار.")
 
 if __name__ == "__main__":
