@@ -7,6 +7,8 @@ from utils.constants import SHIFT_TYPES
 from services.shift_service import ShiftService
 import time
 
+st.set_page_config(page_title="مناوباتي", layout="wide")
+
 def calculate_employee_hours(emp_shifts, days_in_month):
     total = 0
     for day in range(1, days_in_month + 1):
