@@ -12,8 +12,8 @@ sys.path.append(str(Path(__file__).parent))
 from config import config
 from services.auth_service import AuthService
 from utils.helpers import load_css, setup_rtl, footer
-from utils.auth import init_session_state  # ✅ استيراد دالة تهيئة الجلسة
-from pages.settings import init_settings, apply_theme  # ✅ استيراد دوال الإعدادات
+from utils.auth import init_session_state
+from pages.settings import init_settings, apply_theme
 
 # ===== إعداد الصفحة - يجب أن يكون أول أمر =====
 st.set_page_config(
@@ -23,14 +23,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ✅ تهيئة الجلسة مع localStorage (بعد set_page_config)
+# تهيئة الجلسة مع localStorage
 init_session_state()
 
-# ✅ تهيئة الإعدادات وتطبيق الثيم
+# تهيئة الإعدادات وتطبيق الثيم
 init_settings()
 apply_theme()
 
-# ✅ متغير للتحكم بإعادة تحميل الإعدادات
+# متغير للتحكم بإعادة تحميل الإعدادات
 if 'reload_settings' in st.session_state and st.session_state.reload_settings:
     init_settings()
     apply_theme()
@@ -42,7 +42,6 @@ class SessionManager:
         self.sessions = {}
     
     def create_session(self, username):
-        """إنشاء جلسة فريدة لكل مستخدم وجهاز"""
         session_id = base64.b64encode(hashlib.sha256(
             f"{username}_{datetime.now().timestamp()}".encode()
         ).digest()).decode()[:16]
@@ -53,7 +52,6 @@ class SessionManager:
         return session_id
     
     def validate_session(self, session_id):
-        """التحقق من صحة الجلسة"""
         if session_id in self.sessions:
             self.sessions[session_id]["created_at"] = datetime.now()
             return True
@@ -62,7 +60,6 @@ class SessionManager:
 # تنسيقات محسنة مع دعم Dark Mode
 st.markdown("""
 <style>
-    /* إخفاء عناصر Streamlit غير المرغوب فيها */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -73,7 +70,6 @@ st.markdown("""
     .stApp [data-testid="stDecoration"] {display: none;}
     .stApp [data-testid="stStatusWidget"] {display: none;}
     
-    /* تنسيقات الشريط الجانبي */
     [data-testid="stSidebarNav"] { display: none; }
     section[data-testid="stSidebar"] {
         background: white;
@@ -83,13 +79,11 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
-    /* دعم Dark Mode للشريط الجانبي */
     [data-theme="dark"] section[data-testid="stSidebar"] {
         background: #252526 !important;
         border-left: 1px solid #404040 !important;
     }
     
-    /* الشعار في الشريط الجانبي */
     .sidebar-logo {
         text-align: center;
         margin-bottom: 1rem;
@@ -110,12 +104,10 @@ st.markdown("""
         margin: 0.5rem 0 0 0;
     }
     
-    /* دعم Dark Mode للشعار */
     [data-theme="dark"] .sidebar-title {
         color: #FFFFFF !important;
     }
     
-    /* شعار قطاع الجنوب */
     .south-sector-badge {
         background: linear-gradient(135deg, #3B4A82 0%, #1A2B5C 100%);
         color: white;
@@ -129,7 +121,6 @@ st.markdown("""
         letter-spacing: 0.3px;
     }
     
-    /* معلومات المستخدم */
     .user-info {
         background: #F8FAFC;
         padding: 1rem;
@@ -153,7 +144,6 @@ st.markdown("""
         gap: 0.25rem;
     }
     
-    /* دعم Dark Mode لمعلومات المستخدم */
     [data-theme="dark"] .user-info {
         background: #2D2D2D !important;
         border-color: #404040 !important;
@@ -162,7 +152,6 @@ st.markdown("""
         color: #FFFFFF !important;
     }
     
-    /* قائمة التنقل */
     .stRadio > div {
         gap: 0.25rem;
     }
@@ -184,7 +173,6 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(206,46,38,0.2);
     }
     
-    /* دعم Dark Mode للقائمة */
     [data-theme="dark"] .stRadio label {
         color: #FFFFFF !important;
     }
@@ -193,7 +181,6 @@ st.markdown("""
         color: #FFFFFF !important;
     }
     
-    /* زر الخروج */
     .stButton > button {
         background: #F1F5F9;
         color: #475569;
@@ -208,7 +195,6 @@ st.markdown("""
         border-color: #CE2E26;
     }
     
-    /* دعم Dark Mode للأزرار */
     [data-theme="dark"] .stButton > button {
         background: #2D2D2D !important;
         color: #FFFFFF !important;
@@ -219,7 +205,6 @@ st.markdown("""
         color: #0d6efd !important;
     }
     
-    /* فواصل */
     hr {
         margin: 1rem 0;
         border: none;
@@ -227,28 +212,21 @@ st.markdown("""
         background: linear-gradient(90deg, transparent, #E2E8F0, transparent);
     }
     
-    /* دعم Dark Mode للفواصل */
     [data-theme="dark"] hr {
         background: linear-gradient(90deg, transparent, #404040, transparent) !important;
     }
     
-    /* تحسين للآيباد والأجهزة اللوحية */
     @media (max-width: 1024px) {
-        /* تكبير الأزرار */
         .stButton > button, .stDownloadButton > button {
             min-height: 44px !important;
             min-width: 44px !important;
             padding: 12px 20px !important;
             font-size: 16px !important;
         }
-        
-        /* تكبير القوائم */
         .stRadio label, .stSelectbox label, .stCheckbox label {
             padding: 12px !important;
             font-size: 16px !important;
         }
-        
-        /* تكبير حقول الإدخال */
         .stTextInput > div > div > input,
         .stSelectbox > div > div > select,
         .stTextArea > div > textarea {
@@ -256,14 +234,11 @@ st.markdown("""
             font-size: 16px !important;
             min-height: 44px !important;
         }
-        
-        /* تحسين اللمس */
         .stRadio > div, .stSelectbox > div {
             touch-action: manipulation;
         }
     }
     
-    /* تحسين للجوال */
     @media (max-width: 768px) {
         .block-container {
             padding-left: 0.5rem !important;
@@ -277,10 +252,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# تحميل التنسيقات
 load_css()
-
-# إعداد RTL
 setup_rtl()
 
 # تهيئة مدير الجلسات
@@ -306,6 +278,8 @@ if "is_mobile" not in st.session_state:
     st.session_state.is_mobile = False
 if "token" not in st.session_state:
     st.session_state.token = None
+if "user_full_name" not in st.session_state:
+    st.session_state.user_full_name = None
 
 # إذا لم يكن مسجل دخول
 if not st.session_state.authenticated:
@@ -322,7 +296,6 @@ if st.session_state.session_id is None:
 
 # ===== الشريط الجانبي =====
 with st.sidebar:
-    # الشعار
     st.markdown("""
     <div class="sidebar-logo">
         <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6W6KLMYsA2ztLnTnKcsENtV9SOBCeYHV17g&s" 
@@ -332,16 +305,16 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     
     # معلومات المستخدم
+    user_name = st.session_state.get('user_full_name') or st.session_state.get('username', '')
     st.markdown(f"""
     <div class="user-info">
-        <div class="user-name">{st.session_state.get('username', '')}</div>
+        <div class="user-name">{user_name}</div>
         <div class="user-status">
             <span>🟢</span> متصل
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # شعار قطاع الجنوب
     st.markdown("""
     <div class="south-sector-badge">
         قطاع الجنوب - الرياض
@@ -350,18 +323,41 @@ with st.sidebar:
     
     st.divider()
     
-    # قائمة الصفحات (محدثة مع إضافة البلاغات)
-    pages = {
-        "🏠 لوحة المعلومات": "dashboard",
-        "👥 الموظفين": "employees",
-        "🏥 المراكز": "centers",
-        "📅 المناوبات": "shifts",
-        "🚨 البلاغات": "incidents",  # 👈 صفحة البلاغات الجديدة
-        "📱 التكميل": "attendance",
-        "🔮 التنبؤ": "prediction",
-        "📊 التقارير": "reports",
-        "⚙️ الإعدادات": "settings",
-    }
+    # ===== قائمة الصفحات حسب الصلاحية =====
+    user_role = st.session_state.get('user_role', '')
+    is_employee = user_role in ['paramedic', 'emt']
+    is_supervisor = user_role in ['field_leader', 'operations_supervisor']
+    is_admin = user_role in ['chief_paramedic', 'admin']
+    
+    # تعريف الصفحات لكل دور
+    if is_employee:
+        # الموظف العادي: فقط مناوباته وإشعاراته
+        pages = {
+            "📅 مناوباتي": "my_shifts",
+            "🔔 إشعاراتي": "my_notifications",
+        }
+    elif is_supervisor:
+        # المشرف: قوائم محدودة
+        pages = {
+            "📅 المناوبات": "shifts",
+            "👥 الموظفين": "employees",
+            "🏥 المراكز": "centers",
+            "🔔 الإشعارات": "notifications",
+        }
+    else:
+        # الإدارة العليا: كل القوائم
+        pages = {
+            "🏠 لوحة المعلومات": "dashboard",
+            "👥 الموظفين": "employees",
+            "🏥 المراكز": "centers",
+            "📅 المناوبات": "shifts",
+            "🚨 البلاغات": "incidents",
+            "📱 التكميل": "attendance",
+            "🔮 التنبؤ": "prediction",
+            "📊 التقارير": "reports",
+            "🔔 الإشعارات": "notifications",
+            "⚙️ الإعدادات": "settings",
+        }
     
     labels = list(pages.keys())
     current_label = next((l for l, k in pages.items() if k == st.session_state.current_page), labels[0])
@@ -385,11 +381,11 @@ with st.sidebar:
         st.session_state.authenticated = False
         st.session_state.session_id = None
         st.session_state.token = None
-        for key in ["employee_service", "center_service", "shift_service", "incident_service", "current_page", "user_role"]:
+        for key in ["employee_service", "center_service", "shift_service", "incident_service", "current_page", "user_role", "user_employee_id", "user_full_name"]:
             st.session_state.pop(key, None)
         st.rerun()
 
-# توجيه الصفحات (محدث مع إضافة البلاغات)
+# ===== توجيه الصفحات =====
 page = st.session_state.get("current_page", "dashboard")
 
 if page == "dashboard":
@@ -404,7 +400,10 @@ elif page == "centers":
 elif page == "shifts":
     from pages.shifts import show_shifts
     show_shifts()
-elif page == "incidents":  # 👈 صفحة البلاغات الجديدة
+elif page == "my_shifts":
+    from pages.my_shifts import show_my_shifts
+    show_my_shifts()
+elif page == "incidents":
     from pages.incidents import show_incidents
     show_incidents()
 elif page == "attendance":
@@ -416,6 +415,12 @@ elif page == "prediction":
 elif page == "reports":
     from pages.reports import show_reports
     show_reports()
+elif page == "notifications":
+    from pages.notifications import show_notifications
+    show_notifications()
+elif page == "my_notifications":
+    from pages.my_notifications import show_my_notifications
+    show_my_notifications()
 elif page == "settings":
     from pages.settings import show_settings
     show_settings()

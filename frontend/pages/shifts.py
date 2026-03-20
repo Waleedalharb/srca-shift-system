@@ -128,6 +128,8 @@ def generate_ai_response(prompt, employees, shifts_map, days_in_month, center_na
         response += f"حالياً لديك {len(employees)} موظف. "
         response += f"يمكنني اقتراح أنماط تناوب أو تحليل الفجوات إذا أردت.\n\n"
         response += "💡 **جرب:** 'حلل الفجوات' أو 'اقترح نمط تناوب' أو 'وزع الإجازات'"
+    
+    return response
 
 # ============================================================================
 # دوال مساعدة لاستيراد المناوبات
@@ -685,6 +687,18 @@ def _get_services():
     return cs, es, ss
 
 def show_shifts():
+    # ===== التحقق من صلاحية المشرف =====
+    user_role = st.session_state.get('user_role', '')
+    
+    # إذا كان الموظف العادي، حوله لصفحة مناوباته
+    if user_role in ['paramedic', 'emt']:
+        st.warning("⛔ هذه الصفحة مخصصة للمشرفين فقط")
+        st.info("📅 يمكنك مشاهدة مناوباتك في صفحة 'مناوباتي'")
+        if st.button("📅 الذهاب إلى مناوباتي", use_container_width=True):
+            st.session_state.current_page = "my_shifts"
+            st.rerun()
+        return
+    
     start_time = time.time()
     
     if st.query_params.get("import_success"):
@@ -1668,7 +1682,6 @@ def show_shifts():
         with col1:
             if st.button("📊 تحليل الفجوات", use_container_width=True):
                 prompt = "حلل الفجوات في جدول المناوبات"
-                # ... معالجة الرد
         with col2:
             if st.button("⚖️ توزيع الإجازات", use_container_width=True):
                 prompt = "كيف يمكن توزيع الإجازات بشكل أفضل؟"

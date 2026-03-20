@@ -129,6 +129,15 @@ class ShiftService:
             print(f"❌ خطأ في get_employee_shifts_by_month: {e}")
             return []
     
+    # ===== دالة جديدة: جلب مناوبات الموظف الحالي =====
+    def get_my_shifts(self, employee_id, year, month):
+        """
+        جلب مناوبات الموظف الحالي لشهر محدد
+        - تستخدم نفس endpoint get_employee_shifts_by_month
+        - مناسبة لعرض مناوبات الموظف فقط
+        """
+        return self.get_employee_shifts_by_month(employee_id, year, month)
+    
     # ===== دالة جديدة: تجلب كل التعيينات للشهر =====
     def get_assignments_by_month(self, center_id, year, month):
         """جلب جميع تعيينات المناوبات لشهر كامل"""
