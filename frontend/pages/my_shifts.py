@@ -21,8 +21,7 @@ def calculate_employee_hours(emp_shifts, days_in_month):
     return total
 
 def show_my_shifts():
-    # ✅ هنا نضع set_page_config - داخل الدالة
-    st.set_page_config(page_title="مناوباتي", layout="wide")
+    # لا يوجد st.set_page_config هنا
     
     if 'user' not in st.session_state:
         st.switch_page("pages/login.py")
