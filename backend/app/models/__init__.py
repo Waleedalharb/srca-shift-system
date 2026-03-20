@@ -8,6 +8,7 @@ from .shift import Shift, ShiftAssignment
 from .incident import Incident
 from .leave import Leave
 from .ambulance import Ambulance
+from .notification import Notification, NotificationType  # 👈 أضف هذا السطر
 
 __all__ = [
     "Base",
@@ -20,5 +21,7 @@ __all__ = [
     "ShiftAssignment",
     "Incident",
     "Leave",
-    "Ambulance"
+    "Ambulance",
+    "Notification",      # 👈 أضف
+    "NotificationType"   # 👈 أضف
 ]

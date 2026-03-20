@@ -8,11 +8,11 @@ import uuid
 import enum
 
 class NotificationType(str, enum.Enum):
-    SHIFT_CHANGE = "shift_change"      # تغيير في المناوبة
-    NEW_SHIFT = "new_shift"            # إضافة مناوبة جديدة
-    SHIFT_DELETED = "shift_deleted"    # حذف مناوبة
-    SYSTEM = "system"                  # إشعار نظام
-    ALERT = "alert"                    # تنبيه مهم
+    SHIFT_CHANGE = "shift_change"
+    NEW_SHIFT = "new_shift"
+    SHIFT_DELETED = "shift_deleted"
+    SYSTEM = "system"
+    ALERT = "alert"
 
 class Notification(Base):
     __tablename__ = "notifications"
@@ -25,8 +25,8 @@ class Notification(Base):
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    # العلاقات
-    user = relationship("User", backref="notifications")
+    # العلاقات - استخدم back_populates لتتناسب مع user.py
+    user = relationship("User", back_populates="notifications")
     
     def __repr__(self):
         return f"<Notification {self.title} - {self.is_read}>"
