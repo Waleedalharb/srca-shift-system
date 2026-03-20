@@ -34,10 +34,11 @@ class User(Base):
     role = Column(Enum(UserRole))
     
     # ربط مع الموظف
-    employee_id = Column(UUID, ForeignKey("employees.id"), nullable=True)
+    employee_id = Column(UUID(as_uuid=True), ForeignKey("employees.id"), nullable=True)  # 👈 أضفت as_uuid=True
     
     # العلاقات
     employee = relationship("Employee", back_populates="user")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User {self.username} - {self.role.value}>"
