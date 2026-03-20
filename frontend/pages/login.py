@@ -86,20 +86,19 @@ def show_login_page():
                 st.error("❌ الرجاء إدخال اسم المستخدم وكلمة المرور")
             else:
                 with st.spinner("جاري تسجيل الدخول..."):
-                    # تجربة اتصال قبل تسجيل الدخول
-                    try:
-                        test = requests.get(f"{config.API_URL}/health", timeout=2)
-                        st.write(f"✅ اختبار اتصال: {test.status_code}")
-                    except Exception as e:
-                        st.error(f"❌ فشل الاتصال بالخادم: {str(e)}")
-                        st.stop()
-                    
                     # محاولة تسجيل الدخول
-                    if st.session_state.auth_service.login(username, password):
+                    login_success = st.session_state.auth_service.login(username, password)
+                    
+                    if login_success:
+                        # الحصول على token من session_state (بعد تسجيل الدخول)
+                        token = st.session_state.get("token")
+                        
+                        if not token:
+                            st.error("❌ لم يتم استلام رمز المصادقة")
+                            st.stop()
+                        
                         # جلب بيانات المستخدم الكاملة من API
                         try:
-                            # استخدام token للحصول على بيانات المستخدم
-                            token = st.session_state.auth_service.get_token()
                             headers = {"Authorization": f"Bearer {token}"}
                             user_response = requests.get(
                                 f"{config.API_URL}/users/me",
@@ -115,7 +114,6 @@ def show_login_page():
                                 st.session_state.user_employee_id = user_data.get("employee_id")
                                 st.session_state.user_full_name = user_data.get("full_name", username)
                                 st.session_state.username = username
-                                st.session_state.token = token
                                 
                                 # تشخيص
                                 st.write(f"🔍 الدور المستلم من API: {st.session_state.user_role}")
@@ -126,8 +124,7 @@ def show_login_page():
                                 st.session_state.user = {"username": username, "role": "admin"}
                                 st.session_state.user_role = "admin"
                                 st.session_state.username = username
-                                st.session_state.token = token
-                                st.warning("⚠️ لم نتمكن من جلب بيانات المستخدم الكاملة")
+                                st.warning(f"⚠️ لم نتمكن من جلب بيانات المستخدم: {user_response.status_code}")
                             
                         except Exception as e:
                             st.error(f"❌ خطأ في جلب بيانات المستخدم: {str(e)}")
