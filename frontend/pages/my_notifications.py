@@ -4,7 +4,8 @@ from services.notification_service import NotificationService
 from datetime import datetime
 import time
 
-st.set_page_config(page_title="الإشعارات", layout="wide")
+# ❌ احذف هذا السطر
+# st.set_page_config(page_title="الإشعارات", layout="wide")
 
 def format_time_ago(created_at):
     """تحويل التاريخ إلى صيغة 'منذ ...'"""
