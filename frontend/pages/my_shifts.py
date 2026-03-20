@@ -21,7 +21,8 @@ def calculate_employee_hours(emp_shifts, days_in_month):
     return total
 
 def show_my_shifts():
-    # لا يوجد st.set_page_config هنا
+    # ✅ نضبط إعدادات الصفحة هنا فقط عند استدعاء الدالة
+    st.set_page_config(page_title="مناوباتي", layout="wide")
     
     if 'user' not in st.session_state:
         st.switch_page("pages/login.py")
@@ -128,5 +129,6 @@ def show_my_shifts():
     
     st.info("📌 **ملاحظة:** هذا الجدول يعرض مناوباتك فقط. أي تغيير من قبل المشرف سيظهر لك إشعار.")
 
-if __name__ == "__main__":
-    show_my_shifts()
+# ✅ لا نستدعي show_my_shifts() هنا
+# if __name__ == "__main__":
+#     show_my_shifts()
