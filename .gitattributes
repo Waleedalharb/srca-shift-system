@@ -1,2 +1,1 @@
-models/blobs/* filter=lfs diff=lfs merge=lfs -text
-models/blobs/sha256-2af3b81862c6be03c769683af18efdadb2c33f60ff32ab6f83e42c043d6c7816 filter=lfs diff=lfs merge=lfs -text
+"models/** -text -crlf" 
