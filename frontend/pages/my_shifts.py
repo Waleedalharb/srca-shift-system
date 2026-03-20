@@ -7,7 +7,7 @@ from utils.constants import SHIFT_TYPES
 from services.shift_service import ShiftService
 import time
 
-st.set_page_config(page_title="مناوباتي", layout="wide")
+# لا تحتاج st.set_page_config هنا لأنها موجودة في app.py
 
 def calculate_employee_hours(emp_shifts, days_in_month):
     """حساب إجمالي ساعات الموظف"""
