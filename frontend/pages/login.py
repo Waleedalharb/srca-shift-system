@@ -1,9 +1,32 @@
 # frontend/pages/login.py
 import streamlit as st
 from config import config
+import requests
 
 def show_login_page():
-    """صفحة تسجيل الدخول - نسخة بسيطة ومتوسطة"""
+    """صفحة تسجيل الدخول - مع تشخيص"""
+    
+    # ===== تشخيص الاتصال بالـ API =====
+    st.sidebar.markdown("### 🔧 Debug Info")
+    st.sidebar.write(f"**API URL:** `{config.API_URL}`")
+    
+    try:
+        r = requests.get(f"{config.API_URL}/health", timeout=2)
+        if r.status_code == 200:
+            st.sidebar.success(f"✅ API متصل (الحالة: {r.status_code})")
+            st.sidebar.json(r.json())
+        else:
+            st.sidebar.error(f"❌ API غير متصل: {r.status_code}")
+    except Exception as e:
+        st.sidebar.error(f"❌ API غير متصل: {str(e)}")
+    
+    try:
+        r2 = requests.get(f"{config.API_URL}/", timeout=2)
+        if r2.status_code == 200:
+            st.sidebar.info(f"✅ API root: {r2.status_code}")
+    except:
+        pass
+    # ====================================
     
     # إخفاء الشريط الجانبي
     st.markdown("""
@@ -63,7 +86,53 @@ def show_login_page():
                 st.error("❌ الرجاء إدخال اسم المستخدم وكلمة المرور")
             else:
                 with st.spinner("جاري تسجيل الدخول..."):
+                    # تجربة اتصال قبل تسجيل الدخول
+                    try:
+                        test = requests.get(f"{config.API_URL}/health", timeout=2)
+                        st.write(f"✅ اختبار اتصال: {test.status_code}")
+                    except Exception as e:
+                        st.error(f"❌ فشل الاتصال بالخادم: {str(e)}")
+                        st.stop()
+                    
+                    # محاولة تسجيل الدخول
                     if st.session_state.auth_service.login(username, password):
+                        # جلب بيانات المستخدم الكاملة من API
+                        try:
+                            # استخدام token للحصول على بيانات المستخدم
+                            token = st.session_state.auth_service.get_token()
+                            headers = {"Authorization": f"Bearer {token}"}
+                            user_response = requests.get(
+                                f"{config.API_URL}/users/me",
+                                headers=headers,
+                                timeout=5
+                            )
+                            
+                            if user_response.status_code == 200:
+                                user_data = user_response.json()
+                                # تخزين كل البيانات في session_state
+                                st.session_state.user = user_data
+                                st.session_state.user_role = user_data.get("role", "").upper()
+                                st.session_state.user_employee_id = user_data.get("employee_id")
+                                st.session_state.user_full_name = user_data.get("full_name", username)
+                                st.session_state.username = username
+                                st.session_state.token = token
+                                
+                                # تشخيص
+                                st.write(f"🔍 الدور المستلم من API: {st.session_state.user_role}")
+                                st.success("✅ تم تسجيل الدخول بنجاح")
+                                
+                            else:
+                                # إذا فشل جلب البيانات، استخدم البيانات الأساسية
+                                st.session_state.user = {"username": username, "role": "admin"}
+                                st.session_state.user_role = "admin"
+                                st.session_state.username = username
+                                st.session_state.token = token
+                                st.warning("⚠️ لم نتمكن من جلب بيانات المستخدم الكاملة")
+                            
+                        except Exception as e:
+                            st.error(f"❌ خطأ في جلب بيانات المستخدم: {str(e)}")
+                            st.stop()
+                        
                         st.session_state.authenticated = True
                         st.rerun()
                     else:
