@@ -98,6 +98,8 @@ def show_login_page():
                             st.session_state.user_full_name = "زياد عبدالله ابراهيم الرشيد"
                             st.session_state.username = username
                             st.session_state.authenticated = True
+                            # 👈 توجيه الموظف إلى صفحة مناوباته
+                            st.session_state.current_page = "my_shifts"
                             
                             st.success("✅ تم تسجيل الدخول بنجاح (كموظف)")
                             st.rerun()
@@ -124,6 +126,13 @@ def show_login_page():
                                     st.session_state.user_employee_id = user_data.get("employee_id")
                                     st.session_state.user_full_name = user_data.get("full_name", username)
                                     st.session_state.username = username
+                                    st.session_state.authenticated = True
+                                    # 👈 توجيه حسب الدور
+                                    if st.session_state.user_role == "ADMIN" or st.session_state.user_role == "CHIEF_PARAMEDIC":
+                                        st.session_state.current_page = "dashboard"
+                                    else:
+                                        st.session_state.current_page = "shifts"
+                                    
                                     st.success("✅ تم تسجيل الدخول بنجاح")
                                 else:
                                     st.error(f"❌ فشل جلب بيانات المستخدم: {user_response.status_code}")
@@ -133,7 +142,6 @@ def show_login_page():
                                 st.error(f"❌ خطأ في جلب بيانات المستخدم: {str(e)}")
                                 st.stop()
                             
-                            st.session_state.authenticated = True
                             st.rerun()
                     else:
                         st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
