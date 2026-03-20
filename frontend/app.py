@@ -323,8 +323,11 @@ with st.sidebar:
     
     st.divider()
     
+    # ===== تشخيص مؤقت (سيظهر user_role الحالي) =====
+    user_role = st.session_state.get('user_role', 'غير محدد')
+    st.info(f"🔍 **تشخيص:** دور المستخدم الحالي = `{user_role}`")
+    
     # ===== قائمة الصفحات حسب الصلاحية =====
-    user_role = st.session_state.get('user_role', '')
     is_employee = user_role in ['paramedic', 'emt']
     is_supervisor = user_role in ['field_leader', 'operations_supervisor']
     is_admin = user_role in ['chief_paramedic', 'admin']
@@ -336,6 +339,7 @@ with st.sidebar:
             "📅 مناوباتي": "my_shifts",
             "🔔 إشعاراتي": "my_notifications",
         }
+        st.success("✅ وضع الموظف العادي - قوائم محدودة")
     elif is_supervisor:
         # المشرف: قوائم محدودة
         pages = {
@@ -344,6 +348,7 @@ with st.sidebar:
             "🏥 المراكز": "centers",
             "🔔 الإشعارات": "notifications",
         }
+        st.info("👥 وضع المشرف - قوائم محدودة")
     else:
         # الإدارة العليا: كل القوائم
         pages = {
@@ -358,6 +363,7 @@ with st.sidebar:
             "🔔 الإشعارات": "notifications",
             "⚙️ الإعدادات": "settings",
         }
+        st.warning("👑 وضع الإدارة العليا - كل القوائم")
     
     labels = list(pages.keys())
     current_label = next((l for l, k in pages.items() if k == st.session_state.current_page), labels[0])
