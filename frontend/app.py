@@ -324,8 +324,9 @@ with st.sidebar:
     st.divider()
     
     # ===== تشخيص مؤقت (سيظهر user_role الحالي) =====
-    user_role = st.session_state.get('user_role', 'غير محدد')
-    st.info(f"🔍 **تشخيص:** دور المستخدم الحالي = `{user_role}`")
+    user_role_raw = st.session_state.get('user_role', 'غير محدد')
+    user_role = user_role_raw.lower()  # 👈 تحويل إلى حروف صغيرة للمقارنة
+    st.info(f"🔍 **تشخيص:** دور المستخدم الحالي = `{user_role_raw}`")
     
     # ===== قائمة الصفحات حسب الصلاحية =====
     is_employee = user_role in ['paramedic', 'emt']
