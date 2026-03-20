@@ -86,25 +86,21 @@ def show_login_page():
                 st.error("❌ الرجاء إدخال اسم المستخدم وكلمة المرور")
             else:
                 with st.spinner("جاري تسجيل الدخول..."):
-                    # محاولة تسجيل الدخول
                     login_success = st.session_state.auth_service.login(username, password)
                     
                     if login_success:
                         # 🔥 إصلاح مؤقت للموظف 8736
                         if username == "8736":
-                            # اجبر الدور على PARAMEDIC
                             st.session_state.user_role = "PARAMEDIC"
                             st.session_state.user_employee_id = st.session_state.get("user_employee_id")
                             st.session_state.user_full_name = "زياد عبدالله ابراهيم الرشيد"
                             st.session_state.username = username
                             st.session_state.authenticated = True
-                            # 👈 توجيه الموظف إلى صفحة مناوباته
-                            st.session_state.current_page = "my_shifts"
+                            st.session_state.current_page = "my_shifts"  # 👈 توجيه مباشر
                             
                             st.success("✅ تم تسجيل الدخول بنجاح (كموظف)")
                             st.rerun()
                         else:
-                            # باقي المستخدمين: جلب البيانات من API كالمعتاد
                             token = st.session_state.get("token")
                             
                             if not token:
@@ -127,8 +123,9 @@ def show_login_page():
                                     st.session_state.user_full_name = user_data.get("full_name", username)
                                     st.session_state.username = username
                                     st.session_state.authenticated = True
+                                    
                                     # 👈 توجيه حسب الدور
-                                    if st.session_state.user_role == "ADMIN" or st.session_state.user_role == "CHIEF_PARAMEDIC":
+                                    if st.session_state.user_role in ['ADMIN', 'CHIEF_PARAMEDIC']:
                                         st.session_state.current_page = "dashboard"
                                     else:
                                         st.session_state.current_page = "shifts"
