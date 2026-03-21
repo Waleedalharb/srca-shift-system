@@ -27,6 +27,8 @@ st.markdown("""
         .greeting-card h2 { font-size: 1.2rem !important; }
         .stat-card { padding: 0.75rem !important; }
         .stat-value { font-size: 1.3rem !important; }
+        .shift-table th { font-size: 0.7rem; padding: 4px; }
+        .shift-table td { font-size: 0.65rem; padding: 4px; }
     }
     
     .greeting-card {
@@ -91,37 +93,58 @@ st.markdown("""
         font-size: 0.85rem;
     }
     
-    hr { margin: 1rem 0; border: none; height: 1px; background: #eef2f6; }
-    
-    /* تنسيق الجدول */
+    .shift-table-container {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border-radius: 16px;
+        border: 1px solid #eef2f6;
+        background: white;
+    }
     .shift-table {
         width: 100%;
         border-collapse: collapse;
-        background: white;
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        min-width: 700px;
+        font-family: system-ui, -apple-system, sans-serif;
     }
     .shift-table th {
         background: #f8fafc;
-        padding: 12px;
+        padding: 12px 6px;
         text-align: center;
         font-weight: 600;
+        font-size: 0.85rem;
         color: #1e293b;
         border-bottom: 1px solid #e2e8f0;
     }
     .shift-table td {
-        padding: 10px;
+        padding: 8px 4px;
         text-align: center;
-        border: 1px solid #eef2f6;
+        border: 1px solid #f0f2f5;
         vertical-align: middle;
+    }
+    .day-number {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 6px;
     }
     .shift-badge {
         display: inline-block;
-        padding: 4px 10px;
+        padding: 4px 8px;
         border-radius: 20px;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         font-weight: 600;
+        margin: 2px 0;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 12px;
+        font-size: 0.65rem;
+        font-weight: 500;
+    }
+    .delay-badge {
+        font-size: 0.65rem;
+        color: #dc2626;
     }
     .today-cell {
         background: #eef2ff;
@@ -129,13 +152,16 @@ st.markdown("""
     .weekend-cell {
         background: #fef9e6;
     }
-    .shift-empty {
-        color: #94a3b8;
+    .other-month-cell {
+        background: #fafafa;
+        opacity: 0.5;
     }
+    
+    hr { margin: 1rem 0; border: none; height: 1px; background: #eef2f6; }
 </style>
 """, unsafe_allow_html=True)
 
-# ===== بيانات ثابتة =====
+# ===== عبارات تشجيعية =====
 MOTIVATIONAL_QUOTES = [
     "أنت تبذل جهداً رائعاً! استمر في التألق",
     "كل يوم عمل هو خطوة نحو النجاح. أنت مميز",
@@ -143,10 +169,6 @@ MOTIVATIONAL_QUOTES = [
     "وجودك يجعل فريقنا أقوى. نحن نقدر تفانيك",
     "عملك الجليلي لا يمر دون تقدير. أنت نجمنا",
     "شكراً لالتزامك وإخلاصك في العمل",
-    "كل صباح جديد معك هو بداية مميزة",
-    "أنت قدوة حسنة لزملائك. فخورون بك",
-    "تعاونك وروحك العالية تصنع الفرق",
-    "إنجازاتك تتحدث عن نفسها. نحن نقدر جهودك",
 ]
 
 SHIFT_TYPES = {
@@ -157,6 +179,13 @@ SHIFT_TYPES = {
     "CP8": {"name": "تكميلية 8", "hours": 8, "color": "#9C27B0", "bg": "#f3e5f5"},
     "CP24": {"name": "تكميلية 24", "hours": 24, "color": "#3F51B5", "bg": "#e8eaf6"},
     "LN8": {"name": "ليلي تكميلي 8", "hours": 8, "color": "#009688", "bg": "#e0f2f1"},
+}
+
+STATUS_TYPES = {
+    "present": {"name": "حاضر", "color": "#10b981", "bg": "#d1fae5"},
+    "absent": {"name": "غائب", "color": "#ef4444", "bg": "#fee2e2"},
+    "late": {"name": "متأخر", "color": "#f59e0b", "bg": "#fed7aa"},
+    "vacation": {"name": "إجازة", "color": "#8b5cf6", "bg": "#ede9fe"},
 }
 
 def get_achievement_message(rate):
@@ -171,40 +200,38 @@ def get_achievement_message(rate):
     else:
         return "🌱 بداية ممتازة! كل رحلة تبدأ بخطوة"
 
-# ===== دالة بناء جدول الشهر =====
-def build_month_calendar(year, month, shifts_dict):
-    """بناء بيانات التقويم الشهري بشكل صحيح"""
+# ===== دالة بناء الجدول (بالتصميم الجديد) =====
+def build_calendar_table(year, month, shifts_dict, status_dict, delay_dict):
+    """بناء جدول المناوبات مع نوع المناوبة والحالة وساعات التأخير"""
     import calendar as cal
     
     first_day = date(year, month, 1)
     days_in_month = cal.monthrange(year, month)[1]
-    
-    # يوم الأسبوع لليوم الأول (0=الإثنين, 6=الأحد)
-    # نحتاج الأحد = 0
     start_offset = (first_day.weekday() + 1) % 7
     
-    # إنشاء قائمة بجميع أيام الشهر مع فراغات
+    # إنشاء قائمة بجميع أيام الشهر
     all_days = []
     
-    # إضافة فراغات قبل بداية الشهر
+    # أيام فارغة قبل الشهر
     for _ in range(start_offset):
         all_days.append(None)
     
-    # إضافة أيام الشهر
+    # أيام الشهر
     for day in range(1, days_in_month + 1):
         current_date = date(year, month, day)
         all_days.append({
             "day": day,
             "shift": shifts_dict.get(day, ""),
+            "status": status_dict.get(day, "present"),
+            "delay": delay_dict.get(day, 0),
             "is_today": current_date == date.today(),
             "is_weekend": current_date.weekday() >= 5
         })
     
-    # تقسيم إلى أسابيع (كل 7 أيام)
+    # تقسيم إلى أسابيع
     weeks = []
     for i in range(0, len(all_days), 7):
         week = all_days[i:i+7]
-        # إكمال الأسبوع إلى 7 أيام
         while len(week) < 7:
             week.append(None)
         weeks.append(week)
@@ -225,13 +252,9 @@ def refresh_notifications():
         if response.status_code == 200:
             st.session_state.notifications = response.json()
             return st.session_state.notifications
-    except Exception as e:
-        print(f"Error: {e}")
-    
-    # بيانات تجريبية
-    demo = [
-        {"id": "1", "title": "📢 مرحباً بك", "message": "نتمنى لك يوماً موفقاً", "created_at": datetime.now().isoformat(), "is_read": False},
-    ]
+    except:
+        pass
+    demo = [{"id": "1", "title": "📢 مرحباً بك", "message": "نتمنى لك يوماً موفقاً", "created_at": datetime.now().isoformat(), "is_read": False}]
     st.session_state.notifications = demo
     return demo
 
@@ -480,6 +503,13 @@ def show_shifts():
         except:
             pass
     
+    # بيانات الحالة وساعات التأخير (مؤقتة - سيتم جلبها من API لاحقاً)
+    status_dict = {}
+    delay_dict = {}
+    for day in range(1, 32):
+        status_dict[day] = "present"
+        delay_dict[day] = 0
+    
     # إحصائيات
     days_in_month = calendar.monthrange(year, month)[1]
     work = 0
@@ -513,48 +543,99 @@ def show_shifts():
     
     st.divider()
     
-    # ===== جدول المناوبات (باستخدام DataFrame) =====
+    # ===== جدول المناوبات (بالتصميم الجديد - 4 صفوف لكل يوم) =====
     st.subheader(f"📅 جدول مناوباتي - {calendar.month_name[month]} {year}")
     
-    # بناء بيانات التقويم
-    weeks = build_month_calendar(year, month, shifts_dict)
-    weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+    weeks = build_calendar_table(year, month, shifts_dict, status_dict, delay_dict)
+    weekdays_ar = ["الأحد", "الإثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"]
     
-    # تحويل إلى DataFrame
-    data = []
+    # بناء الجدول
+    html = '<div class="shift-table-container"><table class="shift-table">'
+    
+    # رأس الجدول (أيام الأسبوع)
+    html += '<thead>资本'
+    for wd in weekdays_ar:
+        html += f'<th>{wd}</th>'
+    html += '</thead><tbody>'
+    
+    # لكل أسبوع
     for week in weeks:
-        row = []
+        # صف أرقام الأيام
+        html += ' tr'
         for cell in week:
             if cell is None:
-                row.append("")
+                html += '<td class="other-month-cell"><div class="day-number"> </div><div> </div><div> </div><div> </div>'
             else:
                 day_num = cell["day"]
+                is_today = cell["is_today"]
+                is_weekend = cell["is_weekend"]
+                cell_class = ""
+                if is_today:
+                    cell_class = ' class="today-cell"'
+                elif is_weekend:
+                    cell_class = ' class="weekend-cell"'
+                html += f'<td{cell_class}><div class="day-number">{day_num}</div>'
+        html += '   '
+        
+        # صف نوع المناوبة
+        html += ' tr'
+        for cell in week:
+            if cell is None:
+                html += '<td class="other-month-cell"><div> </div>'
+            else:
                 shift = cell["shift"]
-                if shift:
-                    row.append(f"{day_num}\n{shift}")
+                if shift and shift in SHIFT_TYPES:
+                    info = SHIFT_TYPES[shift]
+                    html += f'<div><span class="shift-badge" style="background:{info["bg"]}; color:{info["color"]};">{shift}</span></div>'
+                elif shift:
+                    html += f'<div><span class="shift-badge" style="background:#f1f5f9;">{shift}</span></div>'
                 else:
-                    row.append(str(day_num))
-        data.append(row)
+                    html += '<div><span class="shift-badge" style="background:#f1f5f9; color:#94a3b8;">—</span></div>'
+        html += '   '
+        
+        # صف الحالة
+        html += ' tr'
+        for cell in week:
+            if cell is None:
+                html += '<td class="other-month-cell"><div> </div>'
+            else:
+                status = cell["status"]
+                if status in STATUS_TYPES:
+                    info = STATUS_TYPES[status]
+                    html += f'<div><span class="status-badge" style="background:{info["bg"]}; color:{info["color"]};">{info["name"]}</span></div>'
+                else:
+                    html += '<div><span class="status-badge">—</span></div>'
+        html += '   '
+        
+        # صف ساعات التأخير
+        html += ' tr'
+        for cell in week:
+            if cell is None:
+                html += '<td class="other-month-cell"><div> </div>'
+            else:
+                delay = cell["delay"]
+                if delay > 0:
+                    html += f'<div><span class="delay-badge">تأخير {delay} س</span></div>'
+                else:
+                    html += '<div><span class="delay-badge">—</span></div>'
+        html += '   '
     
-    df = pd.DataFrame(data, columns=weekdays_ar)
+    html += '</tbody>   </div>'
+    st.markdown(html, unsafe_allow_html=True)
     
-    # عرض الجدول
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        height=400
-    )
-    
-    # ملاحظة توضيحية
     st.caption(f"📌 {work} يوم عمل | {hours} ساعة | {rate}% إنجاز")
     
     # دليل الرموز
     with st.expander("🔑 دليل الرموز"):
-        cols = st.columns(4)
-        for i, (code, info) in enumerate(SHIFT_TYPES.items()):
-            with cols[i % 4]:
-                st.markdown(f'<div style="background:{info["bg"]}; padding:0.3rem; border-radius:12px; text-align:center;"><strong>{code}</strong><br>{info["name"]}</div>', unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**أنواع المناوبات:**")
+            for code, info in SHIFT_TYPES.items():
+                st.markdown(f'<span style="background:{info["bg"]}; padding:2px 8px; border-radius:12px;">{code}</span> {info["name"]}', unsafe_allow_html=True)
+        with col2:
+            st.markdown("**الحالات:**")
+            for status, info in STATUS_TYPES.items():
+                st.markdown(f'<span style="background:{info["bg"]}; padding:2px 8px; border-radius:12px;">{info["name"]}</span>', unsafe_allow_html=True)
     
     # تسجيل الخروج
     st.divider()
