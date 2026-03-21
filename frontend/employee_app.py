@@ -30,6 +30,7 @@ st.markdown("""
         .stat-card { padding: 0.75rem !important; }
         .stat-value { font-size: 1.3rem !important; }
         .stat-label { font-size: 0.65rem !important; }
+        .settings-section { padding: 0.8rem !important; }
     }
     
     /* بطاقة الترحيب */
@@ -109,26 +110,54 @@ st.markdown("""
         color: #1e293b;
     }
     
-    /* أيقونة الإشعارات */
-    .notification-icon {
-        position: relative;
-        display: inline-block;
-        cursor: pointer;
+    /* قسم الإعدادات */
+    .settings-section {
+        background: #ffffff;
+        border-radius: 20px;
+        padding: 1rem 1.2rem;
+        margin: 1rem 0;
+        border: 1px solid #eef2f6;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
     }
-    .notification-badge {
-        position: absolute;
-        top: -8px;
-        right: -12px;
-        background: #dc2626;
-        color: white;
-        border-radius: 50%;
-        width: 20px;
-        height: 20px;
-        font-size: 0.7rem;
+    .settings-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e2a3a;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #eef2f6;
         display: flex;
         align-items: center;
-        justify-content: center;
-        font-weight: bold;
+        gap: 0.5rem;
+    }
+    
+    /* أيقونة الإشعارات */
+    .top-bar {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .icon-btn {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 40px;
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .icon-btn:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+    }
+    .notification-badge {
+        background: #dc2626;
+        color: white;
+        border-radius: 20px;
+        padding: 0.1rem 0.4rem;
+        font-size: 0.7rem;
+        margin-left: 0.3rem;
     }
     
     /* جدول المناوبات */
@@ -190,8 +219,6 @@ st.markdown("""
         font-size: 0.7rem;
     }
     
-    /* زر تسجيل الخروج */
-    .logout-btn { margin-top: 1rem; text-align: center; }
     hr { margin: 1rem 0; border: none; height: 1px; background: #eef2f6; }
 </style>
 """, unsafe_allow_html=True)
@@ -252,10 +279,10 @@ if "notifications" not in st.session_state:
     st.session_state.notifications = []
 if "show_notifications" not in st.session_state:
     st.session_state.show_notifications = False
-if "current_view" not in st.session_state:
-    st.session_state.current_view = "shifts"  # shifts, settings
+if "show_settings" not in st.session_state:
+    st.session_state.show_settings = False
 
-# ===== دالة جلب الإشعارات =====
+# ===== دوال API =====
 def fetch_notifications():
     try:
         headers = {"Authorization": f"Bearer {st.session_state.token}"}
@@ -271,7 +298,6 @@ def fetch_notifications():
         print(f"Error fetching notifications: {e}")
     return []
 
-# ===== دالة تعيين إشعار كمقروء =====
 def mark_notification_read(notification_id):
     try:
         headers = {"Authorization": f"Bearer {st.session_state.token}"}
@@ -287,23 +313,17 @@ def mark_notification_read(notification_id):
         pass
     return False
 
-# ===== دالة تغيير كلمة المرور =====
 def change_password(current_password, new_password, confirm_password):
     if new_password != confirm_password:
         return False, "كلمة المرور الجديدة غير متطابقة"
-    
     if len(new_password) < 6:
         return False, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"
-    
     try:
         headers = {"Authorization": f"Bearer {st.session_state.token}"}
         response = requests.post(
             f"{config.API_URL}/api/auth/change-password",
             headers=headers,
-            json={
-                "current_password": current_password,
-                "new_password": new_password
-            },
+            json={"current_password": current_password, "new_password": new_password},
             timeout=10
         )
         if response.status_code == 200:
@@ -315,14 +335,11 @@ def change_password(current_password, new_password, confirm_password):
     except Exception as e:
         return False, f"خطأ في الاتصال: {str(e)}"
 
-# ===== دالة تحضير بيانات التقويم =====
 def prepare_weekly_calendar(year, month, shifts_dict):
     first_day = date(year, month, 1)
     start_date = first_day - timedelta(days=first_day.weekday())
-    
     weeks = []
     current = start_date
-    
     while current.month <= month or (current.month == month + 1 and current.weekday() != 0):
         week = []
         for i in range(7):
@@ -339,7 +356,6 @@ def prepare_weekly_calendar(year, month, shifts_dict):
         weeks.append(week)
         if current.month > month + 1:
             break
-    
     return weeks
 
 # ===== صفحة تسجيل الدخول =====
@@ -366,7 +382,6 @@ def show_login():
                             data={"username": username, "password": password},
                             timeout=10
                         )
-                        
                         if response.status_code == 200:
                             data = response.json()
                             token = data.get("access_token")
@@ -382,11 +397,9 @@ def show_login():
                             
                             employee_id = None
                             full_name = username
-                            
                             if user_response.status_code == 200:
                                 user_data = user_response.json()
                                 employee_id = user_data.get("employee_id")
-                                
                                 if employee_id:
                                     emp_response = requests.get(
                                         f"{config.API_URL}/api/employees/{employee_id}",
@@ -401,8 +414,6 @@ def show_login():
                             st.session_state.full_name = full_name
                             st.session_state.authenticated = True
                             st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
-                            st.session_state.current_view = "shifts"
-                            
                             fetch_notifications()
                             
                             st.success(f"✅ مرحباً {full_name}")
@@ -411,67 +422,6 @@ def show_login():
                             st.error("❌ الرقم الوظيفي أو كلمة المرور غير صحيحة")
                     except Exception as e:
                         st.error(f"❌ فشل الاتصال بالخادم: {str(e)}")
-
-# ===== صفحة الإعدادات =====
-def show_settings():
-    st.subheader("⚙️ الإعدادات الشخصية")
-    st.markdown("---")
-    
-    # معلومات الموظف
-    with st.container():
-        st.markdown("### 👤 معلومات الحساب")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.text_input("الرقم الوظيفي", value=st.session_state.username, disabled=True)
-        with col2:
-            st.text_input("الاسم الكامل", value=st.session_state.full_name, disabled=True)
-    
-    st.markdown("---")
-    
-    # تغيير كلمة المرور
-    with st.container():
-        st.markdown("### 🔐 تغيير كلمة المرور")
-        
-        with st.form("change_password_form"):
-            current_pwd = st.text_input("كلمة المرور الحالية", type="password")
-            new_pwd = st.text_input("كلمة المرور الجديدة", type="password", placeholder="6 أحرف على الأقل")
-            confirm_pwd = st.text_input("تأكيد كلمة المرور الجديدة", type="password")
-            
-            col1, col2, col3 = st.columns([2, 1, 2])
-            with col2:
-                submitted = st.form_submit_button("تحديث كلمة المرور", use_container_width=True, type="primary")
-            
-            if submitted:
-                if not current_pwd or not new_pwd or not confirm_pwd:
-                    st.error("❌ الرجاء تعبئة جميع الحقول")
-                else:
-                    success, message = change_password(current_pwd, new_pwd, confirm_pwd)
-                    if success:
-                        st.success(f"✅ {message}")
-                        # مسح الحقول
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {message}")
-    
-    st.markdown("---")
-    
-    # إشعارات التطبيق
-    with st.container():
-        st.markdown("### 🔔 إشعارات التطبيق")
-        notifications_enabled = st.toggle("تفعيل الإشعارات", value=True)
-        if notifications_enabled:
-            st.info("📬 سيتم إرسال إشعارات عند تعديل مناوباتك")
-        else:
-            st.warning("🔕 الإشعارات معطلة")
-    
-    st.markdown("---")
-    
-    # زر العودة
-    col1, col2, col3 = st.columns([2, 1, 2])
-    with col2:
-        if st.button("🔙 العودة للصفحة الرئيسية", use_container_width=True):
-            st.session_state.current_view = "shifts"
-            st.rerun()
 
 # ===== صفحة عرض المناوبات =====
 def show_shifts():
@@ -486,23 +436,17 @@ def show_shifts():
     else:
         greeting = "مساء الخير"
     
-    # ===== رأس الصفحة =====
-    col1, col2, col3, col4 = st.columns([1, 6, 1, 1])
-    with col3:
+    # ===== الشريط العلوي (إشعارات + إعدادات) =====
+    col1, col2, col3 = st.columns([8, 1, 1])
+    with col2:
         notifications = st.session_state.notifications
         unread_count = len([n for n in notifications if not n.get("is_read", False)])
-        
-        if unread_count > 0:
-            if st.button(f"🔔 {unread_count}", key="notification_btn", use_container_width=True):
-                st.session_state.show_notifications = not st.session_state.show_notifications
-        else:
-            if st.button("🔔", key="notification_btn", use_container_width=True):
-                st.session_state.show_notifications = not st.session_state.show_notifications
-    
-    with col4:
+        btn_label = f"🔔 {unread_count}" if unread_count > 0 else "🔔"
+        if st.button(btn_label, key="notification_btn", use_container_width=True):
+            st.session_state.show_notifications = not st.session_state.show_notifications
+    with col3:
         if st.button("⚙️", key="settings_btn", use_container_width=True):
-            st.session_state.current_view = "settings"
-            st.rerun()
+            st.session_state.show_settings = not st.session_state.show_settings
     
     # ===== عرض الإشعارات =====
     if st.session_state.show_notifications:
@@ -511,7 +455,6 @@ def show_shifts():
                 st.info("لا توجد إشعارات جديدة")
             else:
                 for notif in st.session_state.notifications[:10]:
-                    read_status = "✅" if notif.get("is_read") else "🔴"
                     col_a, col_b = st.columns([10, 1])
                     with col_a:
                         st.markdown(f"""
@@ -530,6 +473,51 @@ def show_shifts():
                             if st.button("📖", key=f"read_{notif.get('id')}"):
                                 mark_notification_read(notif.get("id"))
                                 st.rerun()
+    
+    # ===== عرض الإعدادات =====
+    if st.session_state.show_settings:
+        with st.expander("⚙️ الإعدادات الشخصية", expanded=True):
+            # معلومات الحساب
+            st.markdown("### 👤 معلومات الحساب")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.text_input("الرقم الوظيفي", value=st.session_state.username, disabled=True)
+            with col2:
+                st.text_input("الاسم الكامل", value=st.session_state.full_name, disabled=True)
+            
+            st.markdown("---")
+            
+            # تغيير كلمة المرور
+            st.markdown("### 🔐 تغيير كلمة المرور")
+            with st.form("change_password_form"):
+                current_pwd = st.text_input("كلمة المرور الحالية", type="password")
+                new_pwd = st.text_input("كلمة المرور الجديدة", type="password", placeholder="6 أحرف على الأقل")
+                confirm_pwd = st.text_input("تأكيد كلمة المرور الجديدة", type="password")
+                
+                col1, col2, col3 = st.columns([2, 1, 2])
+                with col2:
+                    submitted = st.form_submit_button("تحديث كلمة المرور", use_container_width=True, type="primary")
+                
+                if submitted:
+                    if not current_pwd or not new_pwd or not confirm_pwd:
+                        st.error("❌ الرجاء تعبئة جميع الحقول")
+                    else:
+                        success, message = change_password(current_pwd, new_pwd, confirm_pwd)
+                        if success:
+                            st.success(f"✅ {message}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {message}")
+            
+            st.markdown("---")
+            
+            # إشعارات التطبيق
+            st.markdown("### 🔔 إشعارات التطبيق")
+            notifications_enabled = st.toggle("تفعيل الإشعارات", value=True)
+            if notifications_enabled:
+                st.info("📬 سيتم إرسال إشعارات عند تعديل مناوباتك")
+            else:
+                st.warning("🔕 الإشعارات معطلة")
     
     # ===== بطاقة الترحيب =====
     st.markdown(f"""
@@ -607,7 +595,6 @@ def show_shifts():
     total_hours = 0
     work_days = 0
     vacation_days = 0
-    
     for day in range(1, days_in_month + 1):
         shift_type = shifts_dict.get(day)
         if shift_type:
@@ -682,14 +669,11 @@ def show_shifts():
     
     # بناء الجدول
     table_html = '<div class="shift-table-container"><table class="shift-table">'
-    
-    # رأس الجدول
-    table_html += '<thead>资本'
+    table_html += '<thead><tr>'
     for day in weekdays_ar:
         table_html += f'<th>{day}</th>'
     table_html += '</tr></thead><tbody>'
     
-    # صفوف الأسابيع
     for week in weeks:
         table_html += '<tr>'
         for day_data in week:
@@ -719,7 +703,7 @@ def show_shifts():
             <td{cell_class}>
                 <div class="shift-day-number">{day_num}</div>
                 <div>{shift_display}</div>
-             </td>
+            </td>
             '''
         table_html += '</tr>'
     
@@ -753,11 +737,7 @@ def main():
     else:
         if st.session_state.token:
             fetch_notifications()
-        
-        if st.session_state.get("current_view") == "settings":
-            show_settings()
-        else:
-            show_shifts()
+        show_shifts()
 
 if __name__ == "__main__":
     main()
