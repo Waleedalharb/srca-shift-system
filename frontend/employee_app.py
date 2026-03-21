@@ -260,41 +260,41 @@ def change_password(current_password, new_password, confirm_password):
         return False, f"خطأ: {str(e)}"
 
 def build_month_weeks(year, month, shifts_dict):
-    """بناء أسابيع الشهر كاملة (شهر كامل في جدول واحد)"""
+    """بناء أسابيع الشهر كاملة (7 أيام في كل صف)"""
     import calendar as cal
     
     first_day = date(year, month, 1)
     days_in_month = cal.monthrange(year, month)[1]
     
     # حساب عدد الأيام الفارغة قبل بداية الشهر (الأحد = 0)
+    # weekday(): 0=الإثنين, 1=الثلاثاء, ..., 6=الأحد
     start_offset = (first_day.weekday() + 1) % 7
     
-    weeks = []
-    current_week = []
+    # إنشاء قائمة بجميع أيام الشهر مع فراغات
+    all_days = []
     
-    # إضافة الأيام الفارغة قبل بداية الشهر
+    # إضافة فراغات قبل بداية الشهر
     for _ in range(start_offset):
-        current_week.append(None)
+        all_days.append(None)
     
     # إضافة أيام الشهر
     for day in range(1, days_in_month + 1):
         current_date = date(year, month, day)
-        current_week.append({
+        all_days.append({
             "day": day,
             "shift": shifts_dict.get(day, ""),
             "is_today": current_date == date.today(),
             "is_weekend": current_date.weekday() >= 5
         })
-        
-        if len(current_week) == 7:
-            weeks.append(current_week)
-            current_week = []
     
-    # إضافة أيام فارغة بعد نهاية الشهر
-    if current_week:
-        while len(current_week) < 7:
-            current_week.append(None)
-        weeks.append(current_week)
+    # تقسيم إلى أسابيع (كل 7 أيام)
+    weeks = []
+    for i in range(0, len(all_days), 7):
+        week = all_days[i:i+7]
+        # إذا كان الأسبوع ناقصاً، نضيف فراغات
+        while len(week) < 7:
+            week.append(None)
+        weeks.append(week)
     
     return weeks
 
@@ -533,7 +533,7 @@ def show_shifts():
     weeks = build_month_weeks(year, month, shifts_dict)
     weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
-    # بناء الجدول باستخدام حلقة بسيطة
+    # بناء الجدول
     table_html = '<div class="shift-table-container"><table class="shift-table">'
     table_html += '<thead>资本'
     for wd in weekdays_ar:
@@ -565,10 +565,10 @@ def show_shifts():
                 else:
                     shift_display = '<span class="shift-empty">—</span>'
                 
-                table_html += f'<td{cell_class}><div class="shift-day-number">{day_num}</div><div>{shift_display}</div></td>'
+                table_html += f'<td{cell_class}><div class="shift-day-number">{day_num}</div><div>{shift_display}</div>'
         table_html += '   '
     
-    table_html += '</tbody></table></div>'
+    table_html += '</tbody>   </div>'
     st.markdown(table_html, unsafe_allow_html=True)
     
     st.caption(f"📌 {work} يوم عمل | {hours} ساعة | {rate}% إنجاز")
