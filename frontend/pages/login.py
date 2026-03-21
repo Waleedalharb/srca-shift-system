@@ -98,7 +98,8 @@ def show_login_page():
                             st.session_state.user_full_name = "زياد عبدالله ابراهيم الرشيد"
                             st.session_state.username = username
                             st.session_state.authenticated = True
-                            st.session_state.current_page = "my_shifts"  # 👈 أضف هذا السطر
+                            st.session_state.current_page = "my_shifts"
+                            st.query_params.clear()  # 👈 إضافة هذا السطر لمنع إعادة التوجيه إلى login
                             
                             st.success("✅ تم تسجيل الدخول بنجاح (كموظف)")
                             st.rerun()
@@ -126,6 +127,7 @@ def show_login_page():
                                     st.session_state.user_full_name = user_data.get("full_name", username)
                                     st.session_state.username = username
                                     st.session_state.authenticated = True
+                                    st.query_params.clear()  # 👈 إضافة هذا السطر
                                     
                                     # توجيه حسب الدور
                                     if st.session_state.user_role in ['ADMIN', 'CHIEF_PARAMEDIC']:
