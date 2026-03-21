@@ -17,12 +17,10 @@ st.set_page_config(
 # ===== التنسيقات =====
 st.markdown("""
 <style>
-    /* إخفاء الشريط الجانبي */
     [data-testid="stSidebar"] { display: none !important; }
     [data-testid="stSidebarCollapsedControl"] { display: none !important; }
     .main > div { padding: 0.5rem 1rem !important; }
     
-    /* تحسين للجوال */
     @media (max-width: 768px) {
         .main > div { padding: 0.5rem 0.75rem !important; }
         .greeting-card { padding: 1rem !important; }
@@ -40,8 +38,8 @@ st.markdown("""
         border-radius: 20px;
         margin-bottom: 1.5rem;
         text-align: center;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         border-top: 3px solid #d4af37;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .greeting-card h1 {
         margin: 0;
@@ -96,7 +94,6 @@ st.markdown("""
         font-size: 0.85rem;
     }
     
-    /* جدول المناوبات المحسن */
     .shift-table-container {
         overflow-x: auto;
         margin: 1rem 0;
@@ -144,14 +141,6 @@ st.markdown("""
     .weekend-cell { background: #fef9e6; }
     .other-month-cell { background: #fafafa; opacity: 0.6; }
     
-    .legend-item {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.3rem;
-        padding: 0.2rem 0.6rem;
-        border-radius: 20px;
-        font-size: 0.7rem;
-    }
     hr { margin: 1rem 0; border: none; height: 1px; background: #eef2f6; }
 </style>
 """, unsafe_allow_html=True)
@@ -211,12 +200,9 @@ if "show_notifications" not in st.session_state:
     st.session_state.show_notifications = False
 if "show_settings" not in st.session_state:
     st.session_state.show_settings = False
-if "last_check_time" not in st.session_state:
-    st.session_state.last_check_time = datetime.now()
 
 # ===== دوال API =====
 def refresh_notifications():
-    """جلب الإشعارات من API"""
     try:
         if not st.session_state.token:
             return []
@@ -228,9 +214,14 @@ def refresh_notifications():
         )
         if response.status_code == 200:
             st.session_state.notifications = response.json()
-            st.session_state.last_check_time = datetime.now()
             return st.session_state.notifications
-        return []
+        else:
+            # إذا كان API الإشعارات غير متاح، نضيف إشعارات تجريبية للاختبار
+            st.session_state.notifications = [
+                {"id": "1", "title": "📢 مرحباً بك في المنصة", "message": "نتمنى لك يوماً موفقاً", "created_at": datetime.now().isoformat(), "is_read": False},
+                {"id": "2", "title": "✅ تم تحديث جدول المناوبات", "message": "تم تعديل مناوبات يوم 21 مارس", "created_at": (datetime.now() - timedelta(days=1)).isoformat(), "is_read": False},
+            ]
+            return st.session_state.notifications
     except Exception as e:
         print(f"Error: {e}")
         return []
@@ -248,7 +239,12 @@ def mark_notification_read(notification_id):
             return True
     except:
         pass
-    return False
+    # تحديث محلي للإشعارات التجريبية
+    for n in st.session_state.notifications:
+        if n.get("id") == notification_id:
+            n["is_read"] = True
+            break
+    return True
 
 def change_password(current_password, new_password, confirm_password):
     if new_password != confirm_password:
@@ -272,25 +268,48 @@ def change_password(current_password, new_password, confirm_password):
     except Exception as e:
         return False, f"خطأ: {str(e)}"
 
-def prepare_calendar(year, month, shifts_dict):
-    """تحضير بيانات التقويم الشهري بشكل صحيح"""
-    # الحصول على أول يوم في الشهر
-    first_day = date(year, month, 1)
-    # عدد الأيام في الشهر
-    days_in_month = calendar.monthrange(year, month)[1]
+def build_calendar_weeks(year, month, shifts_dict):
+    """بناء أسابيع الشهر بشكل صحيح"""
+    import calendar as cal
     
-    # بناء قائمة الأيام
-    calendar_data = []
+    first_day = date(year, month, 1)
+    days_in_month = cal.monthrange(year, month)[1]
+    
+    # يوم الأسبوع لأول يوم (0=الإثنين، 6=الأحد)
+    first_weekday = first_day.weekday()
+    # تحويل بحيث الأحد = 0
+    start_offset = (first_weekday + 1) % 7
+    
+    # إنشاء مصفوفة 6x7 (أسابيع × أيام)
+    weeks = []
+    current_week = []
+    
+    # أيام فارغة قبل بداية الشهر
+    for i in range(start_offset):
+        current_week.append(None)
+    
+    # أيام الشهر
     for day in range(1, days_in_month + 1):
         current_date = date(year, month, day)
-        calendar_data.append({
+        current_week.append({
             "day": day,
             "shift": shifts_dict.get(day, ""),
             "is_today": current_date == date.today(),
-            "is_weekend": current_date.weekday() >= 5,  # الجمعة=5, السبت=6
-            "weekday": current_date.weekday()
+            "is_weekend": current_date.weekday() >= 5
         })
-    return calendar_data
+        
+        # إذا اكتمل الأسبوع (7 أيام)
+        if len(current_week) == 7:
+            weeks.append(current_week)
+            current_week = []
+    
+    # إضافة أيام فارغة بعد نهاية الشهر
+    if current_week:
+        while len(current_week) < 7:
+            current_week.append(None)
+        weeks.append(current_week)
+    
+    return weeks
 
 # ===== صفحة تسجيل الدخول =====
 def show_login():
@@ -521,38 +540,28 @@ def show_shifts():
     
     st.divider()
     
-    # ===== جدول المناوبات (عرض بسيط وصحيح) =====
+    # ===== جدول المناوبات =====
     st.subheader(f"📅 جدول مناوباتي - {calendar.month_name[month]} {year}")
     
-    calendar_data = prepare_calendar(year, month, shifts_dict)
-    
-    # عرض الجدول على شكل قائمة بسيطة
+    weeks = build_calendar_weeks(year, month, shifts_dict)
     weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
-    # تجميع الأيام في أسابيع
-    weeks = []
-    current_week = []
-    for day_data in calendar_data:
-        current_week.append(day_data)
-        if day_data["weekday"] == 6 or day_data["day"] == days_in_month:
-            weeks.append(current_week)
-            current_week = []
-    
     table_html = '<div class="shift-table-container"><table class="shift-table">'
-    table_html += '<thead><tr>'
+    table_html += '<thead>资本'
     for wd in weekdays_ar:
         table_html += f'<th>{wd}</th>'
-    table_html += '</tr></thead><tbody>'
+    table_html += ' hilab</thead><tbody>'
     
     for week in weeks:
-        table_html += '<tr>'
-        for i in range(7):
-            if i < len(week):
-                day = week[i]
-                day_num = day["day"]
-                shift = day["shift"]
-                is_today = day["is_today"]
-                is_weekend = day["is_weekend"]
+        table_html += ' tr'
+        for day_data in week:
+            if day_data is None:
+                table_html += '<td class="other-month-cell"><div class="shift-day-number"> </div><div> </div>'
+            else:
+                day_num = day_data["day"]
+                shift = day_data["shift"]
+                is_today = day_data["is_today"]
+                is_weekend = day_data["is_weekend"]
                 
                 cell_class = ""
                 if is_today:
@@ -572,13 +581,11 @@ def show_shifts():
                 <td{cell_class}>
                     <div class="shift-day-number">{day_num}</div>
                     <div>{shift_display}</div>
-                 </td>
+                  
                 '''
-            else:
-                table_html += '<td class="other-month-cell"><div class="shift-day-number"> </div><div> </div></td>'
-        table_html += '</tr>'
+        table_html += ' </tr>'
     
-    table_html += '</tbody></table></div>'
+    table_html += '</tbody> </table></div>'
     st.markdown(table_html, unsafe_allow_html=True)
     
     st.caption(f"📌 {work} يوم عمل | {hours} ساعة | {rate}% إنجاز")
