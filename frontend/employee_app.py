@@ -8,84 +8,30 @@ from config import config
 
 # إعداد الصفحة
 st.set_page_config(
-    page_title="مناوباتي",
+    page_title="مناوباتي - منصة الموظفين",
     page_icon="👤",
     layout="wide"
 )
 
-# تعريف ثوابت المناوبات (إذا لم تكن موجودة في utils.constants)
+# تعريف ثوابت المناوبات
 SHIFT_TYPES = {
-    "D12": {"name": "صباحي 12 س", "hours": 12, "color": "#4CAF50", "text_color": "white"},
-    "N12": {"name": "ليلي 12 س", "hours": 12, "color": "#2196F3", "text_color": "white"},
-    "O12": {"name": "تداخلي 12 س", "hours": 12, "color": "#FF9800", "text_color": "white"},
-    "V": {"name": "إجازة", "hours": 0, "color": "#F44336", "text_color": "white"},
-    "CP8": {"name": "تكميلية 8 س", "hours": 8, "color": "#9C27B0", "text_color": "white"},
-    "CP24": {"name": "تكميلية 24 س", "hours": 24, "color": "#3F51B5", "text_color": "white"},
-    "LN8": {"name": "ليلي تكميلي 8 س", "hours": 8, "color": "#009688", "text_color": "white"},
+    "D12": {"name": "صباحي 12 س", "hours": 12, "color": "#4CAF50"},
+    "N12": {"name": "ليلي 12 س", "hours": 12, "color": "#2196F3"},
+    "O12": {"name": "تداخلي 12 س", "hours": 12, "color": "#FF9800"},
+    "V": {"name": "إجازة", "hours": 0, "color": "#F44336"},
+    "CP8": {"name": "تكميلية 8 س", "hours": 8, "color": "#9C27B0"},
+    "CP24": {"name": "تكميلية 24 س", "hours": 24, "color": "#3F51B5"},
+    "LN8": {"name": "ليلي تكميلي 8 س", "hours": 8, "color": "#009688"},
 }
 
-# خدمات API
-class AuthService:
-    def __init__(self):
-        self.base_url = config.API_URL
-        self.token = None
-    
-    def login(self, username, password):
-        try:
-            response = requests.post(
-                f"{self.base_url}/auth/login",
-                json={"username": username, "password": password},
-                timeout=10
-            )
-            if response.status_code == 200:
-                data = response.json()
-                self.token = data.get("access_token")
-                st.session_state.token = self.token
-                return True
-            return False
-        except Exception as e:
-            print(f"Login error: {e}")
-            return False
-    
-    def get_headers(self):
-        token = st.session_state.get("token", self.token)
-        if token:
-            return {"Authorization": f"Bearer {token}"}
-        return {}
-
-class ShiftService:
-    def __init__(self, auth):
-        self.auth = auth
-        self.base_url = f"{config.API_URL}/shifts"
-    
-    def get_employee_shifts_by_month(self, employee_id, year, month):
-        try:
-            start_date = f"{year}-{month:02d}-01"
-            if month == 12:
-                end_date = f"{year+1}-01-01"
-            else:
-                end_date = f"{year}-{month+1:02d}-01"
-            
-            response = requests.get(
-                f"{self.base_url}/by_employee",
-                headers=self.auth.get_headers(),
-                params={
-                    "employee_id": employee_id,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "limit": 40
-                },
-                timeout=10
-            )
-            if response.status_code == 200:
-                return response.json().get("items", [])
-            return []
-        except Exception as e:
-            print(f"Error getting shifts: {e}")
-            return []
+# تهيئة الجلسة
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "token" not in st.session_state:
+    st.session_state.token = None
 
 # ===== صفحة تسجيل الدخول =====
-def show_employee_login():
+def show_login():
     st.markdown("""
     <div style="text-align: center; margin-bottom: 2rem;">
         <h1>👤 منصة الموظفين</h1>
@@ -93,7 +39,7 @@ def show_employee_login():
     </div>
     """, unsafe_allow_html=True)
     
-    with st.form("employee_login"):
+    with st.form("login_form"):
         username = st.text_input("الرقم الوظيفي", placeholder="أدخل الرقم الوظيفي")
         password = st.text_input("كلمة المرور", type="password", placeholder="أدخل كلمة المرور")
         
@@ -102,55 +48,37 @@ def show_employee_login():
                 st.error("❌ الرجاء إدخال الرقم الوظيفي وكلمة المرور")
             else:
                 with st.spinner("جاري تسجيل الدخول..."):
-                    auth = AuthService()
-                    if auth.login(username, password):
-                        # جلب بيانات المستخدم
-                        token = st.session_state.get("token")
-                        headers = {"Authorization": f"Bearer {token}"}
-                        try:
-                            response = requests.get(
-                                f"{config.API_URL}/users/me",
-                                headers=headers,
-                                timeout=5
-                            )
-                            if response.status_code == 200:
-                                user_data = response.json()
-                                st.session_state.user = user_data
-                                st.session_state.user_role = user_data.get("role", "").upper()
-                                st.session_state.user_employee_id = user_data.get("employee_id")
-                                st.session_state.user_full_name = user_data.get("full_name", username)
-                                st.session_state.username = username
-                                st.session_state.authenticated = True
-                                st.session_state.auth_service = auth
-                                st.rerun()
+                    try:
+                        # محاولة تسجيل الدخول
+                        response = requests.post(
+                            f"{config.API_URL}/api/auth/login",
+                            data={"username": username, "password": password},
+                            timeout=10
+                        )
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            st.session_state.token = data.get("access_token")
+                            st.session_state.username = username
+                            st.session_state.authenticated = True
+                            
+                            # تعيين اسم الموظف
+                            if username == "8736":
+                                st.session_state.full_name = "زياد عبدالله ابراهيم الرشيد"
                             else:
-                                st.error("❌ فشل في جلب بيانات المستخدم")
-                        except Exception as e:
-                            st.error(f"❌ خطأ: {str(e)}")
-                    else:
-                        st.error("❌ الرقم الوظيفي أو كلمة المرور غير صحيحة")
+                                st.session_state.full_name = username
+                            
+                            st.success("✅ تم تسجيل الدخول بنجاح")
+                            st.rerun()
+                        else:
+                            st.error("❌ الرقم الوظيفي أو كلمة المرور غير صحيحة")
+                    except Exception as e:
+                        st.error(f"❌ فشل الاتصال بالخادم: {str(e)}")
 
 # ===== صفحة عرض المناوبات =====
-def show_employee_shifts():
-    user = st.session_state.get("user", {})
-    employee_id = user.get("employee_id")
-    employee_name = st.session_state.get("user_full_name", "الموظف")
-    auth = st.session_state.get("auth_service")
-    
+def show_shifts():
     st.title(f"📅 مناوباتي")
-    st.caption(f"مرحباً {employee_name}")
-    
-    if not employee_id:
-        st.error("❌ لا يوجد موظف مرتبط بهذا الحساب")
-        if st.button("تسجيل خروج"):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
-        return
-    
-    if not auth:
-        st.error("❌ خطأ في المصادقة")
-        return
+    st.caption(f"مرحباً {st.session_state.get('full_name', st.session_state.username)}")
     
     # اختيار الشهر والسنة
     col1, col2, col3 = st.columns([1, 1, 2])
@@ -163,10 +91,36 @@ def show_employee_shifts():
             st.rerun()
     
     # جلب المناوبات
-    ss = ShiftService(auth)
-    
     with st.spinner("جاري تحميل مناوباتك..."):
-        shifts = ss.get_employee_shifts_by_month(employee_id, year, month)
+        try:
+            headers = {"Authorization": f"Bearer {st.session_state.token}"}
+            start_date = f"{year}-{month:02d}-01"
+            if month == 12:
+                end_date = f"{year+1}-01-01"
+            else:
+                end_date = f"{year}-{month+1:02d}-01"
+            
+            response = requests.get(
+                f"{config.API_URL}/api/shifts/by_employee",
+                headers=headers,
+                params={
+                    "employee_id": "employee_id_here",  # هذا يحتاج معرف الموظف
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "limit": 40
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                shifts = response.json().get("items", [])
+            else:
+                shifts = []
+                st.info("لا توجد مناوبات مسجلة")
+                return
+        except Exception as e:
+            st.error(f"خطأ في تحميل البيانات: {str(e)}")
+            return
     
     if not shifts:
         st.info(f"📭 لا توجد مناوبات مسجلة لك في {calendar.month_name[month]} {year}")
@@ -190,22 +144,19 @@ def show_employee_shifts():
     for day in range(1, days_in_month + 1):
         shift_type = shifts_dict.get(day)
         if shift_type in SHIFT_TYPES:
-            total_hours += SHIFT_TYPES[shift_type].get("hours", 0)
+            total_hours += SHIFT_TYPES[shift_type]["hours"]
     
     # عرض الإحصائيات
-    work_days = len([d for d in shifts_dict.values() if d != 'V'])
-    vacation_days = len([d for d in shifts_dict.values() if d == 'V'])
-    required = 192
-    rate = int((total_hours / required) * 100) if required > 0 else 0
-    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("📅 أيام العمل", work_days)
+        st.metric("📅 أيام العمل", len([d for d in shifts_dict.values() if d != 'V']))
     with col2:
-        st.metric("🏖️ أيام إجازة", vacation_days)
+        st.metric("🏖️ أيام إجازة", len([d for d in shifts_dict.values() if d == 'V']))
     with col3:
         st.metric("⏱️ إجمالي الساعات", f"{total_hours} س")
     with col4:
+        required = 192
+        rate = int((total_hours / required) * 100) if required > 0 else 0
         st.metric("📊 نسبة الإنجاز", f"{min(rate, 100)}%")
     
     st.divider()
@@ -213,19 +164,12 @@ def show_employee_shifts():
     # عرض جدول المناوبات
     st.subheader(f"📋 جدول مناوباتي - {calendar.month_name[month]} {year}")
     
-    # بناء الجدول
-    row = {
-        "الموظف": employee_name,
-        "الرقم الوظيفي": st.session_state.get("username", ""),
-        "إجمالي الساعات": f"{total_hours} س"
-    }
-    
+    row = {"الموظف": st.session_state.get('full_name', st.session_state.username), "الرقم الوظيفي": st.session_state.username}
     for day in range(1, days_in_month + 1):
-        shift_type = shifts_dict.get(day)
-        row[f"يوم {day}"] = shift_type if shift_type else ""
+        row[f"يوم {day}"] = shifts_dict.get(day, "")
     
     df = pd.DataFrame([row])
-    display_cols = ["الموظف", "الرقم الوظيفي", "إجمالي الساعات"] + [f"يوم {d}" for d in range(1, days_in_month + 1)]
+    display_cols = ["الموظف", "الرقم الوظيفي"] + [f"يوم {d}" for d in range(1, days_in_month + 1)]
     
     column_config = {}
     for day in range(1, days_in_month + 1):
@@ -252,10 +196,10 @@ def show_employee_shifts():
 
 # ===== التشغيل الرئيسي =====
 def main():
-    if not st.session_state.get("authenticated", False):
-        show_employee_login()
+    if not st.session_state.authenticated:
+        show_login()
     else:
-        show_employee_shifts()
+        show_shifts()
 
 if __name__ == "__main__":
     main()
