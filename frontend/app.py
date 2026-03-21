@@ -400,6 +400,7 @@ else:
             st.rerun()
     
     # ===== توجيه الصفحات =====
+    # ✅ الاستيرادات هنا فقط (بعد التأكد من تسجيل الدخول)
     page = st.session_state.get("current_page", "dashboard")
     
     if page == "dashboard":
