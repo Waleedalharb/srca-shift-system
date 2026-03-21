@@ -547,7 +547,6 @@ def show_shifts():
         table_html += ' tr'
         for day_data in week:
             if day_data is None:
-                # يوم فارغ (من شهر آخر)
                 table_html += '<td class="other-month-cell"><div class="shift-day-number"> </div><div> </div>'
             else:
                 day_num = day_data["day"]
@@ -575,9 +574,9 @@ def show_shifts():
                     <div>{shift_display}</div>
                   
                 '''
-        table_html += '  ','
+        table_html += '   '
     
-    table_html += '</tbody>  tabl</div>'
+    table_html += '</tbody>   </div>'
     st.markdown(table_html, unsafe_allow_html=True)
     
     st.caption(f"📌 {work} يوم عمل | {hours} ساعة | {rate}% إنجاز")
