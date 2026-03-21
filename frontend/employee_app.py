@@ -28,8 +28,9 @@ st.markdown("""
         .stat-card { padding: 0.75rem !important; }
         .stat-value { font-size: 1.3rem !important; }
         .shift-table th { padding: 8px 2px; font-size: 0.7rem; }
-        .shift-table td { min-width: 50px; padding: 6px 1px; }
-        .shift-badge { padding: 3px 6px; font-size: 0.65rem; }
+        .shift-table td { min-width: 45px; padding: 4px 1px; }
+        .shift-badge { padding: 2px 4px; font-size: 0.6rem; }
+        .shift-day-number { font-size: 0.65rem; }
     }
     
     .greeting-card {
@@ -104,7 +105,7 @@ st.markdown("""
     .shift-table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 600px;
+        min-width: 560px;
     }
     .shift-table th {
         background: #f8fafc;
@@ -259,44 +260,47 @@ def change_password(current_password, new_password, confirm_password):
     except Exception as e:
         return False, f"خطأ: {str(e)}"
 
-def build_month_weeks(year, month, shifts_dict):
-    """بناء أسابيع الشهر كاملة (7 أيام في كل صف)"""
+def build_calendar_rows(year, month, shifts_dict):
+    """بناء صفوف الجدول (كل صف = أسبوع)"""
     import calendar as cal
     
     first_day = date(year, month, 1)
     days_in_month = cal.monthrange(year, month)[1]
     
-    # حساب عدد الأيام الفارغة قبل بداية الشهر (الأحد = 0)
-    # weekday(): 0=الإثنين, 1=الثلاثاء, ..., 6=الأحد
-    start_offset = (first_day.weekday() + 1) % 7
+    # يوم الأسبوع لليوم الأول (0=الإثنين, 6=الأحد)
+    first_weekday = first_day.weekday()
+    # تحويل بحيث الأحد = 0
+    start_offset = (first_weekday + 1) % 7
     
-    # إنشاء قائمة بجميع أيام الشهر مع فراغات
-    all_days = []
+    # إنشاء مصفوفة 6x7
+    rows = []
+    current_row = []
     
     # إضافة فراغات قبل بداية الشهر
     for _ in range(start_offset):
-        all_days.append(None)
+        current_row.append(None)
     
     # إضافة أيام الشهر
     for day in range(1, days_in_month + 1):
         current_date = date(year, month, day)
-        all_days.append({
+        current_row.append({
             "day": day,
             "shift": shifts_dict.get(day, ""),
             "is_today": current_date == date.today(),
             "is_weekend": current_date.weekday() >= 5
         })
+        
+        if len(current_row) == 7:
+            rows.append(current_row)
+            current_row = []
     
-    # تقسيم إلى أسابيع (كل 7 أيام)
-    weeks = []
-    for i in range(0, len(all_days), 7):
-        week = all_days[i:i+7]
-        # إذا كان الأسبوع ناقصاً، نضيف فراغات
-        while len(week) < 7:
-            week.append(None)
-        weeks.append(week)
+    # إضافة فراغات بعد نهاية الشهر
+    if current_row:
+        while len(current_row) < 7:
+            current_row.append(None)
+        rows.append(current_row)
     
-    return weeks
+    return rows
 
 # ===== صفحة تسجيل الدخول =====
 def show_login():
@@ -530,26 +534,26 @@ def show_shifts():
     # ===== جدول المناوبات (شهر كامل) =====
     st.subheader(f"📅 جدول مناوباتي - {calendar.month_name[month]} {year}")
     
-    weeks = build_month_weeks(year, month, shifts_dict)
+    rows = build_calendar_rows(year, month, shifts_dict)
     weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
-    # بناء الجدول
-    table_html = '<div class="shift-table-container"><table class="shift-table">'
-    table_html += '<thead>资本'
+    # بناء جدول HTML بشكل صحيح
+    html = '<div class="shift-table-container"><table class="shift-table">'
+    html += '<thead>资本'
     for wd in weekdays_ar:
-        table_html += f'<th>{wd}</th>'
-    table_html += '</thead><tbody>'
+        html += f'<th>{wd}</th>'
+    html += '</thead><tbody>'
     
-    for week in weeks:
-        table_html += ' tr'
-        for day_data in week:
-            if day_data is None:
-                table_html += '<td class="other-month-cell"><div class="shift-day-number"> </div><div> </div>'
+    for row in rows:
+        html += ' tr'
+        for cell in row:
+            if cell is None:
+                html += '<td class="other-month-cell"><div class="shift-day-number"> </div><div> </div>'
             else:
-                day_num = day_data["day"]
-                shift = day_data["shift"]
-                is_today = day_data["is_today"]
-                is_weekend = day_data["is_weekend"]
+                day_num = cell["day"]
+                shift = cell["shift"]
+                is_today = cell["is_today"]
+                is_weekend = cell["is_weekend"]
                 
                 cell_class = ""
                 if is_today:
@@ -559,17 +563,17 @@ def show_shifts():
                 
                 if shift and shift in SHIFT_TYPES:
                     info = SHIFT_TYPES[shift]
-                    shift_display = f'<span class="shift-badge" style="background:{info["bg"]}; color:{info["color"]};">{shift}</span>'
+                    shift_html = f'<span class="shift-badge" style="background:{info["bg"]}; color:{info["color"]};">{shift}</span>'
                 elif shift:
-                    shift_display = f'<span class="shift-badge" style="background:#f1f5f9;">{shift}</span>'
+                    shift_html = f'<span class="shift-badge" style="background:#f1f5f9;">{shift}</span>'
                 else:
-                    shift_display = '<span class="shift-empty">—</span>'
+                    shift_html = '<span class="shift-empty">—</span>'
                 
-                table_html += f'<td{cell_class}><div class="shift-day-number">{day_num}</div><div>{shift_display}</div>'
-        table_html += '   '
+                html += f'<td{cell_class}><div class="shift-day-number">{day_num}</div><div>{shift_html}</div>'
+        html += '   '
     
-    table_html += '</tbody>   </div>'
-    st.markdown(table_html, unsafe_allow_html=True)
+    html += '</tbody>   </div>'
+    st.markdown(html, unsafe_allow_html=True)
     
     st.caption(f"📌 {work} يوم عمل | {hours} ساعة | {rate}% إنجاز")
     
