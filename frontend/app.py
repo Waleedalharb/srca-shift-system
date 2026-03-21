@@ -36,7 +36,7 @@ if 'reload_settings' in st.session_state and st.session_state.reload_settings:
     apply_theme()
     st.session_state.reload_settings = False
 
-# ===== مدير الجلسات لحل مشكلة تعدد المستخدمين =====
+# ===== مدير الجلسات =====
 class SessionManager:
     def __init__(self):
         self.sessions = {}
