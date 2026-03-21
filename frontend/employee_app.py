@@ -64,23 +64,10 @@ st.markdown("""
         color: #1e293b;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    .stats-container {
-        background: white;
-        padding: 1rem;
-        border-radius: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        margin-bottom: 1rem;
-    }
-    hr {
-        margin: 1.5rem 0;
-        border: none;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# ===== عبارات تشجيعية عشوائية =====
+# ===== عبارات تشجيعية =====
 MOTIVATIONAL_QUOTES = [
     "أنت تبذل جهداً رائعاً! استمر في التألق",
     "كل يوم عمل هو خطوة نحو النجاح. أنت مميز",
@@ -96,7 +83,7 @@ MOTIVATIONAL_QUOTES = [
     "نجم القطاع الجنوبي! أداؤك رائع دائماً"
 ]
 
-# ===== تحية أنيقة (بدون أيقونات) =====
+# ===== تحية =====
 def get_time_greeting():
     hour = datetime.now().hour
     if 5 <= hour < 12:
@@ -165,6 +152,7 @@ def show_login():
             else:
                 with st.spinner("جاري تسجيل الدخول..."):
                     try:
+                        # 1. تسجيل الدخول
                         response = requests.post(
                             f"{config.API_URL}/api/auth/login",
                             data={"username": username, "password": password},
@@ -178,27 +166,40 @@ def show_login():
                             st.session_state.username = username
                             
                             headers = {"Authorization": f"Bearer {token}"}
+                            
+                            # 2. جلب بيانات المستخدم (user)
                             user_response = requests.get(
                                 f"{config.API_URL}/api/auth/me",
                                 headers=headers,
                                 timeout=10
                             )
                             
+                            employee_id = None
+                            full_name = username  # افتراضي
+        
                             if user_response.status_code == 200:
                                 user_data = user_response.json()
-                                st.session_state.employee_id = user_data.get("employee_id")
-                                st.session_state.full_name = user_data.get("full_name", username)
-                                st.session_state.authenticated = True
-                                st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
-                                st.success(f"✅ مرحباً {st.session_state.full_name}")
-                                st.rerun()
-                            else:
-                                st.session_state.employee_id = None
-                                st.session_state.full_name = username
-                                st.session_state.authenticated = True
-                                st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
-                                st.warning("تم تسجيل الدخول ولكن لم نتمكن من جلب بياناتك بالكامل")
-                                st.rerun()
+                                employee_id = user_data.get("employee_id")
+                                
+                                # 3. إذا كان لدينا employee_id، نجلب اسم الموظف
+                                if employee_id:
+                                    emp_response = requests.get(
+                                        f"{config.API_URL}/api/employees/{employee_id}",
+                                        headers=headers,
+                                        timeout=10
+                                    )
+                                    if emp_response.status_code == 200:
+                                        emp_data = emp_response.json()
+                                        full_name = emp_data.get("full_name", username)
+                            
+                            # حفظ البيانات
+                            st.session_state.employee_id = employee_id
+                            st.session_state.full_name = full_name
+                            st.session_state.authenticated = True
+                            st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
+                            
+                            st.success(f"✅ مرحباً {full_name}")
+                            st.rerun()
                         else:
                             st.error("❌ الرقم الوظيفي أو كلمة المرور غير صحيحة")
                     except Exception as e:
@@ -209,7 +210,7 @@ def show_shifts():
     full_name = st.session_state.get('full_name', st.session_state.username)
     greeting = get_time_greeting()
     
-    # ✅ بطاقة ترحيبية أنيقة بدون أيقونات
+    # ✅ بطاقة ترحيبية
     st.markdown(f"""
     <div class="greeting-card">
         <h1>{greeting}</h1>
@@ -300,7 +301,7 @@ def show_shifts():
     rate = int((total_hours / required) * 100) if required > 0 else 0
     rate = min(rate, 100)
     
-    # ✅ عرض الإحصائيات
+    # عرض الإحصائيات
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("أيام العمل", work_days)
@@ -311,7 +312,7 @@ def show_shifts():
     with col4:
         st.metric("نسبة الإنجاز", f"{rate}%")
     
-    # ✅ عرض عبارة حسب الإنجاز
+    # عرض عبارة حسب الإنجاز
     achievement_msg = get_achievement_message(rate)
     st.markdown(f"""
     <div class="motivation-card">
@@ -319,7 +320,7 @@ def show_shifts():
     </div>
     """, unsafe_allow_html=True)
     
-    # ✅ عرض عبارة اليوم العشوائية
+    # عرض عبارة اليوم
     st.markdown(f"""
     <div class="motivation-card" style="background: #eef2ff; border-right-color: #4f46e5;">
         <span>✨ {st.session_state.daily_quote}</span>
@@ -331,7 +332,6 @@ def show_shifts():
     # عرض جدول المناوبات
     st.subheader(f"جدول مناوباتي - {calendar.month_name[month]} {year}")
     
-    # عرض الجدول
     table_data = []
     for day in range(1, days_in_month + 1):
         shift_type = shifts_dict.get(day, "")
