@@ -1,7 +1,7 @@
 # frontend/employee_app.py
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import calendar
 import random
 import requests
@@ -14,55 +14,214 @@ st.set_page_config(
     layout="wide"
 )
 
-# ✅ إخفاء الشريط الجانبي بالكامل
+# ===== تنسيقات متجاوبة للجوال والتابلت =====
 st.markdown("""
 <style>
-    [data-testid="stSidebar"] {
-        display: none !important;
+    /* إخفاء الشريط الجانبي */
+    [data-testid="stSidebar"] { display: none !important; }
+    [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+    .main > div { padding: 0.5rem 1rem !important; }
+    
+    /* تحسين للجوال */
+    @media (max-width: 768px) {
+        .main > div { padding: 0.5rem 0.75rem !important; }
+        .greeting-card { padding: 1rem !important; }
+        .greeting-card h2 { font-size: 1.2rem !important; }
+        .stat-card { padding: 0.75rem !important; }
+        .stat-value { font-size: 1.3rem !important; }
+        .stat-label { font-size: 0.65rem !important; }
+        .week-header { font-size: 0.7rem !important; }
+        .shift-cell { padding: 4px !important; font-size: 0.7rem !important; }
+        .notification-badge { width: 18px !important; height: 18px !important; font-size: 0.6rem !important; }
     }
-    [data-testid="stSidebarCollapsedControl"] {
-        display: none !important;
+    
+    /* تحسين للتابلت */
+    @media (min-width: 769px) and (max-width: 1024px) {
+        .greeting-card h2 { font-size: 1.5rem !important; }
+        .stat-value { font-size: 1.6rem !important; }
+        .week-header { font-size: 0.8rem !important; }
     }
-    .main > div {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-    }
+    
+    /* بطاقة الترحيب */
     .greeting-card {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        padding: 1.8rem;
-        border-radius: 24px;
-        margin-bottom: 1.8rem;
-        color: white;
+        background: #ffffff;
+        padding: 1.5rem;
+        border-radius: 20px;
+        margin-bottom: 1.5rem;
         text-align: center;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-        border-bottom: 3px solid #ffd700;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        border-top: 3px solid #d4af37;
+        border-bottom: 1px solid #eef2f6;
     }
     .greeting-card h1 {
         margin: 0;
-        font-size: 1.4rem;
+        font-size: 0.9rem;
         font-weight: 500;
-        letter-spacing: 1px;
-        opacity: 0.9;
+        color: #6c757d;
     }
     .greeting-card h2 {
-        margin: 0.6rem 0;
-        font-size: 1.8rem;
+        margin: 0.5rem 0;
+        font-size: 1.5rem;
         font-weight: 600;
+        color: #1e2a3a;
     }
     .greeting-card p {
         margin: 0;
-        font-size: 0.9rem;
-        opacity: 0.8;
+        font-size: 0.8rem;
+        color: #6c757d;
     }
-    .motivation-card {
+    
+    /* بطاقات الإحصائيات */
+    .stat-card {
+        background: #ffffff;
+        padding: 1rem;
+        border-radius: 16px;
+        text-align: center;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        border: 1px solid #eef2f6;
+        transition: all 0.2s;
+    }
+    .stat-value {
+        font-size: 1.6rem;
+        font-weight: 700;
+        margin: 0.3rem 0;
+        color: #1e2a3a;
+    }
+    .stat-label {
+        font-size: 0.7rem;
+        color: #6c757d;
+    }
+    .stat-trend {
+        font-size: 0.6rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 20px;
+        display: inline-block;
+        margin-top: 0.3rem;
+    }
+    .trend-up { background: #e6f7e6; color: #2e7d32; }
+    .trend-down { background: #ffebee; color: #c62828; }
+    .trend-neutral { background: #f5f5f5; color: #5d6b82; }
+    
+    /* بطاقات العبارات */
+    .achievement-card {
         background: #f8fafc;
-        padding: 1rem 1.2rem;
+        padding: 0.8rem 1rem;
+        border-radius: 16px;
+        margin-bottom: 0.8rem;
+        border-right: 3px solid;
+        font-size: 0.85rem;
+        color: #1e293b;
+    }
+    .quote-card {
+        background: #eef2ff;
+        padding: 0.8rem 1rem;
         border-radius: 16px;
         margin-bottom: 1rem;
-        border-right: 4px solid #2a5298;
-        font-size: 1rem;
+        border-right: 3px solid #4f46e5;
+        font-size: 0.85rem;
         color: #1e293b;
+    }
+    
+    /* أيقونة الإشعارات */
+    .notification-icon {
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+        font-size: 1.2rem;
+    }
+    .notification-badge {
+        position: absolute;
+        top: -8px;
+        right: -12px;
+        background: #dc2626;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+    
+    /* جدول التقويم الأسبوعي */
+    .calendar-container {
+        overflow-x: auto;
+        margin: 1rem 0;
+    }
+    .week-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        min-width: 600px;
+    }
+    .week-table th {
+        background: #f8fafc;
+        padding: 10px 6px;
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: #1e293b;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .week-table td {
+        border: 1px solid #eef2f6;
+        padding: 8px 4px;
+        text-align: center;
+        vertical-align: middle;
+    }
+    .day-number {
+        font-size: 0.7rem;
+        color: #6c757d;
+        margin-bottom: 4px;
+    }
+    .shift-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 500;
+    }
+    .weekend {
+        background: #fef9e6;
+    }
+    .today {
+        background: #e6f7ff;
+        border-left: 2px solid #1890ff;
+    }
+    
+    /* دليل الرموز */
+    .legend-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+    .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+    }
+    
+    /* زر تسجيل الخروج */
+    .logout-btn {
+        margin-top: 1rem;
+        text-align: center;
+    }
+    
+    hr {
+        margin: 1rem 0;
+        border: none;
+        height: 1px;
+        background: #eef2f6;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -72,28 +231,16 @@ MOTIVATIONAL_QUOTES = [
     "أنت تبذل جهداً رائعاً! استمر في التألق",
     "كل يوم عمل هو خطوة نحو النجاح. أنت مميز",
     "أداؤك المتميز يلهم الجميع. فخورون بك",
-    "حتى في الليالي الطويلة، نورك يضيء القسم. شكراً لك",
+    "حتى في الليالي الطويلة، نورك يضيء القسم",
     "وجودك يجعل فريقنا أقوى. نحن نقدر تفانيك",
-    "عملك الجليل لا يمر دون تقدير. أنت نجمنا",
+    "عملك الجليلي لا يمر دون تقدير. أنت نجمنا",
     "شكراً لالتزامك وإخلاصك في العمل",
-    "كل صباح جديد معك هو بداية مميزة. استمر",
+    "كل صباح جديد معك هو بداية مميزة",
     "أنت قدوة حسنة لزملائك. فخورون بك",
     "تعاونك وروحك العالية تصنع الفرق",
     "إنجازاتك تتحدث عن نفسها. نحن نقدر جهودك",
     "نجم القطاع الجنوبي! أداؤك رائع دائماً"
 ]
-
-# ===== تحية =====
-def get_time_greeting():
-    hour = datetime.now().hour
-    if 5 <= hour < 12:
-        return "صباح الخير"
-    elif 12 <= hour < 16:
-        return "مساء الخير"
-    elif 16 <= hour < 20:
-        return "مساء النور"
-    else:
-        return "مساء الخير"
 
 # ===== رسالة حسب نسبة الإنجاز =====
 def get_achievement_message(rate):
@@ -106,17 +253,17 @@ def get_achievement_message(rate):
     elif rate >= 30:
         return "💪 لا تستسلم! أنت قادر على تحقيق المزيد"
     else:
-        return "🌱 بداية ممتازة! كل رحلة تبدأ بخطوة، ونحن ندعمك"
+        return "🌱 بداية ممتازة! كل رحلة تبدأ بخطوة"
 
 # تعريف ثوابت المناوبات
 SHIFT_TYPES = {
-    "D12": {"name": "صباحي 12 س", "hours": 12, "color": "#4CAF50"},
-    "N12": {"name": "ليلي 12 س", "hours": 12, "color": "#2196F3"},
-    "O12": {"name": "تداخلي 12 س", "hours": 12, "color": "#FF9800"},
-    "V": {"name": "إجازة", "hours": 0, "color": "#F44336"},
-    "CP8": {"name": "تكميلية 8 س", "hours": 8, "color": "#9C27B0"},
-    "CP24": {"name": "تكميلية 24 س", "hours": 24, "color": "#3F51B5"},
-    "LN8": {"name": "ليلي تكميلي 8 س", "hours": 8, "color": "#009688"},
+    "D12": {"name": "صباحي 12", "hours": 12, "color": "#4CAF50", "bg": "#e8f5e9"},
+    "N12": {"name": "ليلي 12", "hours": 12, "color": "#2196F3", "bg": "#e3f2fd"},
+    "O12": {"name": "تداخلي 12", "hours": 12, "color": "#FF9800", "bg": "#fff3e0"},
+    "V": {"name": "إجازة", "hours": 0, "color": "#F44336", "bg": "#ffebee"},
+    "CP8": {"name": "تكميلية 8", "hours": 8, "color": "#9C27B0", "bg": "#f3e5f5"},
+    "CP24": {"name": "تكميلية 24", "hours": 24, "color": "#3F51B5", "bg": "#e8eaf6"},
+    "LN8": {"name": "ليلي تكميلي 8", "hours": 8, "color": "#009688", "bg": "#e0f2f1"},
 }
 
 # تهيئة الجلسة
@@ -132,13 +279,79 @@ if "username" not in st.session_state:
     st.session_state.username = None
 if "daily_quote" not in st.session_state:
     st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
+if "notifications" not in st.session_state:
+    st.session_state.notifications = []
+if "show_notifications" not in st.session_state:
+    st.session_state.show_notifications = False
+
+# ===== دالة جلب الإشعارات =====
+def fetch_notifications():
+    try:
+        headers = {"Authorization": f"Bearer {st.session_state.token}"}
+        response = requests.get(
+            f"{config.API_URL}/api/notifications",
+            headers=headers,
+            timeout=10
+        )
+        if response.status_code == 200:
+            st.session_state.notifications = response.json()
+            return st.session_state.notifications
+    except Exception as e:
+        print(f"Error fetching notifications: {e}")
+    return []
+
+# ===== دالة تعيين إشعار كمقروء =====
+def mark_notification_read(notification_id):
+    try:
+        headers = {"Authorization": f"Bearer {st.session_state.token}"}
+        response = requests.put(
+            f"{config.API_URL}/api/notifications/{notification_id}/read",
+            headers=headers,
+            timeout=10
+        )
+        if response.status_code == 200:
+            fetch_notifications()
+            return True
+    except:
+        pass
+    return False
+
+# ===== دالة تحضير بيانات التقويم الأسبوعي =====
+def prepare_weekly_calendar(year, month, shifts_dict):
+    # الحصول على أول يوم في الشهر
+    first_day = date(year, month, 1)
+    start_date = first_day - timedelta(days=first_day.weekday())
+    
+    # إنشاء أسابيع الشهر
+    weeks = []
+    current = start_date
+    today = date.today()
+    
+    while current.month <= month or (current.month == month + 1 and current.weekday() != 0):
+        week = []
+        for i in range(7):
+            day_data = {
+                "date": current,
+                "day": current.day,
+                "shift": shifts_dict.get(current.day, ""),
+                "is_current_month": current.month == month,
+                "is_today": current == today,
+                "is_weekend": current.weekday() >= 5
+            }
+            week.append(day_data)
+            current += timedelta(days=1)
+        weeks.append(week)
+        if current.month > month + 1:
+            break
+    
+    return weeks
 
 # ===== صفحة تسجيل الدخول =====
 def show_login():
     st.markdown("""
     <div style="text-align: center; margin-bottom: 2rem;">
-        <h1 style="color: #1e3c72;">منصة الموظفين</h1>
-        <p style="color: #64748b;">نظام إدارة المناوبات - قطاع الجنوب</p>
+        <h1 style="color: #1e2a3a; font-size: 1.5rem;">منصة الموظفين</h1>
+        <p style="color: #6c757d;">نظام إدارة المناوبات - قطاع الجنوب</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -152,7 +365,6 @@ def show_login():
             else:
                 with st.spinner("جاري تسجيل الدخول..."):
                     try:
-                        # 1. تسجيل الدخول
                         response = requests.post(
                             f"{config.API_URL}/api/auth/login",
                             data={"username": username, "password": password},
@@ -166,8 +378,6 @@ def show_login():
                             st.session_state.username = username
                             
                             headers = {"Authorization": f"Bearer {token}"}
-                            
-                            # 2. جلب بيانات المستخدم (user)
                             user_response = requests.get(
                                 f"{config.API_URL}/api/auth/me",
                                 headers=headers,
@@ -175,13 +385,12 @@ def show_login():
                             )
                             
                             employee_id = None
-                            full_name = username  # افتراضي
-        
+                            full_name = username
+                            
                             if user_response.status_code == 200:
                                 user_data = user_response.json()
                                 employee_id = user_data.get("employee_id")
                                 
-                                # 3. إذا كان لدينا employee_id، نجلب اسم الموظف
                                 if employee_id:
                                     emp_response = requests.get(
                                         f"{config.API_URL}/api/employees/{employee_id}",
@@ -192,11 +401,13 @@ def show_login():
                                         emp_data = emp_response.json()
                                         full_name = emp_data.get("full_name", username)
                             
-                            # حفظ البيانات
                             st.session_state.employee_id = employee_id
                             st.session_state.full_name = full_name
                             st.session_state.authenticated = True
                             st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
+                            
+                            # جلب الإشعارات
+                            fetch_notifications()
                             
                             st.success(f"✅ مرحباً {full_name}")
                             st.rerun()
@@ -208,9 +419,57 @@ def show_login():
 # ===== صفحة عرض المناوبات =====
 def show_shifts():
     full_name = st.session_state.get('full_name', st.session_state.username)
-    greeting = get_time_greeting()
+    hour = datetime.now().hour
+    if 5 <= hour < 12:
+        greeting = "صباح الخير"
+    elif 12 <= hour < 16:
+        greeting = "مساء الخير"
+    elif 16 <= hour < 20:
+        greeting = "مساء النور"
+    else:
+        greeting = "مساء الخير"
     
-    # ✅ بطاقة ترحيبية
+    # ===== رأس الصفحة مع الإشعارات =====
+    col1, col2, col3 = st.columns([1, 8, 1])
+    with col3:
+        notifications = st.session_state.notifications
+        unread_count = len([n for n in notifications if not n.get("is_read", False)])
+        
+        if unread_count > 0:
+            if st.button(f"🔔 {unread_count}", key="notification_btn", use_container_width=True):
+                st.session_state.show_notifications = not st.session_state.show_notifications
+        else:
+            if st.button("🔔", key="notification_btn", use_container_width=True):
+                st.session_state.show_notifications = not st.session_state.show_notifications
+    
+    # ===== عرض الإشعارات =====
+    if st.session_state.show_notifications:
+        with st.expander("📋 الإشعارات", expanded=True):
+            if not st.session_state.notifications:
+                st.info("لا توجد إشعارات جديدة")
+            else:
+                for notif in st.session_state.notifications[:10]:
+                    read_status = "✅" if notif.get("is_read") else "🔴"
+                    col_a, col_b = st.columns([10, 1])
+                    with col_a:
+                        st.markdown(f"""
+                        <div style="background: {'#f5f5f5' if notif.get('is_read') else '#fff3e0'}; 
+                                    padding: 0.6rem; 
+                                    border-radius: 12px; 
+                                    margin-bottom: 0.5rem;
+                                    border-right: 3px solid #d4af37;">
+                            <div style="font-size: 0.75rem; color: #6c757d;">{notif.get('created_at', '').split('T')[0]}</div>
+                            <div style="font-weight: 500; font-size: 0.85rem;">{notif.get('title', '')}</div>
+                            <div style="font-size: 0.8rem; color: #4a5568;">{notif.get('message', '')}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with col_b:
+                        if not notif.get("is_read"):
+                            if st.button("📖", key=f"read_{notif.get('id')}"):
+                                mark_notification_read(notif.get("id"))
+                                st.rerun()
+    
+    # ===== بطاقة الترحيب =====
     st.markdown(f"""
     <div class="greeting-card">
         <h1>{greeting}</h1>
@@ -227,17 +486,17 @@ def show_shifts():
             st.rerun()
         return
     
-    # اختيار الشهر والسنة
-    col1, col2, col3 = st.columns([1, 1, 2])
+    # ===== اختيار الشهر والسنة =====
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        year = st.number_input("السنة", 2020, 2030, datetime.now().year)
+        year = st.number_input("السنة", 2020, 2030, datetime.now().year, label_visibility="collapsed")
     with col2:
-        month = st.number_input("الشهر", 1, 12, datetime.now().month)
+        month = st.number_input("الشهر", 1, 12, datetime.now().month, label_visibility="collapsed")
     with col3:
         if st.button("تحديث", use_container_width=True):
             st.rerun()
     
-    # جلب المناوبات
+    # ===== جلب المناوبات =====
     with st.spinner("جاري تحميل مناوباتك..."):
         try:
             headers = {"Authorization": f"Bearer {st.session_state.token}"}
@@ -269,7 +528,7 @@ def show_shifts():
             st.error(f"خطأ في تحميل البيانات: {str(e)}")
             return
     
-    # تحليل البيانات
+    # ===== تحليل البيانات =====
     days_in_month = calendar.monthrange(year, month)[1]
     shifts_dict = {}
     for shift in shifts:
@@ -282,7 +541,7 @@ def show_shifts():
         except:
             continue
     
-    # حساب الإحصائيات
+    # ===== حساب الإحصائيات =====
     total_hours = 0
     work_days = 0
     vacation_days = 0
@@ -301,57 +560,130 @@ def show_shifts():
     rate = int((total_hours / required) * 100) if required > 0 else 0
     rate = min(rate, 100)
     
-    # عرض الإحصائيات
+    # ===== عرض الإحصائيات =====
+    st.markdown('<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem;">', unsafe_allow_html=True)
+    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("أيام العمل", work_days)
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">أيام العمل</div>
+            <div class="stat-value">{work_days}</div>
+            <div class="stat-trend trend-up">▲ مقابل الشهر الماضي</div>
+        </div>
+        """, unsafe_allow_html=True)
     with col2:
-        st.metric("أيام إجازة", vacation_days)
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">أيام إجازة</div>
+            <div class="stat-value">{vacation_days}</div>
+            <div class="stat-trend trend-neutral">—</div>
+        </div>
+        """, unsafe_allow_html=True)
     with col3:
-        st.metric("إجمالي الساعات", f"{total_hours} س")
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">إجمالي الساعات</div>
+            <div class="stat-value">{total_hours} س</div>
+            <div class="stat-trend trend-up">▲ مقابل الشهر الماضي</div>
+        </div>
+        """, unsafe_allow_html=True)
     with col4:
-        st.metric("نسبة الإنجاز", f"{rate}%")
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">نسبة الإنجاز</div>
+            <div class="stat-value">{rate}%</div>
+            <div class="stat-trend trend-up">▲ مقابل الشهر الماضي</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # عرض عبارة حسب الإنجاز
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # ===== عرض عبارة حسب الإنجاز =====
     achievement_msg = get_achievement_message(rate)
     st.markdown(f"""
-    <div class="motivation-card">
-        <span>{achievement_msg}</span>
+    <div class="achievement-card" style="border-right-color: {'#4CAF50' if rate >= 70 else '#FF9800' if rate >= 50 else '#F44336'}">
+        {achievement_msg}
     </div>
     """, unsafe_allow_html=True)
     
-    # عرض عبارة اليوم
+    # ===== عرض عبارة اليوم =====
     st.markdown(f"""
-    <div class="motivation-card" style="background: #eef2ff; border-right-color: #4f46e5;">
-        <span>✨ {st.session_state.daily_quote}</span>
+    <div class="quote-card">
+        ✨ {st.session_state.daily_quote}
     </div>
     """, unsafe_allow_html=True)
     
     st.divider()
     
-    # عرض جدول المناوبات
-    st.subheader(f"جدول مناوباتي - {calendar.month_name[month]} {year}")
+    # ===== جدول المناوبات (عرض أسبوعي) =====
+    st.subheader(f"📅 جدول مناوباتي - {calendar.month_name[month]} {year}")
     
-    table_data = []
-    for day in range(1, days_in_month + 1):
-        shift_type = shifts_dict.get(day, "")
-        shift_display = shift_type if shift_type else "—"
-        table_data.append({"اليوم": day, "نوع المناوبة": shift_display})
+    weeks = prepare_weekly_calendar(year, month, shifts_dict)
+    today = date.today()
     
-    df = pd.DataFrame(table_data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
-    # دليل الرموز
-    with st.expander("دليل الرموز"):
+    st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
+    st.markdown('<table class="week-table">', unsafe_allow_html=True)
+    
+    # رأس الجدول
+    st.markdown('<tr>', unsafe_allow_html=True)
+    for day in weekdays_ar:
+        st.markdown(f'<th class="week-header">{day}</th>', unsafe_allow_html=True)
+    st.markdown('</tr>', unsafe_allow_html=True)
+    
+    # صفوف الأسابيع
+    for week in weeks:
+        st.markdown('<tr>', unsafe_allow_html=True)
+        for day_data in week:
+            day_num = day_data["day"]
+            shift = day_data["shift"]
+            is_today = day_data["is_today"]
+            is_weekend = day_data["is_weekend"]
+            is_current = day_data["is_current_month"]
+            
+            if not is_current:
+                st.markdown('<td style="background: #fafafa; color: #ccc;"></td>', unsafe_allow_html=True)
+                continue
+            
+            shift_info = SHIFT_TYPES.get(shift, None)
+            shift_display = ""
+            if shift_info:
+                shift_display = f'<span class="shift-badge" style="background:{shift_info["bg"]}; color:{shift_info["color"]}; font-weight:500;">{shift}</span>'
+            elif shift:
+                shift_display = f'<span class="shift-badge" style="background:#f0f0f0;">{shift}</span>'
+            else:
+                shift_display = '<span style="color:#bbb;">—</span>'
+            
+            cell_class = ""
+            if is_today:
+                cell_class = ' class="today"'
+            elif is_weekend:
+                cell_class = ' class="weekend"'
+            
+            st.markdown(f'''
+            <td{cell_class}>
+                <div class="day-number">{day_num}</div>
+                <div>{shift_display}</div>
+            </td>
+            ''', unsafe_allow_html=True)
+        st.markdown('</tr>', unsafe_allow_html=True)
+    
+    st.markdown('</table>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # ===== دليل الرموز =====
+    with st.expander("🔑 دليل الرموز"):
         cols = st.columns(4)
         codes = ["D12", "N12", "O12", "V", "CP8", "CP24", "LN8"]
         for i, code in enumerate(codes):
             if code in SHIFT_TYPES:
                 info = SHIFT_TYPES[code]
                 with cols[i % 4]:
-                    st.markdown(f"<div style='background:{info['color']}; padding:0.5rem; border-radius:8px; text-align:center; color:white;'><strong>{code}</strong><br>{info['name']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='legend-item' style='background:{info['bg']}; color:{info['color']};'><strong>{code}</strong> {info['name']}</div>", unsafe_allow_html=True)
     
-    # زر تسجيل الخروج
+    # ===== زر تسجيل الخروج =====
     st.divider()
     if st.button("تسجيل خروج", use_container_width=True):
         for key in list(st.session_state.keys()):
@@ -363,6 +695,9 @@ def main():
     if not st.session_state.authenticated:
         show_login()
     else:
+        # تحديث الإشعارات بشكل دوري (في كل إعادة تحميل)
+        if st.session_state.token:
+            fetch_notifications()
         show_shifts()
 
 if __name__ == "__main__":
