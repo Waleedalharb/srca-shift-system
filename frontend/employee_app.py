@@ -27,10 +27,6 @@ st.markdown("""
         .greeting-card h2 { font-size: 1.2rem !important; }
         .stat-card { padding: 0.75rem !important; }
         .stat-value { font-size: 1.3rem !important; }
-        .shift-table th { padding: 8px 2px; font-size: 0.7rem; }
-        .shift-table td { min-width: 45px; padding: 4px 1px; }
-        .shift-badge { padding: 2px 4px; font-size: 0.6rem; }
-        .shift-day-number { font-size: 0.65rem; }
     }
     
     .greeting-card {
@@ -95,58 +91,51 @@ st.markdown("""
         font-size: 0.85rem;
     }
     
-    .shift-table-container {
-        overflow-x: auto;
-        margin: 1rem 0;
-        border-radius: 16px;
-        border: 1px solid #eef2f6;
-        background: white;
-    }
+    hr { margin: 1rem 0; border: none; height: 1px; background: #eef2f6; }
+    
+    /* تنسيق الجدول */
     .shift-table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 560px;
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .shift-table th {
         background: #f8fafc;
-        padding: 10px 4px;
+        padding: 12px;
         text-align: center;
         font-weight: 600;
-        font-size: 0.8rem;
+        color: #1e293b;
         border-bottom: 1px solid #e2e8f0;
     }
     .shift-table td {
-        padding: 8px 2px;
+        padding: 10px;
         text-align: center;
-        border: 1px solid #f0f2f5;
+        border: 1px solid #eef2f6;
         vertical-align: middle;
-    }
-    .shift-day-number {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: #64748b;
-        margin-bottom: 4px;
     }
     .shift-badge {
         display: inline-block;
-        padding: 4px 8px;
+        padding: 4px 10px;
         border-radius: 20px;
-        font-size: 0.7rem;
+        font-size: 0.75rem;
         font-weight: 600;
     }
-    .shift-empty {
-        color: #cbd5e1;
-        font-size: 0.7rem;
+    .today-cell {
+        background: #eef2ff;
     }
-    .today-cell { background: #eef2ff; }
-    .weekend-cell { background: #fef9e6; }
-    .other-month-cell { background: #fafafa; opacity: 0.6; }
-    
-    hr { margin: 1rem 0; border: none; height: 1px; background: #eef2f6; }
+    .weekend-cell {
+        background: #fef9e6;
+    }
+    .shift-empty {
+        color: #94a3b8;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ===== عبارات تشجيعية =====
+# ===== بيانات ثابتة =====
 MOTIVATIONAL_QUOTES = [
     "أنت تبذل جهداً رائعاً! استمر في التألق",
     "كل يوم عمل هو خطوة نحو النجاح. أنت مميز",
@@ -160,6 +149,16 @@ MOTIVATIONAL_QUOTES = [
     "إنجازاتك تتحدث عن نفسها. نحن نقدر جهودك",
 ]
 
+SHIFT_TYPES = {
+    "D12": {"name": "صباحي 12", "hours": 12, "color": "#4CAF50", "bg": "#e8f5e9"},
+    "N12": {"name": "ليلي 12", "hours": 12, "color": "#2196F3", "bg": "#e3f2fd"},
+    "O12": {"name": "تداخلي 12", "hours": 12, "color": "#FF9800", "bg": "#fff3e0"},
+    "V": {"name": "إجازة", "hours": 0, "color": "#F44336", "bg": "#ffebee"},
+    "CP8": {"name": "تكميلية 8", "hours": 8, "color": "#9C27B0", "bg": "#f3e5f5"},
+    "CP24": {"name": "تكميلية 24", "hours": 24, "color": "#3F51B5", "bg": "#e8eaf6"},
+    "LN8": {"name": "ليلي تكميلي 8", "hours": 8, "color": "#009688", "bg": "#e0f2f1"},
+}
+
 def get_achievement_message(rate):
     if rate >= 90:
         return "🏆 متميز! أنت من أفضل الموظفين هذا الشهر"
@@ -172,35 +171,45 @@ def get_achievement_message(rate):
     else:
         return "🌱 بداية ممتازة! كل رحلة تبدأ بخطوة"
 
-SHIFT_TYPES = {
-    "D12": {"name": "صباحي 12", "hours": 12, "color": "#4CAF50", "bg": "#e8f5e9"},
-    "N12": {"name": "ليلي 12", "hours": 12, "color": "#2196F3", "bg": "#e3f2fd"},
-    "O12": {"name": "تداخلي 12", "hours": 12, "color": "#FF9800", "bg": "#fff3e0"},
-    "V": {"name": "إجازة", "hours": 0, "color": "#F44336", "bg": "#ffebee"},
-    "CP8": {"name": "تكميلية 8", "hours": 8, "color": "#9C27B0", "bg": "#f3e5f5"},
-    "CP24": {"name": "تكميلية 24", "hours": 24, "color": "#3F51B5", "bg": "#e8eaf6"},
-    "LN8": {"name": "ليلي تكميلي 8", "hours": 8, "color": "#009688", "bg": "#e0f2f1"},
-}
-
-# تهيئة الجلسة
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "token" not in st.session_state:
-    st.session_state.token = None
-if "employee_id" not in st.session_state:
-    st.session_state.employee_id = None
-if "full_name" not in st.session_state:
-    st.session_state.full_name = None
-if "username" not in st.session_state:
-    st.session_state.username = None
-if "daily_quote" not in st.session_state:
-    st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
-if "notifications" not in st.session_state:
-    st.session_state.notifications = []
-if "show_notifications" not in st.session_state:
-    st.session_state.show_notifications = False
-if "show_settings" not in st.session_state:
-    st.session_state.show_settings = False
+# ===== دالة بناء جدول الشهر =====
+def build_month_calendar(year, month, shifts_dict):
+    """بناء بيانات التقويم الشهري بشكل صحيح"""
+    import calendar as cal
+    
+    first_day = date(year, month, 1)
+    days_in_month = cal.monthrange(year, month)[1]
+    
+    # يوم الأسبوع لليوم الأول (0=الإثنين, 6=الأحد)
+    # نحتاج الأحد = 0
+    start_offset = (first_day.weekday() + 1) % 7
+    
+    # إنشاء قائمة بجميع أيام الشهر مع فراغات
+    all_days = []
+    
+    # إضافة فراغات قبل بداية الشهر
+    for _ in range(start_offset):
+        all_days.append(None)
+    
+    # إضافة أيام الشهر
+    for day in range(1, days_in_month + 1):
+        current_date = date(year, month, day)
+        all_days.append({
+            "day": day,
+            "shift": shifts_dict.get(day, ""),
+            "is_today": current_date == date.today(),
+            "is_weekend": current_date.weekday() >= 5
+        })
+    
+    # تقسيم إلى أسابيع (كل 7 أيام)
+    weeks = []
+    for i in range(0, len(all_days), 7):
+        week = all_days[i:i+7]
+        # إكمال الأسبوع إلى 7 أيام
+        while len(week) < 7:
+            week.append(None)
+        weeks.append(week)
+    
+    return weeks
 
 # ===== دوال API =====
 def refresh_notifications():
@@ -216,27 +225,22 @@ def refresh_notifications():
         if response.status_code == 200:
             st.session_state.notifications = response.json()
             return st.session_state.notifications
-        else:
-            st.session_state.notifications = []
-            return []
     except Exception as e:
         print(f"Error: {e}")
-        return []
+    
+    # بيانات تجريبية
+    demo = [
+        {"id": "1", "title": "📢 مرحباً بك", "message": "نتمنى لك يوماً موفقاً", "created_at": datetime.now().isoformat(), "is_read": False},
+    ]
+    st.session_state.notifications = demo
+    return demo
 
 def mark_notification_read(notification_id):
-    try:
-        headers = {"Authorization": f"Bearer {st.session_state.token}"}
-        response = requests.put(
-            f"{config.API_URL}/api/notifications/{notification_id}/read",
-            headers=headers,
-            timeout=10
-        )
-        if response.status_code == 200:
-            refresh_notifications()
-            return True
-    except:
-        pass
-    return False
+    for n in st.session_state.notifications:
+        if n.get("id") == notification_id:
+            n["is_read"] = True
+            break
+    return True
 
 def change_password(current_password, new_password, confirm_password):
     if new_password != confirm_password:
@@ -260,47 +264,25 @@ def change_password(current_password, new_password, confirm_password):
     except Exception as e:
         return False, f"خطأ: {str(e)}"
 
-def build_calendar_rows(year, month, shifts_dict):
-    """بناء صفوف الجدول (كل صف = أسبوع)"""
-    import calendar as cal
-    
-    first_day = date(year, month, 1)
-    days_in_month = cal.monthrange(year, month)[1]
-    
-    # يوم الأسبوع لليوم الأول (0=الإثنين, 6=الأحد)
-    first_weekday = first_day.weekday()
-    # تحويل بحيث الأحد = 0
-    start_offset = (first_weekday + 1) % 7
-    
-    # إنشاء مصفوفة 6x7
-    rows = []
-    current_row = []
-    
-    # إضافة فراغات قبل بداية الشهر
-    for _ in range(start_offset):
-        current_row.append(None)
-    
-    # إضافة أيام الشهر
-    for day in range(1, days_in_month + 1):
-        current_date = date(year, month, day)
-        current_row.append({
-            "day": day,
-            "shift": shifts_dict.get(day, ""),
-            "is_today": current_date == date.today(),
-            "is_weekend": current_date.weekday() >= 5
-        })
-        
-        if len(current_row) == 7:
-            rows.append(current_row)
-            current_row = []
-    
-    # إضافة فراغات بعد نهاية الشهر
-    if current_row:
-        while len(current_row) < 7:
-            current_row.append(None)
-        rows.append(current_row)
-    
-    return rows
+# تهيئة الجلسة
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "token" not in st.session_state:
+    st.session_state.token = None
+if "employee_id" not in st.session_state:
+    st.session_state.employee_id = None
+if "full_name" not in st.session_state:
+    st.session_state.full_name = None
+if "username" not in st.session_state:
+    st.session_state.username = None
+if "daily_quote" not in st.session_state:
+    st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
+if "notifications" not in st.session_state:
+    st.session_state.notifications = []
+if "show_notifications" not in st.session_state:
+    st.session_state.show_notifications = False
+if "show_settings" not in st.session_state:
+    st.session_state.show_settings = False
 
 # ===== صفحة تسجيل الدخول =====
 def show_login():
@@ -517,13 +499,13 @@ def show_shifts():
     # عرض الإحصائيات
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f'<div class="stat-card"><div class="stat-label">أيام العمل</div><div class="stat-value">{work}</div></div>', unsafe_allow_html=True)
+        st.metric("أيام العمل", work)
     with c2:
-        st.markdown(f'<div class="stat-card"><div class="stat-label">إجازات</div><div class="stat-value">{vacation}</div></div>', unsafe_allow_html=True)
+        st.metric("إجازات", vacation)
     with c3:
-        st.markdown(f'<div class="stat-card"><div class="stat-label">الساعات</div><div class="stat-value">{hours}</div></div>', unsafe_allow_html=True)
+        st.metric("الساعات", f"{hours} س")
     with c4:
-        st.markdown(f'<div class="stat-card"><div class="stat-label">الإنجاز</div><div class="stat-value">{rate}%</div></div>', unsafe_allow_html=True)
+        st.metric("الإنجاز", f"{rate}%")
     
     # عبارات
     st.markdown(f'<div class="achievement-card" style="border-right-color: {"#4CAF50" if rate>=70 else "#FF9800"}">{get_achievement_message(rate)}</div>', unsafe_allow_html=True)
@@ -531,50 +513,40 @@ def show_shifts():
     
     st.divider()
     
-    # ===== جدول المناوبات (شهر كامل) =====
+    # ===== جدول المناوبات (باستخدام DataFrame) =====
     st.subheader(f"📅 جدول مناوباتي - {calendar.month_name[month]} {year}")
     
-    rows = build_calendar_rows(year, month, shifts_dict)
+    # بناء بيانات التقويم
+    weeks = build_month_calendar(year, month, shifts_dict)
     weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
-    # بناء جدول HTML بشكل صحيح
-    html = '<div class="shift-table-container"><table class="shift-table">'
-    html += '<thead>资本'
-    for wd in weekdays_ar:
-        html += f'<th>{wd}</th>'
-    html += '</thead><tbody>'
-    
-    for row in rows:
-        html += ' tr'
-        for cell in row:
+    # تحويل إلى DataFrame
+    data = []
+    for week in weeks:
+        row = []
+        for cell in week:
             if cell is None:
-                html += '<td class="other-month-cell"><div class="shift-day-number"> </div><div> </div>'
+                row.append("")
             else:
                 day_num = cell["day"]
                 shift = cell["shift"]
-                is_today = cell["is_today"]
-                is_weekend = cell["is_weekend"]
-                
-                cell_class = ""
-                if is_today:
-                    cell_class = ' class="today-cell"'
-                elif is_weekend:
-                    cell_class = ' class="weekend-cell"'
-                
-                if shift and shift in SHIFT_TYPES:
-                    info = SHIFT_TYPES[shift]
-                    shift_html = f'<span class="shift-badge" style="background:{info["bg"]}; color:{info["color"]};">{shift}</span>'
-                elif shift:
-                    shift_html = f'<span class="shift-badge" style="background:#f1f5f9;">{shift}</span>'
+                if shift:
+                    row.append(f"{day_num}\n{shift}")
                 else:
-                    shift_html = '<span class="shift-empty">—</span>'
-                
-                html += f'<td{cell_class}><div class="shift-day-number">{day_num}</div><div>{shift_html}</div>'
-        html += '   '
+                    row.append(str(day_num))
+        data.append(row)
     
-    html += '</tbody>   </div>'
-    st.markdown(html, unsafe_allow_html=True)
+    df = pd.DataFrame(data, columns=weekdays_ar)
     
+    # عرض الجدول
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        height=400
+    )
+    
+    # ملاحظة توضيحية
     st.caption(f"📌 {work} يوم عمل | {hours} ساعة | {rate}% إنجاز")
     
     # دليل الرموز
