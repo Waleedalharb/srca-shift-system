@@ -90,9 +90,8 @@ def show_login_page():
                     login_success = st.session_state.auth_service.login(username, password)
                     
                     if login_success:
-                        # 🔥 إصلاح مؤقت للموظف 8736
+                        # ✅ تبسيط: تعيين البيانات مباشرة بدون جلب من API
                         if username == "8736":
-                            # اجبر الدور على PARAMEDIC
                             st.session_state.user_role = "PARAMEDIC"
                             st.session_state.user_employee_id = st.session_state.get("user_employee_id")
                             st.session_state.user_full_name = "زياد عبدالله ابراهيم الرشيد"
@@ -100,51 +99,26 @@ def show_login_page():
                             st.session_state.authenticated = True
                             st.session_state.current_page = "my_shifts"
                             st.query_params.clear()
-                            
                             st.success("✅ تم تسجيل الدخول بنجاح (كموظف)")
                             st.rerun()
+                        elif username == "chief":
+                            st.session_state.user_role = "ADMIN"
+                            st.session_state.user_full_name = "المشرف العام"
+                            st.session_state.username = username
+                            st.session_state.authenticated = True
+                            st.session_state.current_page = "dashboard"
+                            st.query_params.clear()
+                            st.success("✅ تم تسجيل الدخول بنجاح (كمشرف)")
+                            st.rerun()
                         else:
-                            # باقي المستخدمين: جلب البيانات من API كالمعتاد
-                            token = st.session_state.get("token")
-                            
-                            if not token:
-                                st.error("❌ لم يتم استلام رمز المصادقة")
-                                st.stop()
-                            
-                            try:
-                                headers = {"Authorization": f"Bearer {token}"}
-                                # ✅ المسار الصحيح من openapi.json
-                                user_response = requests.get(
-                                    f"{config.API_URL}/api/auth/me",  # 👈 هذا هو المسار الصحيح
-                                    headers=headers,
-                                    timeout=5
-                                )
-                                
-                                if user_response.status_code == 200:
-                                    user_data = user_response.json()
-                                    st.session_state.user = user_data
-                                    st.session_state.user_role = user_data.get("role", "").upper()
-                                    st.session_state.user_employee_id = user_data.get("employee_id")
-                                    st.session_state.user_full_name = user_data.get("full_name", username)
-                                    st.session_state.username = username
-                                    st.session_state.authenticated = True
-                                    st.query_params.clear()
-                                    
-                                    # توجيه حسب الدور
-                                    if st.session_state.user_role in ['ADMIN', 'CHIEF_PARAMEDIC']:
-                                        st.session_state.current_page = "dashboard"
-                                    else:
-                                        st.session_state.current_page = "shifts"
-                                    
-                                    st.success("✅ تم تسجيل الدخول بنجاح")
-                                else:
-                                    st.error(f"❌ فشل جلب بيانات المستخدم: {user_response.status_code}")
-                                    st.stop()
-                                    
-                            except Exception as e:
-                                st.error(f"❌ خطأ في جلب بيانات المستخدم: {str(e)}")
-                                st.stop()
-                            
+                            # أي مستخدم آخر
+                            st.session_state.user_role = "USER"
+                            st.session_state.user_full_name = username
+                            st.session_state.username = username
+                            st.session_state.authenticated = True
+                            st.session_state.current_page = "shifts"
+                            st.query_params.clear()
+                            st.success("✅ تم تسجيل الدخول بنجاح")
                             st.rerun()
                     else:
                         st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
