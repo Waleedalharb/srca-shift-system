@@ -216,12 +216,8 @@ def refresh_notifications():
             st.session_state.notifications = response.json()
             return st.session_state.notifications
         else:
-            # إذا كان API الإشعارات غير متاح، نضيف إشعارات تجريبية للاختبار
-            st.session_state.notifications = [
-                {"id": "1", "title": "📢 مرحباً بك في المنصة", "message": "نتمنى لك يوماً موفقاً", "created_at": datetime.now().isoformat(), "is_read": False},
-                {"id": "2", "title": "✅ تم تحديث جدول المناوبات", "message": "تم تعديل مناوبات يوم 21 مارس", "created_at": (datetime.now() - timedelta(days=1)).isoformat(), "is_read": False},
-            ]
-            return st.session_state.notifications
+            st.session_state.notifications = []
+            return []
     except Exception as e:
         print(f"Error: {e}")
         return []
@@ -239,12 +235,7 @@ def mark_notification_read(notification_id):
             return True
     except:
         pass
-    # تحديث محلي للإشعارات التجريبية
-    for n in st.session_state.notifications:
-        if n.get("id") == notification_id:
-            n["is_read"] = True
-            break
-    return True
+    return False
 
 def change_password(current_password, new_password, confirm_password):
     if new_password != confirm_password:
@@ -268,27 +259,25 @@ def change_password(current_password, new_password, confirm_password):
     except Exception as e:
         return False, f"خطأ: {str(e)}"
 
-def build_calendar_weeks(year, month, shifts_dict):
-    """بناء أسابيع الشهر بشكل صحيح"""
+def build_month_weeks(year, month, shifts_dict):
+    """بناء أسابيع الشهر كاملة (شهر كامل في جدول واحد)"""
     import calendar as cal
     
     first_day = date(year, month, 1)
     days_in_month = cal.monthrange(year, month)[1]
     
-    # يوم الأسبوع لأول يوم (0=الإثنين، 6=الأحد)
-    first_weekday = first_day.weekday()
-    # تحويل بحيث الأحد = 0
-    start_offset = (first_weekday + 1) % 7
+    # حساب عدد الأيام الفارغة قبل بداية الشهر (الأحد = 0)
+    # weekday(): 0=الإثنين, 6=الأحد
+    start_offset = (first_day.weekday() + 1) % 7
     
-    # إنشاء مصفوفة 6x7 (أسابيع × أيام)
     weeks = []
     current_week = []
     
-    # أيام فارغة قبل بداية الشهر
-    for i in range(start_offset):
+    # إضافة الأيام الفارغة قبل بداية الشهر
+    for _ in range(start_offset):
         current_week.append(None)
     
-    # أيام الشهر
+    # إضافة أيام الشهر
     for day in range(1, days_in_month + 1):
         current_date = date(year, month, day)
         current_week.append({
@@ -298,7 +287,6 @@ def build_calendar_weeks(year, month, shifts_dict):
             "is_weekend": current_date.weekday() >= 5
         })
         
-        # إذا اكتمل الأسبوع (7 أيام)
         if len(current_week) == 7:
             weeks.append(current_week)
             current_week = []
@@ -540,22 +528,26 @@ def show_shifts():
     
     st.divider()
     
-    # ===== جدول المناوبات =====
+    # ===== جدول المناوبات (شهر كامل) =====
     st.subheader(f"📅 جدول مناوباتي - {calendar.month_name[month]} {year}")
     
-    weeks = build_calendar_weeks(year, month, shifts_dict)
+    weeks = build_month_weeks(year, month, shifts_dict)
     weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
     table_html = '<div class="shift-table-container"><table class="shift-table">'
+    
+    # رأس الجدول
     table_html += '<thead>资本'
     for wd in weekdays_ar:
         table_html += f'<th>{wd}</th>'
-    table_html += ' hilab</thead><tbody>'
+    table_html += '</thead><tbody>'
     
+    # صفوف الأسابيع
     for week in weeks:
         table_html += ' tr'
         for day_data in week:
             if day_data is None:
+                # يوم فارغ (من شهر آخر)
                 table_html += '<td class="other-month-cell"><div class="shift-day-number"> </div><div> </div>'
             else:
                 day_num = day_data["day"]
@@ -583,9 +575,9 @@ def show_shifts():
                     <div>{shift_display}</div>
                   
                 '''
-        table_html += ' </tr>'
+        table_html += '  ','
     
-    table_html += '</tbody> </table></div>'
+    table_html += '</tbody>  tabl</div>'
     st.markdown(table_html, unsafe_allow_html=True)
     
     st.caption(f"📌 {work} يوم عمل | {hours} ساعة | {rate}% إنجاز")
