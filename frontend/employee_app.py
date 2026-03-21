@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import calendar
+import random
 import requests
 from config import config
 
@@ -12,6 +13,81 @@ st.set_page_config(
     page_icon="👤",
     layout="wide"
 )
+
+# ✅ إخفاء الشريط الجانبي بالكامل
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] {
+        display: none !important;
+    }
+    [data-testid="stSidebarCollapsedControl"] {
+        display: none !important;
+    }
+    .main > div {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+    /* تحسين الخطوط */
+    .greeting-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 20px;
+        margin-bottom: 1.5rem;
+        color: white;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    .motivation-card {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 15px;
+        margin-bottom: 1rem;
+        border-right: 4px solid #4CAF50;
+        font-size: 1.1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ===== عبارات تشجيعية متنوعة =====
+MOTIVATIONAL_QUOTES = [
+    "💪 أنت تبذل جهداً رائعاً! استمر في التألق!",
+    "🌟 كل يوم عمل هو خطوة نحو النجاح. أنت مميز!",
+    "🏆 أداؤك المتميز يلهم الجميع. فخورون بك!",
+    "🌙 حتى في الليالي الطويلة، نورك يضيء القسم. شكراً لك!",
+    "💙 وجودك يجعل فريقنا أقوى. نحن نقدر تفانيك!",
+    "✨ عملك الجليل لا يمر دون تقدير. أنت نجمنا!",
+    "🫡 شكراً لالتزامك وإخلاصك في العمل.",
+    "🌅 كل صباح جديد معك هو بداية مميزة. استمر!",
+    "🎯 أنت قدوة حسنة لزملائك. فخورون بك!",
+    "🤝 تعاونك وروحك العالية تصنع الفرق.",
+    "📈 إنجازاتك تتحدث عن نفسها. نحن نقدر جهودك!",
+    "⭐ نجم القطاع الجنوبي! أداؤك رائع دائماً."
+]
+
+# ===== تحيات حسب الوقت =====
+def get_time_greeting():
+    hour = datetime.now().hour
+    if 5 <= hour < 12:
+        return "🌅 صباح الخير"
+    elif 12 <= hour < 16:
+        return "☀️ مساء الخير"
+    elif 16 <= hour < 20:
+        return "🌤️ مساء النور"
+    else:
+        return "🌙 مساء الخير"
+
+# ===== رسالة حسب نسبة الإنجاز =====
+def get_achievement_message(rate):
+    if rate >= 90:
+        return "🏆 **متميز!** أنت من أفضل الموظفين هذا الشهر!"
+    elif rate >= 70:
+        return "🌟 **أداء رائع!** استمر بنفس الوتيرة الممتازة!"
+    elif rate >= 50:
+        return "👍 **أحسنت!** مع القليل من الجهد ستصل للقمة!"
+    elif rate >= 30:
+        return "💪 **لا تستسلم!** أنت قادر على تحقيق المزيد!"
+    else:
+        return "🌱 **بداية ممتازة!** كل رحلة تبدأ بخطوة، ونحن ندعمك!"
 
 # تعريف ثوابت المناوبات
 SHIFT_TYPES = {
@@ -33,6 +109,10 @@ if "employee_id" not in st.session_state:
     st.session_state.employee_id = None
 if "full_name" not in st.session_state:
     st.session_state.full_name = None
+if "username" not in st.session_state:
+    st.session_state.username = None
+if "daily_quote" not in st.session_state:
+    st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
 
 # ===== صفحة تسجيل الدخول =====
 def show_login():
@@ -53,7 +133,6 @@ def show_login():
             else:
                 with st.spinner("جاري تسجيل الدخول..."):
                     try:
-                        # 1. تسجيل الدخول
                         response = requests.post(
                             f"{config.API_URL}/api/auth/login",
                             data={"username": username, "password": password},
@@ -66,7 +145,6 @@ def show_login():
                             st.session_state.token = token
                             st.session_state.username = username
                             
-                            # 2. جلب بيانات المستخدم (بما فيها employee_id)
                             headers = {"Authorization": f"Bearer {token}"}
                             user_response = requests.get(
                                 f"{config.API_URL}/api/auth/me",
@@ -79,13 +157,15 @@ def show_login():
                                 st.session_state.employee_id = user_data.get("employee_id")
                                 st.session_state.full_name = user_data.get("full_name", username)
                                 st.session_state.authenticated = True
+                                # تحديث العبارة اليومية
+                                st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
                                 st.success(f"✅ مرحباً {st.session_state.full_name}")
                                 st.rerun()
                             else:
-                                # إذا فشل جلب البيانات، استخدم بيانات افتراضية
                                 st.session_state.employee_id = None
                                 st.session_state.full_name = username
                                 st.session_state.authenticated = True
+                                st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
                                 st.warning("تم تسجيل الدخول ولكن لم نتمكن من جلب بياناتك بالكامل")
                                 st.rerun()
                         else:
@@ -95,11 +175,20 @@ def show_login():
 
 # ===== صفحة عرض المناوبات =====
 def show_shifts():
-    st.title(f"📅 مناوباتي")
-    st.caption(f"مرحباً {st.session_state.get('full_name', st.session_state.username)}")
+    full_name = st.session_state.get('full_name', st.session_state.username)
+    greeting = get_time_greeting()
+    
+    # ✅ بطاقة ترحيبية مميزة
+    st.markdown(f"""
+    <div class="greeting-card">
+        <h1 style="margin: 0; font-size: 2rem;">{greeting}</h1>
+        <h2 style="margin: 0.5rem 0; font-size: 1.8rem;">{full_name} 👋</h2>
+        <p style="margin: 0; opacity: 0.9; font-size: 1.1rem;">يسعدنا وجودك معنا اليوم</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     if not st.session_state.employee_id:
-        st.error("❌ لم يتم العثور على بيانات الموظف")
+        st.warning("⚠️ لم يتم العثور على بيانات الموظف")
         if st.button("تسجيل خروج"):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
@@ -130,7 +219,7 @@ def show_shifts():
                 f"{config.API_URL}/api/shifts/by_employee",
                 headers=headers,
                 params={
-                    "employee_id": st.session_state.employee_id,  # 👈 المعرف الصحيح
+                    "employee_id": st.session_state.employee_id,
                     "start_date": start_date,
                     "end_date": end_date,
                     "limit": 40
@@ -147,10 +236,6 @@ def show_shifts():
         except Exception as e:
             st.error(f"خطأ في تحميل البيانات: {str(e)}")
             return
-    
-    if not shifts:
-        st.info(f"📭 لا توجد مناوبات مسجلة لك في {calendar.month_name[month]} {year}")
-        return
     
     # تحليل البيانات
     days_in_month = calendar.monthrange(year, month)[1]
@@ -180,7 +265,14 @@ def show_shifts():
                 if shift_type in SHIFT_TYPES:
                     total_hours += SHIFT_TYPES[shift_type]["hours"]
     
-    # عرض الإحصائيات
+    required = 192
+    rate = int((total_hours / required) * 100) if required > 0 else 0
+    rate = min(rate, 100)
+    
+    # ✅ عرض عبارة تشجيعية حسب الإنجاز
+    achievement_msg = get_achievement_message(rate)
+    
+    # ✅ عرض الإحصائيات مع عبارة تشجيعية
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("📅 أيام العمل", work_days)
@@ -189,9 +281,27 @@ def show_shifts():
     with col3:
         st.metric("⏱️ إجمالي الساعات", f"{total_hours} س")
     with col4:
-        required = 192
-        rate = int((total_hours / required) * 100) if required > 0 else 0
-        st.metric("📊 نسبة الإنجاز", f"{min(rate, 100)}%")
+        st.metric("📊 نسبة الإنجاز", f"{rate}%")
+    
+    # ✅ عرض عبارة تشجيعية عشوائية
+    st.markdown(f"""
+    <div class="motivation-card">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.8rem;">💙</span>
+            <span style="font-size: 1.1rem;">{achievement_msg}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # ✅ عرض عبارة اليوم
+    st.markdown(f"""
+    <div class="motivation-card" style="background: #e8f5e9; border-right-color: #4CAF50;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.8rem;">✨</span>
+            <span style="font-size: 1.1rem;">{st.session_state.daily_quote}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.divider()
     
@@ -217,6 +327,13 @@ def show_shifts():
                 info = SHIFT_TYPES[code]
                 with cols[i % 4]:
                     st.markdown(f"<div style='background:{info['color']}; padding:0.5rem; border-radius:8px; text-align:center; color:white;'><strong>{code}</strong><br>{info['name']}</div>", unsafe_allow_html=True)
+    
+    # زر تحديث العبارة
+    col1, col2 = st.columns([4, 1])
+    with col2:
+        if st.button("🔄 عبارة جديدة", use_container_width=True):
+            st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
+            st.rerun()
     
     # زر تسجيل الخروج
     st.divider()
