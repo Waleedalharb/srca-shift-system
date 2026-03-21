@@ -267,7 +267,6 @@ def build_month_weeks(year, month, shifts_dict):
     days_in_month = cal.monthrange(year, month)[1]
     
     # حساب عدد الأيام الفارغة قبل بداية الشهر (الأحد = 0)
-    # weekday(): 0=الإثنين, 6=الأحد
     start_offset = (first_day.weekday() + 1) % 7
     
     weeks = []
@@ -534,15 +533,13 @@ def show_shifts():
     weeks = build_month_weeks(year, month, shifts_dict)
     weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
+    # بناء الجدول باستخدام حلقة بسيطة
     table_html = '<div class="shift-table-container"><table class="shift-table">'
-    
-    # رأس الجدول
     table_html += '<thead>资本'
     for wd in weekdays_ar:
         table_html += f'<th>{wd}</th>'
     table_html += '</thead><tbody>'
     
-    # صفوف الأسابيع
     for week in weeks:
         table_html += ' tr'
         for day_data in week:
@@ -568,15 +565,10 @@ def show_shifts():
                 else:
                     shift_display = '<span class="shift-empty">—</span>'
                 
-                table_html += f'''
-                <td{cell_class}>
-                    <div class="shift-day-number">{day_num}</div>
-                    <div>{shift_display}</div>
-                  
-                '''
+                table_html += f'<td{cell_class}><div class="shift-day-number">{day_num}</div><div>{shift_display}</div></td>'
         table_html += '   '
     
-    table_html += '</tbody>   </div>'
+    table_html += '</tbody></table></div>'
     st.markdown(table_html, unsafe_allow_html=True)
     
     st.caption(f"📌 {work} يوم عمل | {hours} ساعة | {rate}% إنجاز")
