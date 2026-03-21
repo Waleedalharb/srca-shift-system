@@ -30,7 +30,10 @@ st.markdown("""
         .stat-card { padding: 0.75rem !important; }
         .stat-value { font-size: 1.3rem !important; }
         .stat-label { font-size: 0.65rem !important; }
-        .settings-section { padding: 0.8rem !important; }
+        .shift-table th { padding: 8px 2px; font-size: 0.7rem; }
+        .shift-table td { min-width: 55px; padding: 6px 1px; }
+        .shift-badge { padding: 3px 6px; font-size: 0.65rem; }
+        .shift-day-number { font-size: 0.7rem; }
     }
     
     /* بطاقة الترحيب */
@@ -110,56 +113,6 @@ st.markdown("""
         color: #1e293b;
     }
     
-    /* قسم الإعدادات */
-    .settings-section {
-        background: #ffffff;
-        border-radius: 20px;
-        padding: 1rem 1.2rem;
-        margin: 1rem 0;
-        border: 1px solid #eef2f6;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-    }
-    .settings-title {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #1e2a3a;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #eef2f6;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    /* أيقونة الإشعارات */
-    .top-bar {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-    }
-    .icon-btn {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 40px;
-        padding: 0.4rem 0.8rem;
-        font-size: 0.8rem;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .icon-btn:hover {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-    }
-    .notification-badge {
-        background: #dc2626;
-        color: white;
-        border-radius: 20px;
-        padding: 0.1rem 0.4rem;
-        font-size: 0.7rem;
-        margin-left: 0.3rem;
-    }
-    
     /* جدول المناوبات */
     .shift-table-container {
         overflow-x: auto;
@@ -171,43 +124,61 @@ st.markdown("""
     .shift-table {
         width: 100%;
         border-collapse: collapse;
+        font-family: system-ui, -apple-system, sans-serif;
         min-width: 600px;
     }
     .shift-table th {
         background: #f8fafc;
-        padding: 12px 8px;
+        padding: 12px 6px;
         text-align: center;
         font-weight: 600;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         color: #1e293b;
         border-bottom: 1px solid #e2e8f0;
     }
     .shift-table td {
-        padding: 10px 4px;
+        padding: 8px 2px;
         text-align: center;
         border: 1px solid #f0f2f5;
         vertical-align: middle;
+        min-width: 70px;
     }
     .shift-day-number {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         font-weight: 500;
         color: #64748b;
         margin-bottom: 6px;
     }
     .shift-badge {
         display: inline-block;
-        padding: 6px 12px;
-        border-radius: 24px;
-        font-size: 0.75rem;
+        padding: 4px 8px;
+        border-radius: 20px;
+        font-size: 0.7rem;
         font-weight: 600;
     }
     .shift-empty {
-        color: #94a3b8;
-        font-size: 0.75rem;
+        color: #cbd5e1;
+        font-size: 0.7rem;
     }
-    .today-cell { background: #eef2ff; }
-    .weekend-cell { background: #fefce8; }
-    .other-month-cell { background: #fafafa; color: #cbd5e1; }
+    .today-cell {
+        background: #eef2ff;
+        position: relative;
+    }
+    .today-cell::before {
+        content: "●";
+        position: absolute;
+        top: 2px;
+        right: 5px;
+        font-size: 8px;
+        color: #3b82f6;
+    }
+    .weekend-cell {
+        background: #fef9e6;
+    }
+    .other-month-cell {
+        background: #fafafa;
+        opacity: 0.7;
+    }
     
     /* دليل الرموز */
     .legend-item {
@@ -238,7 +209,6 @@ MOTIVATIONAL_QUOTES = [
     "نجم القطاع الجنوبي! أداؤك رائع دائماً"
 ]
 
-# ===== رسالة حسب نسبة الإنجاز =====
 def get_achievement_message(rate):
     if rate >= 90:
         return "🏆 متميز! أنت من أفضل الموظفين هذا الشهر"
@@ -283,8 +253,12 @@ if "show_settings" not in st.session_state:
     st.session_state.show_settings = False
 
 # ===== دوال API =====
-def fetch_notifications():
+def refresh_notifications():
+    """جلب الإشعارات من API وتحديث session_state"""
     try:
+        if not st.session_state.token:
+            return []
+        
         headers = {"Authorization": f"Bearer {st.session_state.token}"}
         response = requests.get(
             f"{config.API_URL}/api/notifications",
@@ -292,11 +266,15 @@ def fetch_notifications():
             timeout=10
         )
         if response.status_code == 200:
-            st.session_state.notifications = response.json()
-            return st.session_state.notifications
+            notifications = response.json()
+            st.session_state.notifications = notifications
+            return notifications
+        else:
+            print(f"⚠️ فشل جلب الإشعارات: {response.status_code}")
+            return []
     except Exception as e:
-        print(f"Error fetching notifications: {e}")
-    return []
+        print(f"❌ خطأ في جلب الإشعارات: {e}")
+        return []
 
 def mark_notification_read(notification_id):
     try:
@@ -307,7 +285,7 @@ def mark_notification_read(notification_id):
             timeout=10
         )
         if response.status_code == 200:
-            fetch_notifications()
+            refresh_notifications()
             return True
     except:
         pass
@@ -336,26 +314,39 @@ def change_password(current_password, new_password, confirm_password):
         return False, f"خطأ في الاتصال: {str(e)}"
 
 def prepare_weekly_calendar(year, month, shifts_dict):
-    first_day = date(year, month, 1)
-    start_date = first_day - timedelta(days=first_day.weekday())
+    """تحضير بيانات التقويم الأسبوعي بشكل صحيح"""
+    first_day_of_month = date(year, month, 1)
+    # الأحد = 0 في التقويم، نحتاج ضبط البداية
+    start_weekday = first_day_of_month.weekday()
+    # تحويل إلى الأحد كأول يوم (في Python الأحد = 6، الإثنين = 0)
+    start_offset = (start_weekday + 1) % 7
+    
+    start_date = first_day_of_month - timedelta(days=start_offset)
+    
     weeks = []
     current = start_date
-    while current.month <= month or (current.month == month + 1 and current.weekday() != 0):
+    
+    for week_num in range(6):
         week = []
         for i in range(7):
             day_data = {
                 "date": current,
                 "day": current.day,
-                "shift": shifts_dict.get(current.day, ""),
+                "month": current.month,
+                "shift": shifts_dict.get(current.day, "") if current.month == month else "",
                 "is_current_month": current.month == month,
                 "is_today": current == date.today(),
                 "is_weekend": current.weekday() >= 5
             }
             week.append(day_data)
             current += timedelta(days=1)
-        weeks.append(week)
-        if current.month > month + 1:
+        
+        # إذا كان الأسبوع لا يحتوي على أي يوم من الشهر المطلوب، نتوقف
+        if not any(day["is_current_month"] for day in week) and week_num > 0:
             break
+        
+        weeks.append(week)
+    
     return weeks
 
 # ===== صفحة تسجيل الدخول =====
@@ -414,7 +405,7 @@ def show_login():
                             st.session_state.full_name = full_name
                             st.session_state.authenticated = True
                             st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
-                            fetch_notifications()
+                            refresh_notifications()
                             
                             st.success(f"✅ مرحباً {full_name}")
                             st.rerun()
@@ -436,8 +427,8 @@ def show_shifts():
     else:
         greeting = "مساء الخير"
     
-    # ===== الشريط العلوي (إشعارات + إعدادات) =====
-    col1, col2, col3 = st.columns([8, 1, 1])
+    # ===== الشريط العلوي =====
+    col1, col2, col3, col4 = st.columns([6, 1, 1, 1])
     with col2:
         notifications = st.session_state.notifications
         unread_count = len([n for n in notifications if not n.get("is_read", False)])
@@ -445,6 +436,11 @@ def show_shifts():
         if st.button(btn_label, key="notification_btn", use_container_width=True):
             st.session_state.show_notifications = not st.session_state.show_notifications
     with col3:
+        if st.button("🔄", key="refresh_btn", use_container_width=True, help="تحديث الإشعارات"):
+            refresh_notifications()
+            st.success("✅ تم تحديث الإشعارات")
+            st.rerun()
+    with col4:
         if st.button("⚙️", key="settings_btn", use_container_width=True):
             st.session_state.show_settings = not st.session_state.show_settings
     
@@ -703,7 +699,7 @@ def show_shifts():
             <td{cell_class}>
                 <div class="shift-day-number">{day_num}</div>
                 <div>{shift_display}</div>
-            </td>
+             </td>
             '''
         table_html += '</tr>'
     
@@ -736,7 +732,7 @@ def main():
         show_login()
     else:
         if st.session_state.token:
-            fetch_notifications()
+            refresh_notifications()
         show_shifts()
 
 if __name__ == "__main__":
