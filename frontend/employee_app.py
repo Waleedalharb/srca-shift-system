@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ===== تنسيقات متجاوبة للجوال والتابلت =====
+# ===== التنسيقات =====
 st.markdown("""
 <style>
     /* إخفاء الشريط الجانبي */
@@ -30,16 +30,6 @@ st.markdown("""
         .stat-card { padding: 0.75rem !important; }
         .stat-value { font-size: 1.3rem !important; }
         .stat-label { font-size: 0.65rem !important; }
-        .week-header { font-size: 0.7rem !important; }
-        .shift-cell { padding: 4px !important; font-size: 0.7rem !important; }
-        .notification-badge { width: 18px !important; height: 18px !important; font-size: 0.6rem !important; }
-    }
-    
-    /* تحسين للتابلت */
-    @media (min-width: 769px) and (max-width: 1024px) {
-        .greeting-card h2 { font-size: 1.5rem !important; }
-        .stat-value { font-size: 1.6rem !important; }
-        .week-header { font-size: 0.8rem !important; }
     }
     
     /* بطاقة الترحيب */
@@ -51,7 +41,6 @@ st.markdown("""
         text-align: center;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         border-top: 3px solid #d4af37;
-        border-bottom: 1px solid #eef2f6;
     }
     .greeting-card h1 {
         margin: 0;
@@ -79,7 +68,6 @@ st.markdown("""
         text-align: center;
         box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         border: 1px solid #eef2f6;
-        transition: all 0.2s;
     }
     .stat-value {
         font-size: 1.6rem;
@@ -99,7 +87,6 @@ st.markdown("""
         margin-top: 0.3rem;
     }
     .trend-up { background: #e6f7e6; color: #2e7d32; }
-    .trend-down { background: #ffebee; color: #c62828; }
     .trend-neutral { background: #f5f5f5; color: #5d6b82; }
     
     /* بطاقات العبارات */
@@ -127,7 +114,6 @@ st.markdown("""
         position: relative;
         display: inline-block;
         cursor: pointer;
-        font-size: 1.2rem;
     }
     .notification-badge {
         position: absolute;
@@ -145,63 +131,56 @@ st.markdown("""
         font-weight: bold;
     }
     
-    /* جدول التقويم الأسبوعي */
-    .calendar-container {
+    /* جدول المناوبات */
+    .shift-table-container {
         overflow-x: auto;
         margin: 1rem 0;
+        border-radius: 16px;
+        border: 1px solid #eef2f6;
+        background: white;
     }
-    .week-table {
+    .shift-table {
         width: 100%;
         border-collapse: collapse;
-        background: white;
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         min-width: 600px;
     }
-    .week-table th {
+    .shift-table th {
         background: #f8fafc;
-        padding: 10px 6px;
+        padding: 12px 8px;
         text-align: center;
         font-weight: 600;
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         color: #1e293b;
         border-bottom: 1px solid #e2e8f0;
     }
-    .week-table td {
-        border: 1px solid #eef2f6;
-        padding: 8px 4px;
+    .shift-table td {
+        padding: 10px 4px;
         text-align: center;
+        border: 1px solid #f0f2f5;
         vertical-align: middle;
     }
-    .day-number {
-        font-size: 0.7rem;
-        color: #6c757d;
-        margin-bottom: 4px;
+    .shift-day-number {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: #64748b;
+        margin-bottom: 6px;
     }
     .shift-badge {
         display: inline-block;
-        padding: 4px 8px;
-        border-radius: 20px;
-        font-size: 0.7rem;
-        font-weight: 500;
+        padding: 6px 12px;
+        border-radius: 24px;
+        font-size: 0.75rem;
+        font-weight: 600;
     }
-    .weekend {
-        background: #fef9e6;
+    .shift-empty {
+        color: #94a3b8;
+        font-size: 0.75rem;
     }
-    .today {
-        background: #e6f7ff;
-        border-left: 2px solid #1890ff;
-    }
+    .today-cell { background: #eef2ff; }
+    .weekend-cell { background: #fefce8; }
+    .other-month-cell { background: #fafafa; color: #cbd5e1; }
     
     /* دليل الرموز */
-    .legend-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        justify-content: center;
-        margin-top: 0.5rem;
-    }
     .legend-item {
         display: inline-flex;
         align-items: center;
@@ -212,17 +191,8 @@ st.markdown("""
     }
     
     /* زر تسجيل الخروج */
-    .logout-btn {
-        margin-top: 1rem;
-        text-align: center;
-    }
-    
-    hr {
-        margin: 1rem 0;
-        border: none;
-        height: 1px;
-        background: #eef2f6;
-    }
+    .logout-btn { margin-top: 1rem; text-align: center; }
+    hr { margin: 1rem 0; border: none; height: 1px; background: #eef2f6; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -231,7 +201,6 @@ MOTIVATIONAL_QUOTES = [
     "أنت تبذل جهداً رائعاً! استمر في التألق",
     "كل يوم عمل هو خطوة نحو النجاح. أنت مميز",
     "أداؤك المتميز يلهم الجميع. فخورون بك",
-    "حتى في الليالي الطويلة، نورك يضيء القسم",
     "وجودك يجعل فريقنا أقوى. نحن نقدر تفانيك",
     "عملك الجليلي لا يمر دون تقدير. أنت نجمنا",
     "شكراً لالتزامك وإخلاصك في العمل",
@@ -283,6 +252,8 @@ if "notifications" not in st.session_state:
     st.session_state.notifications = []
 if "show_notifications" not in st.session_state:
     st.session_state.show_notifications = False
+if "current_view" not in st.session_state:
+    st.session_state.current_view = "shifts"  # shifts, settings
 
 # ===== دالة جلب الإشعارات =====
 def fetch_notifications():
@@ -316,16 +287,41 @@ def mark_notification_read(notification_id):
         pass
     return False
 
-# ===== دالة تحضير بيانات التقويم الأسبوعي =====
+# ===== دالة تغيير كلمة المرور =====
+def change_password(current_password, new_password, confirm_password):
+    if new_password != confirm_password:
+        return False, "كلمة المرور الجديدة غير متطابقة"
+    
+    if len(new_password) < 6:
+        return False, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"
+    
+    try:
+        headers = {"Authorization": f"Bearer {st.session_state.token}"}
+        response = requests.post(
+            f"{config.API_URL}/api/auth/change-password",
+            headers=headers,
+            json={
+                "current_password": current_password,
+                "new_password": new_password
+            },
+            timeout=10
+        )
+        if response.status_code == 200:
+            return True, "تم تغيير كلمة المرور بنجاح"
+        elif response.status_code == 401:
+            return False, "كلمة المرور الحالية غير صحيحة"
+        else:
+            return False, "حدث خطأ. حاول مرة أخرى"
+    except Exception as e:
+        return False, f"خطأ في الاتصال: {str(e)}"
+
+# ===== دالة تحضير بيانات التقويم =====
 def prepare_weekly_calendar(year, month, shifts_dict):
-    # الحصول على أول يوم في الشهر
     first_day = date(year, month, 1)
     start_date = first_day - timedelta(days=first_day.weekday())
     
-    # إنشاء أسابيع الشهر
     weeks = []
     current = start_date
-    today = date.today()
     
     while current.month <= month or (current.month == month + 1 and current.weekday() != 0):
         week = []
@@ -335,7 +331,7 @@ def prepare_weekly_calendar(year, month, shifts_dict):
                 "day": current.day,
                 "shift": shifts_dict.get(current.day, ""),
                 "is_current_month": current.month == month,
-                "is_today": current == today,
+                "is_today": current == date.today(),
                 "is_weekend": current.weekday() >= 5
             }
             week.append(day_data)
@@ -405,8 +401,8 @@ def show_login():
                             st.session_state.full_name = full_name
                             st.session_state.authenticated = True
                             st.session_state.daily_quote = random.choice(MOTIVATIONAL_QUOTES)
+                            st.session_state.current_view = "shifts"
                             
-                            # جلب الإشعارات
                             fetch_notifications()
                             
                             st.success(f"✅ مرحباً {full_name}")
@@ -415,6 +411,67 @@ def show_login():
                             st.error("❌ الرقم الوظيفي أو كلمة المرور غير صحيحة")
                     except Exception as e:
                         st.error(f"❌ فشل الاتصال بالخادم: {str(e)}")
+
+# ===== صفحة الإعدادات =====
+def show_settings():
+    st.subheader("⚙️ الإعدادات الشخصية")
+    st.markdown("---")
+    
+    # معلومات الموظف
+    with st.container():
+        st.markdown("### 👤 معلومات الحساب")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.text_input("الرقم الوظيفي", value=st.session_state.username, disabled=True)
+        with col2:
+            st.text_input("الاسم الكامل", value=st.session_state.full_name, disabled=True)
+    
+    st.markdown("---")
+    
+    # تغيير كلمة المرور
+    with st.container():
+        st.markdown("### 🔐 تغيير كلمة المرور")
+        
+        with st.form("change_password_form"):
+            current_pwd = st.text_input("كلمة المرور الحالية", type="password")
+            new_pwd = st.text_input("كلمة المرور الجديدة", type="password", placeholder="6 أحرف على الأقل")
+            confirm_pwd = st.text_input("تأكيد كلمة المرور الجديدة", type="password")
+            
+            col1, col2, col3 = st.columns([2, 1, 2])
+            with col2:
+                submitted = st.form_submit_button("تحديث كلمة المرور", use_container_width=True, type="primary")
+            
+            if submitted:
+                if not current_pwd or not new_pwd or not confirm_pwd:
+                    st.error("❌ الرجاء تعبئة جميع الحقول")
+                else:
+                    success, message = change_password(current_pwd, new_pwd, confirm_pwd)
+                    if success:
+                        st.success(f"✅ {message}")
+                        # مسح الحقول
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+    
+    st.markdown("---")
+    
+    # إشعارات التطبيق
+    with st.container():
+        st.markdown("### 🔔 إشعارات التطبيق")
+        notifications_enabled = st.toggle("تفعيل الإشعارات", value=True)
+        if notifications_enabled:
+            st.info("📬 سيتم إرسال إشعارات عند تعديل مناوباتك")
+        else:
+            st.warning("🔕 الإشعارات معطلة")
+    
+    st.markdown("---")
+    
+    # زر العودة
+    col1, col2, col3 = st.columns([2, 1, 2])
+    with col2:
+        if st.button("🔙 العودة للصفحة الرئيسية", use_container_width=True):
+            st.session_state.current_view = "shifts"
+            st.rerun()
 
 # ===== صفحة عرض المناوبات =====
 def show_shifts():
@@ -429,8 +486,8 @@ def show_shifts():
     else:
         greeting = "مساء الخير"
     
-    # ===== رأس الصفحة مع الإشعارات =====
-    col1, col2, col3 = st.columns([1, 8, 1])
+    # ===== رأس الصفحة =====
+    col1, col2, col3, col4 = st.columns([1, 6, 1, 1])
     with col3:
         notifications = st.session_state.notifications
         unread_count = len([n for n in notifications if not n.get("is_read", False)])
@@ -441,6 +498,11 @@ def show_shifts():
         else:
             if st.button("🔔", key="notification_btn", use_container_width=True):
                 st.session_state.show_notifications = not st.session_state.show_notifications
+    
+    with col4:
+        if st.button("⚙️", key="settings_btn", use_container_width=True):
+            st.session_state.current_view = "settings"
+            st.rerun()
     
     # ===== عرض الإشعارات =====
     if st.session_state.show_notifications:
@@ -561,8 +623,6 @@ def show_shifts():
     rate = min(rate, 100)
     
     # ===== عرض الإحصائيات =====
-    st.markdown('<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem;">', unsafe_allow_html=True)
-    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(f"""
@@ -597,8 +657,6 @@ def show_shifts():
         </div>
         """, unsafe_allow_html=True)
     
-    st.markdown('</div>', unsafe_allow_html=True)
-    
     # ===== عرض عبارة حسب الإنجاز =====
     achievement_msg = get_achievement_message(rate)
     st.markdown(f"""
@@ -616,26 +674,24 @@ def show_shifts():
     
     st.divider()
     
-    # ===== جدول المناوبات (عرض أسبوعي) =====
+    # ===== جدول المناوبات =====
     st.subheader(f"📅 جدول مناوباتي - {calendar.month_name[month]} {year}")
     
     weeks = prepare_weekly_calendar(year, month, shifts_dict)
-    today = date.today()
-    
     weekdays_ar = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
     
-    st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
-    st.markdown('<table class="week-table">', unsafe_allow_html=True)
+    # بناء الجدول
+    table_html = '<div class="shift-table-container"><table class="shift-table">'
     
     # رأس الجدول
-    st.markdown('<tr>', unsafe_allow_html=True)
+    table_html += '<thead>资本'
     for day in weekdays_ar:
-        st.markdown(f'<th class="week-header">{day}</th>', unsafe_allow_html=True)
-    st.markdown('</tr>', unsafe_allow_html=True)
+        table_html += f'<th>{day}</th>'
+    table_html += '</tr></thead><tbody>'
     
     # صفوف الأسابيع
     for week in weeks:
-        st.markdown('<tr>', unsafe_allow_html=True)
+        table_html += '<tr>'
         for day_data in week:
             day_num = day_data["day"]
             shift = day_data["shift"]
@@ -643,35 +699,35 @@ def show_shifts():
             is_weekend = day_data["is_weekend"]
             is_current = day_data["is_current_month"]
             
-            if not is_current:
-                st.markdown('<td style="background: #fafafa; color: #ccc;"></td>', unsafe_allow_html=True)
-                continue
-            
-            shift_info = SHIFT_TYPES.get(shift, None)
-            shift_display = ""
-            if shift_info:
-                shift_display = f'<span class="shift-badge" style="background:{shift_info["bg"]}; color:{shift_info["color"]}; font-weight:500;">{shift}</span>'
-            elif shift:
-                shift_display = f'<span class="shift-badge" style="background:#f0f0f0;">{shift}</span>'
-            else:
-                shift_display = '<span style="color:#bbb;">—</span>'
-            
             cell_class = ""
-            if is_today:
-                cell_class = ' class="today"'
+            if not is_current:
+                cell_class = ' class="other-month-cell"'
+            elif is_today:
+                cell_class = ' class="today-cell"'
             elif is_weekend:
-                cell_class = ' class="weekend"'
+                cell_class = ' class="weekend-cell"'
             
-            st.markdown(f'''
+            if shift and shift in SHIFT_TYPES:
+                info = SHIFT_TYPES[shift]
+                shift_display = f'<span class="shift-badge" style="background:{info["bg"]}; color:{info["color"]};">{shift}</span>'
+            elif shift:
+                shift_display = f'<span class="shift-badge" style="background:#f1f5f9; color:#475569;">{shift}</span>'
+            else:
+                shift_display = '<span class="shift-empty">—</span>'
+            
+            table_html += f'''
             <td{cell_class}>
-                <div class="day-number">{day_num}</div>
+                <div class="shift-day-number">{day_num}</div>
                 <div>{shift_display}</div>
-            </td>
-            ''', unsafe_allow_html=True)
-        st.markdown('</tr>', unsafe_allow_html=True)
+             </td>
+            '''
+        table_html += '</tr>'
     
-    st.markdown('</table>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    table_html += '</tbody></table></div>'
+    st.markdown(table_html, unsafe_allow_html=True)
+    
+    # ملخص سريع
+    st.caption(f"📌 أيام العمل: {work_days} | إجمالي الساعات: {total_hours} س | نسبة الإنجاز: {rate}%")
     
     # ===== دليل الرموز =====
     with st.expander("🔑 دليل الرموز"):
@@ -695,10 +751,13 @@ def main():
     if not st.session_state.authenticated:
         show_login()
     else:
-        # تحديث الإشعارات بشكل دوري (في كل إعادة تحميل)
         if st.session_state.token:
             fetch_notifications()
-        show_shifts()
+        
+        if st.session_state.get("current_view") == "settings":
+            show_settings()
+        else:
+            show_shifts()
 
 if __name__ == "__main__":
     main()
