@@ -99,7 +99,7 @@ def show_login_page():
                             st.session_state.username = username
                             st.session_state.authenticated = True
                             st.session_state.current_page = "my_shifts"
-                            st.query_params.clear()  # 👈 إضافة هذا السطر لمنع إعادة التوجيه إلى login
+                            st.query_params.clear()
                             
                             st.success("✅ تم تسجيل الدخول بنجاح (كموظف)")
                             st.rerun()
@@ -113,8 +113,9 @@ def show_login_page():
                             
                             try:
                                 headers = {"Authorization": f"Bearer {token}"}
+                                # ✅ المسار الصحيح من openapi.json
                                 user_response = requests.get(
-                                    f"{config.API_URL}/users/me",
+                                    f"{config.API_URL}/api/auth/me",  # 👈 هذا هو المسار الصحيح
                                     headers=headers,
                                     timeout=5
                                 )
@@ -127,7 +128,7 @@ def show_login_page():
                                     st.session_state.user_full_name = user_data.get("full_name", username)
                                     st.session_state.username = username
                                     st.session_state.authenticated = True
-                                    st.query_params.clear()  # 👈 إضافة هذا السطر
+                                    st.query_params.clear()
                                     
                                     # توجيه حسب الدور
                                     if st.session_state.user_role in ['ADMIN', 'CHIEF_PARAMEDIC']:
